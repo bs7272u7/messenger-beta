@@ -1,7 +1,6 @@
 Flask
 Flask-SocketIO
 eventlet
-gunicorn
 psycopg2-binary
 Werkzeug
 python-dotenv
