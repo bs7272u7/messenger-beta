@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-a: #1c1a3d;
+            --bg-b: #2c1c4a;
+            --bg-c: #3a1f4d;
+            --surface: rgba(255, 255, 255, 0.06);
+            --surface-strong: rgba(255, 255, 255, 0.1);
+            --border-glass: rgba(255, 255, 255, 0.14);
+            --text-primary: #f6f4ff;
+            --text-muted: #b3add9;
+            --text-faint: #7d76a8;
+            --accent: #ff6f91;
+            --accent-soft: rgba(255, 111, 145, 0.18);
+            --accent-2: #5eead4;
+            --error: #ff6b6b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            background:
+                radial-gradient(60% 50% at 15% 8%, rgba(255, 111, 145, 0.16), transparent 60%),
+                radial-gradient(55% 45% at 90% 90%, rgba(94, 234, 212, 0.12), transparent 60%),
+                linear-gradient(160deg, var(--bg-a) 0%, var(--bg-b) 50%, var(--bg-c) 100%);
+            color: var(--text-primary);
+            font-family: 'Noto Sans KR', -apple-system, sans-serif;
+            letter-spacing: -0.2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ── 배경에 떠다니는 말풍선 장식 ── */
+        .bubble-deco {
+            position: fixed;
+            pointer-events: none;
+            filter: blur(1px);
+            opacity: 0.5;
+            z-index: 0;
+        }
+        .bubble-deco svg { display: block; filter: drop-shadow(0 10px 30px rgba(0,0,0,0.25)); }
+        .bubble-1 { top: 12%; left: 10%; width: 90px; animation: float-a 9s ease-in-out infinite; }
+        .bubble-2 { bottom: 16%; left: 7%; width: 60px; animation: float-b 7.5s ease-in-out infinite; opacity: 0.35; }
+        .bubble-3 { top: 18%; right: 9%; width: 70px; animation: float-b 8.5s ease-in-out infinite; opacity: 0.4; }
+        .bubble-4 { bottom: 10%; right: 12%; width: 100px; animation: float-a 10.5s ease-in-out infinite; opacity: 0.3; }
+
+        @keyframes float-a {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-18px) rotate(3deg); }
+        }
+        @keyframes float-b {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(14px) rotate(-4deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .bubble-deco { animation: none !important; }
+        }
+        @media (max-width: 640px) {
+            .bubble-deco { display: none; }
+        }
+
+        .auth-panel {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 368px;
+            padding: 40px 32px 34px;
+            border-radius: 26px;
+            background: var(--surface);
+            border: 1px solid var(--border-glass);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+            box-shadow: 0 24px 60px rgba(10, 6, 30, 0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+            animation: panel-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes panel-in {
+            from { opacity: 0; transform: translateY(14px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* ── 로고 마크: 말풍선 + 대화 점(...) ── */
+        .brand-mark {
+            width: 46px;
+            height: 46px;
+            margin: 0 auto 18px;
+            border-radius: 15px 15px 15px 4px;
+            background: linear-gradient(135deg, var(--accent), #a06bff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            box-shadow: 0 8px 20px var(--accent-soft);
+        }
+        .brand-mark span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #fff;
+            animation: dot-pulse 1.4s ease-in-out infinite;
+        }
+        .brand-mark span:nth-child(2) { animation-delay: 0.15s; }
+        .brand-mark span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes dot-pulse {
+            0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-2px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .brand-mark span { animation: none; opacity: 1; }
+        }
+
+        .auth-title {
+            font-size: 23px;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 6px;
+            letter-spacing: -0.4px;
+        }
+
+        .auth-subtitle {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 26px;
+        }
+
+        .field {
+            margin-bottom: 14px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 7px;
+            color: var(--text-muted);
+        }
+
+        .field input {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-glass);
+            border-radius: 13px;
+            font-family: inherit;
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+        }
+
+        .field input::placeholder { color: var(--text-faint); }
+
+        .field input:focus {
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+
+        .password_wrapper {
+            position: relative;
+        }
+
+        .field .show-password-row,
+        .field .remember-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .remember-row input[type="checkbox"],
+        .show-password-row input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            border-radius: 5px;
+            border: 1.5px solid var(--border-glass);
+            background: rgba(255,255,255,0.04);
+            cursor: pointer;
+            position: relative;
+            flex-shrink: 0;
+            transition: background-color 0.15s, border-color 0.15s;
+        }
+
+        .remember-row input[type="checkbox"]:checked,
+        .show-password-row input[type="checkbox"]:checked {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .remember-row input[type="checkbox"]:checked::after,
+        .show-password-row input[type="checkbox"]:checked::after {
+            content: "";
+            position: absolute;
+            left: 5px;
+            top: 1.5px;
+            width: 4px;
+            height: 8px;
+            border: solid #1c1a3d;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .error-text {
+            color: var(--error);
+            font-size: 12px;
+            margin: -4px 0 12px;
+            min-height: 14px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 13px 0;
+            font-size: 14px;
+            font-weight: 700;
+            border: none;
+            border-radius: 13px;
+            background: linear-gradient(135deg, var(--accent), #ff8f6b);
+            color: #201028;
+            cursor: pointer;
+            font-family: inherit;
+            box-shadow: 0 10px 24px var(--accent-soft);
+            transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+        }
+
+        .submit-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 28px var(--accent-soft); }
+        .submit-btn:active { transform: translateY(0); }
+        .submit-btn:disabled { opacity: 0.5; cursor: default; transform: none; box-shadow: none; }
+
+        #send-code-btn {
+            width: auto;
+            padding: 0 14px;
+            white-space: nowrap;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-primary);
+            border: 1px solid var(--border-glass);
+            box-shadow: none;
+            font-weight: 600;
+            font-size: 12.5px;
+        }
+        #send-code-btn:hover { transform: none; background: rgba(255, 255, 255, 0.1); box-shadow: none; }
+
+        .switch-row {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .signup-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            padding: 4px;
+            border: 1px solid var(--border-glass);
+            border-radius: 13px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 8px 0;
+            font-size: 12.5px;
+            font-weight: 600;
+            font-family: inherit;
+            border: none;
+            border-radius: 9px;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--accent), #a06bff);
+            color: #fff;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+        }
+
+        #code-timer { color: var(--error); }
+
+        .switch-link {
+            color: var(--accent-2);
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .switch-link:hover { text-decoration: underline; }
+
+        @media (max-width: 400px) {
+            .auth-panel { padding: 32px 22px 28px; border-radius: 22px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bubble-deco bubble-1">
+        <svg viewBox="0 0 90 70" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0h66a12 12 0 0112 12v28a12 12 0 01-12 12H34L14 66V52H12A12 12 0 010 40V12A12 12 0 0112 0z" fill="#ff6f91" fill-opacity="0.35"/>
+        </svg>
+    </div>
+    <div class="bubble-deco bubble-2">
+        <svg viewBox="0 0 60 48" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 0h40a10 10 0 0110 10v18a10 10 0 01-10 10H26L12 46V38H10A10 10 0 010 28V10A10 10 0 0110 0z" fill="#5eead4" fill-opacity="0.35"/>
+        </svg>
+    </div>
+    <div class="bubble-deco bubble-3">
+        <svg viewBox="0 0 70 56" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 0h48a11 11 0 0111 11v21a11 11 0 01-11 11H30L14 54V43h-3A11 11 0 010 32V11A11 11 0 0111 0z" fill="#a06bff" fill-opacity="0.3"/>
+        </svg>
+    </div>
+    <div class="bubble-deco bubble-4">
+        <svg viewBox="0 0 100 78" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 0h72a14 14 0 0114 14v26a14 14 0 01-14 14H40L18 74V54h-4A14 14 0 010 40V14A14 14 0 0114 0z" fill="#ff6f91" fill-opacity="0.22"/>
+        </svg>
+    </div>
+
+    <div class="auth-panel">
+        <div class="brand-mark"><span></span><span></span><span></span></div>
+
+        <div class="auth-title" id="form-title">로그인</div>
+        <div class="auth-subtitle" id="form-subtitle">계정으로 로그인해서 대화를 이어가세요.</div>
+
+        <div class="signup-tabs" id="signup-tabs" style="display:none;">
+            <button type="button" class="tab-btn active" id="tab-id" data-tab="id">아이디로 가입</button>
+            <button type="button" class="tab-btn" id="tab-email" data-tab="email">이메일로 가입</button>
+        </div>
+
+        <form id="auth-form">
+            <div class="field">
+                <label for="username">아이디</label>
+                <input type="text" id="username" autocomplete="username" required>
+            </div>
+
+            <div class="field" id="email-field" style="display: none;">
+                <label for="email">이메일</label>
+                <div style="display: flex; gap: 6px;">
+                    <input type="email" id="email" autocomplete="email" style="flex: 1;" required>
+                    <button type="button" id="send-code-btn" class="submit-btn">인증번호 받기</button>
+                </div>
+            </div>
+
+            <div class="field" id="code-field" style="display: none;">
+                <label for="code">인증번호</label>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <input type="text" id="code" maxlength="6" inputmode="numeric" style="flex:1;">
+                    <span id="code-timer" style="font-size:12px; width:40px;"></span>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="password">비밀번호</label>
+                <div class="password_wrapper">
+                    <input type="password" id="password" autocomplete="current-password" required>
+                </div>
+                <label class="remember-row" for="remember-me">
+                    <input type="checkbox" id="remember-me">
+                    <span>로그인 정보 저장</span>
+                </label>
+                <label class="show-password-row" for="show-password">
+                    <input type="checkbox" id="show-password">
+                    <span>비밀번호 표시</span>
+                </label>
+            </div>
+            <div class="error-text" id="error-text"></div>
+            <button type="submit" class="submit-btn" id="submit-btn">로그인</button>
+        </form>
+
+        <div class="switch-row">
+            <span id="switch-label">계정이 없으신가요?</span>
+            <span class="switch-link" id="switch-link">회원가입</span>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById("auth-form");
+        const usernameInput = document.getElementById("username");
+        const passwordInput = document.getElementById("password");
+        const showPasswordCheckbox = document.getElementById("show-password");
+        const rememberCheckbox = document.getElementById("remember-me");
+        const errorText = document.getElementById("error-text");
+        const submitBtn = document.getElementById("submit-btn");
+        const formTitle = document.getElementById("form-title");
+        const formSubtitle = document.getElementById("form-subtitle");
+        const switchLabel = document.getElementById("switch-label");
+        const switchLink = document.getElementById("switch-link");
+        const emailField = document.getElementById("email-field");
+        const codeField = document.getElementById("code-field");
+        const emailInput = document.getElementById("email");
+        const codeInput = document.getElementById("code");
+        const sendCodeBtn = document.getElementById("send-code-btn");
+        const codeTimer = document.getElementById("code-timer");
+        const signupTabs = document.getElementById("signup-tabs");
+        const tabIdBtn = document.getElementById("tab-id");
+        const tabEmailBtn = document.getElementById("tab-email");
+
+        let signupType = "id"; // "id" | "email" — 회원가입 모드일 때만 의미 있음
+        let codeSent = false;
+        let timerInterval = null;
+
+        let mode = "login"; // "login" | "register"
+
+        function applyMode() {
+            errorText.textContent = "";
+            if (mode === "login") {
+                formTitle.textContent = "로그인";
+                formSubtitle.textContent = "계정으로 로그인해서 대화를 이어가세요.";
+                submitBtn.textContent = "로그인";
+                switchLabel.textContent = "계정이 없으신가요?";
+                switchLink.textContent = "회원가입";
+                passwordInput.setAttribute("autocomplete", "current-password");
+                signupTabs.style.display = "none";
+            } else {
+                formSubtitle.textContent = signupType === "id"
+                    ? "아이디와 비밀번호(4자 이상)를 정해주세요."
+                    : "이메일 인증 후 아이디와 비밀번호를 정해주세요.";
+                formTitle.textContent = "회원가입";
+                submitBtn.textContent = "가입하고 시작하기";
+                switchLabel.textContent = "이미 계정이 있으신가요?";
+                switchLink.textContent = "로그인";
+                passwordInput.setAttribute("autocomplete", "new-password");
+                signupTabs.style.display = "flex";
+            }
+            applySignupType();
+        }
+
+        function applySignupType() {
+            tabIdBtn.classList.toggle("active", signupType === "id");
+            tabEmailBtn.classList.toggle("active", signupType === "email");
+
+            const showEmail = mode === "register" && signupType === "email";
+            emailField.style.display = showEmail ? "block" : "none";
+            codeField.style.display = (showEmail && codeSent) ? "block" : "none";
+            emailInput.required = showEmail; // 숨겨진 상태에서도 required면 폼 제출 자체가 막힘
+        }
+
+        showPasswordCheckbox.addEventListener("change", function () {
+            passwordInput.type = showPasswordCheckbox.checked ? "text" : "password";
+        });
+
+        tabIdBtn.addEventListener("click", function () {
+            signupType = "id";
+            applySignupType();
+        });
+
+        tabEmailBtn.addEventListener("click", function () {
+            signupType = "email";
+            applySignupType();
+        });
+
+        switchLink.addEventListener("click", function () {
+            mode = mode === "login" ? "register" : "login";
+            applyMode();
+        });
+
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            errorText.textContent = "";
+
+            if (mode === "register" && signupType === "email" && !codeSent) {
+                errorText.textContent = "이메일 인증을 먼저 진행해주세요.";
+                return;
+            }
+
+            submitBtn.disabled = true;
+
+            const endpoint = mode === "login" ? "/api/login" : "/api/register";
+            const body = {
+                username: usernameInput.value.trim(),
+                password: passwordInput.value
+            };
+            if (mode === "register" && signupType === "email") {
+                body.email = emailInput.value.trim();
+                body.code = codeInput.value.trim();
+            }
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    if (mode === "login") {
+                        if (rememberCheckbox.checked) {
+                            localStorage.setItem("savedUsername", usernameInput.value.trim());
+                        } else {
+                            localStorage.removeItem("savedUsername");
+                        }
+                    }
+                    window.location.href = "/";
+                } else {
+                    errorText.textContent = result.error || "문제가 발생했습니다.";
+                }
+            } catch (err) {
+                errorText.textContent = "서버에 연결할 수 없습니다.";
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+
+        sendCodeBtn.addEventListener("click", async function () {
+            const email = emailInput.value.trim();
+            if (!email) {
+                errorText.textContent = "이메일을 입력해주세요.";
+                return;
+            }
+
+            sendCodeBtn.disabled = true;
+            sendCodeBtn.textContent = "발송 중...";
+
+            try {
+                const response = await fetch("/api/send-verification-code", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    codeSent = true;
+                    codeField.style.display = "block";
+                    errorText.textContent = "";
+                    startCodeTimer(180); // 3분 = 180초, 백엔드 만료 시간과 맞춤
+                } else {
+                    errorText.textContent = result.error || "발송에 실패했습니다.";
+                }
+            } catch (err) {
+                errorText.textContent = "서버에 연결할 수 없습니다.";
+            } finally {
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.textContent = "재전송";
+            }
+        });
+
+        function startCodeTimer(seconds) {
+            clearInterval(timerInterval);
+            let remaining = seconds;
+
+            function tick() {
+                const m = String(Math.floor(remaining / 60)).padStart(2, "0");
+                const s = String(remaining % 60).padStart(2, "0");
+                codeTimer.textContent = `${m}:${s}`;
+                if (remaining <= 0) {
+                    clearInterval(timerInterval);
+                    codeTimer.textContent = "만료됨";
+                }
+                remaining--;
+            }
+
+            tick();
+            timerInterval = setInterval(tick, 1000);
+        }
+
+        const saveUserName = localStorage.getItem("savedUsername");
+        if (saveUserName) {
+            usernameInput.value = saveUserName;
+            rememberCheckbox.checked = true;
+        }
+
+        applyMode();
+    </script>
+
+</body>
+</html>
