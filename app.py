@@ -8,6 +8,11 @@ import uuid
 import re
 import random
 import resend
+import ipaddress
+import socket
+from html.parser import HTMLParser
+from urllib.parse import urlparse
+import requests
 from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
@@ -29,6 +34,74 @@ socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
 UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 DEFAULT_PROFILE_IMAGE = "/static/default_profile.png"
+
+
+class OpenGraphParser(HTMLParser):
+    """Extract a small, safe subset of Open Graph metadata from a page."""
+    def __init__(self):
+        super().__init__()
+        self.metadata = {}
+        self.title = ""
+        self._in_title = False
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == "meta":
+            key = (attributes.get("property") or attributes.get("name") or "").lower()
+            content = attributes.get("content", "").strip()
+            if key in {"og:title", "og:description", "og:image", "twitter:title", "twitter:description", "twitter:image"} and content:
+                self.metadata.setdefault(key, content)
+        elif tag == "title":
+            self._in_title = True
+
+    def handle_endtag(self, tag):
+        if tag == "title":
+            self._in_title = False
+
+    def handle_data(self, data):
+        if self._in_title:
+            self.title += data
+
+
+def is_public_web_url(url):
+    """Reject local/private addresses so the preview endpoint cannot be used for SSRF."""
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        return False
+    try:
+        addresses = socket.getaddrinfo(parsed.hostname, None, type=socket.SOCK_STREAM)
+        return all(ipaddress.ip_address(address[4][0]).is_global for address in addresses)
+    except (socket.gaierror, ValueError):
+        return False
+
+
+def get_link_preview(url):
+    if not is_public_web_url(url):
+        return None
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": "Messenger-Beta-LinkPreview/1.0"},
+            timeout=4,
+            stream=True,
+            allow_redirects=False,
+        )
+        if response.status_code < 200 or response.status_code >= 300:
+            return None
+        if "text/html" not in response.headers.get("Content-Type", "").lower():
+            return None
+        content = response.raw.read(512 * 1024, decode_content=True).decode(response.encoding or "utf-8", errors="replace")
+        parser = OpenGraphParser()
+        parser.feed(content)
+        parsed = urlparse(url)
+        title = parser.metadata.get("og:title") or parser.metadata.get("twitter:title") or parser.title.strip() or parsed.hostname
+        description = parser.metadata.get("og:description") or parser.metadata.get("twitter:description") or ""
+        image = parser.metadata.get("og:image") or parser.metadata.get("twitter:image") or ""
+        if image and urlparse(image).scheme not in {"http", "https"}:
+            image = ""
+        return {"url": url, "domain": parsed.hostname, "title": title[:200], "description": description[:300], "image": image}
+    except (requests.RequestException, OSError, ValueError):
+        return None
 
 # PostgreSQL 접속 정보 정규화
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -1044,6 +1117,13 @@ def remove_conversation_member(conversation_id, member_user_id):
 # ----------------------------------------------------------------
 # 메시지 API
 # ----------------------------------------------------------------
+
+@app.route("/api/link-preview", methods=["POST"])
+@login_required_api
+def link_preview():
+    url = (request.get_json() or {}).get("url", "").strip()
+    preview = get_link_preview(url)
+    return jsonify({"success": bool(preview), "preview": preview})
 
 @app.route("/api/conversations/<int:conversation_id>/messages", methods=["GET"])
 @login_required_api
