@@ -2202,7 +2202,23 @@
                 linkPreviewCache.set(url, preview);
             }
             if (!preview || !messageEl.isConnected) return;
-            (messageEl.querySelector(".msg-content-col") || messageEl).appendChild(createLinkPreview(preview));
+            const card = createLinkPreview(preview);
+            const content = messageEl.querySelector(".msg-content-col") || messageEl;
+            const bubbleRow = content.querySelector(".bubble-row");
+
+            if (bubbleRow) {
+                content.insertBefore(card, bubbleRow);
+            } else {
+                content.prepend(card);
+            }
+
+            if (chat.mine) {
+                messageEl.style.flexDirection = "column";
+                messageEl.style.alignItems = "flex-end";
+            } else if (!messageEl.querySelector(".msg-content-col")) {
+                messageEl.style.flexDirection = "column";
+                messageEl.style.alignItems = "flex-start";
+            }
         }
 
         function buildReplyQuoteHTML(reply) {
