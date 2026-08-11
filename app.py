@@ -392,30 +392,8 @@ def home():
     user_id = session["user_id"]
     with get_db() as conn:
         user = conn.execute(
-            "SELECT username, display_name, profile_image FROM users WHERE id = %s", 
-            (user_id,)
-        ).fetchone()
-
-    if not user:
-        session.clear()
-        return redirect(url_for("login_page"))
-
-    display_name = user["display_name"] or user["username"]
-    profile_image = user["profile_image"]
-
-    session["display_name"] = display_name
-    session["profile_image"] = profile_image
-
-    return render_template("index.html", user_id=user_id, username=display_name, profile_image=profile_image)
-
-@app.route("/")
-@login_required_page
-def home():
-    user_id = session["user_id"]
-    with get_db() as conn:
-        user = conn.execute(
             "SELECT username, display_name, profile_image, email FROM users WHERE id = %s",
-            (user_id),
+            (user_id,),
         ).fetchone()
 
     if not user:
