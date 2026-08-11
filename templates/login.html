@@ -342,12 +342,12 @@
         <div class="auth-title" id="form-title">로그인</div>
         <div class="auth-subtitle" id="form-subtitle">계정으로 로그인해서 대화를 이어가세요.</div>
 
-        <div class="signup-tabs" id="signup-tabs" style="display:none;">
-            <button type="button" class="tab-btn active" id="tab-id" data-tab="id">아이디로 가입</button>
-            <button type="button" class="tab-btn" id="tab-email" data-tab="email">이메일로 가입</button>
-        </div>
-
         <form id="auth-form">
+            <div class="field" id="username-field">
+                <label for="username" id="username-label">아이디 또는 이메일</label>
+                <input type="text" id="username" autocomplete="username" required>
+            </div>
+
             <div class="field" id="email-field" style="display: none;">
                 <label for="email">이메일</label>
                 <div style="display: flex; gap: 6px;">
@@ -356,17 +356,17 @@
                 </div>
             </div>
 
+            <div class="field" id="register-username-field" style="display: none;">
+                <label for="register-username">아이디</label>
+                <input type="text" id="register-username" autocomplete="username" placeholder="영문 소문자, 숫자 5자 이상" required>
+            </div>
+
             <div class="field" id="code-field" style="display: none;">
                 <label for="code">인증번호</label>
                 <div style="display:flex; gap:6px; align-items:center;">
                     <input type="text" id="code" maxlength="6" inputmode="numeric" style="flex:1;">
                     <span id="code-timer" style="font-size:12px; width:40px;"></span>
                 </div>
-            </div>
-
-            <div class="field">
-                <label for="username" id="username-label">아이디</label>
-                <input type="text" id="username" autocomplete="username" required>
             </div>
 
             <div class="field">
@@ -412,12 +412,11 @@
         const codeInput = document.getElementById("code");
         const sendCodeBtn = document.getElementById("send-code-btn");
         const codeTimer = document.getElementById("code-timer");
-        const signupTabs = document.getElementById("signup-tabs");
-        const tabIdBtn = document.getElementById("tab-id");
-        const tabEmailBtn = document.getElementById("tab-email");
+        const usernameField = document.getElementById("username-field");
         const usernameLabel = document.getElementById("username-label");
+        const registerUsernameField = document.getElementById("register-username-field");
+        const registerUsernameInput = document.getElementById("register-username");
 
-        let signupType = "id"; // "id" | "email" — 회원가입 모드일 때만 의미 있음
         let codeSent = false;
         let timerInterval = null;
 
@@ -432,47 +431,34 @@
                 switchLabel.textContent = "계정이 없으신가요?";
                 switchLink.textContent = "회원가입";
                 passwordInput.setAttribute("autocomplete", "current-password");
-                signupTabs.style.display = "none";
+                usernameField.style.display = "block";
+                usernameInput.required = true;
                 usernameLabel.textContent = "아이디 또는 이메일";
                 usernameInput.placeholder = "아이디 또는 이메일";
+                registerUsernameField.style.display = "none";
+                registerUsernameInput.required = false;
+                emailField.style.display = "none";
+                codeField.style.display = "none";
+                emailInput.required = false;
             } else {
-                formSubtitle.textContent = signupType === "id"
-                    ? "아이디와 비밀번호(4자 이상)를 정해주세요."
-                    : "이메일 인증 후 아이디와 비밀번호를 정해주세요.";
+                formSubtitle.textContent = "이메일 인증 후 비밀번호를 정해주세요.";
                 formTitle.textContent = "회원가입";
                 submitBtn.textContent = "가입하고 시작하기";
                 switchLabel.textContent = "이미 계정이 있으신가요?";
                 switchLink.textContent = "로그인";
                 passwordInput.setAttribute("autocomplete", "new-password");
-                signupTabs.style.display = "flex";
-                usernameLabel.textContent = "아이디";
-                usernameInput.placeholder = "";
+                usernameField.style.display = "none";
+                usernameInput.required = false;
+                registerUsernameField.style.display = "block";
+                registerUsernameInput.required = true;
+                emailField.style.display = "block";
+                emailInput.required = true;
+                codeField.style.display = codeSent ? "block" : "none";
             }
-            applySignupType();
-        }
-
-        function applySignupType() {
-            tabIdBtn.classList.toggle("active", signupType === "id");
-            tabEmailBtn.classList.toggle("active", signupType === "email");
-
-            const showEmail = mode === "register" && signupType === "email";
-            emailField.style.display = showEmail ? "block" : "none";
-            codeField.style.display = (showEmail && codeSent) ? "block" : "none";
-            emailInput.required = showEmail; // 숨겨진 상태에서도 required면 폼 제출 자체가 막힘
         }
 
         showPasswordCheckbox.addEventListener("change", function () {
             passwordInput.type = showPasswordCheckbox.checked ? "text" : "password";
-        });
-
-        tabIdBtn.addEventListener("click", function () {
-            signupType = "id";
-            applySignupType();
-        });
-
-        tabEmailBtn.addEventListener("click", function () {
-            signupType = "email";
-            applySignupType();
         });
 
         switchLink.addEventListener("click", function () {
@@ -484,7 +470,7 @@
             event.preventDefault();
             errorText.textContent = "";
 
-            if (mode === "register" && signupType === "email" && !codeSent) {
+            if (mode === "register" && !codeSent) {
                 errorText.textContent = "이메일 인증을 먼저 진행해주세요.";
                 return;
             }
@@ -494,9 +480,10 @@
             const endpoint = mode === "login" ? "/api/login" : "/api/register";
             const body = mode === "login"
                 ? { identifier: usernameInput.value.trim(), password: passwordInput.value }
-                : { username: usernameInput.value.trim(), password: passwordInput.value };
-            
-            if (mode === "register" && signupType === "email") {
+                : { password: passwordInput.value };
+
+            if (mode === "register") {
+                body.username = registerUsernameInput.value.trim();
                 body.email = emailInput.value.trim();
                 body.code = codeInput.value.trim();
             }

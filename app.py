@@ -437,44 +437,50 @@ def api_logout():
 @app.route("/api/register", methods=["POST"])
 def register():
     data = request.get_json() or {}
-    username = (data.get("username") or "").strip()
     password = data.get("password") or ""
-    display_name = (data.get("display_name") or "").strip() or username
+    display_name = (data.get("display_name") or "").strip()
+    username = (data.get("username") or "").strip().lower()
     email = (data.get("email") or "").strip().lower()
     code = (data.get("code") or "").strip()
 
-    if not username or not password:
-        return jsonify({"success": False, "error": "아이디와 비밀번호를 입력해주세요."})
+    if not username or not email or not password:
+        return jsonify({"success": False, "error": "아이디, 이메일, 비밀번호를 입력해주세요."})
+    if not re.fullmatch(r"[a-z0-9]{5,}", username):
+        return jsonify({"success": False, "error": "아이디는 영문 소문자와 숫자로 5자 이상 입력해주세요."})
+    if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email):
+        return jsonify({"success": False, "error": "올바른 이메일 주소를 입력해주세요."})
     if not re.fullmatch(r"(?=.*[a-z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{7,}", password):
         return jsonify({"success": False, "error": "비밀번호는 영어 소문자, 숫자, 특수문자를 모두 포함해 7자 이상이어야 합니다."})
-    if not re.fullmatch(r"[a-z0-9]{5,}", username):
-        return jsonify({"success": False, "error": "아이디는 영어 소문자와 숫자 조합으로 5자 이상이어야 합니다."})
 
     with get_db() as conn:
-        if email:
-            verification = conn.execute(
-                "SELECT * FROM email_verification_codes WHERE email = %s AND code = %s",
-                (email, code)
-            ).fetchone()
-            if not verification:
-                return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."})
-            if verification["expires_at"] < now_str():
-                return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."})
+        verification = conn.execute(
+            "SELECT * FROM email_verification_codes WHERE email = %s AND code = %s",
+            (email, code)
+        ).fetchone()
+        if not verification:
+            return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."})
+        if verification["expires_at"] < now_str():
+            return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."})
 
-        existing = conn.execute("SELECT id FROM users WHERE username = %s", (username,)).fetchone()
+        existing = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
         if existing:
+            return jsonify({"success": False, "error": "이미 가입된 이메일입니다."})
+
+        existing_username = conn.execute("SELECT id FROM users WHERE username = %s", (username,)).fetchone()
+        if existing_username:
             return jsonify({"success": False, "error": "이미 사용 중인 아이디입니다."})
+
+        display_name = display_name or username
 
         row = conn.execute(
             "INSERT INTO users (username, password_hash, display_name, profile_image, email) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email or None)
+            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email)
         ).fetchone()
-        
+
         user_id = row["id"]
         session["profile_image"] = DEFAULT_PROFILE_IMAGE
 
-        if email:
-            conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (email,))
+        conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (email,))
         conn.commit()
 
     session["user_id"] = user_id
