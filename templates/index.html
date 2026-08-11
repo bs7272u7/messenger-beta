@@ -331,6 +331,7 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
             border: 1px solid var(--border-color);
             overflow: hidden;
+            position: relative;
         }
 
         .chat-header {
@@ -1535,6 +1536,24 @@
             align-items: center;
             padding: 8px 0;
             font-size: 14px;
+        }
+
+        .version-label {
+            position: absolute;
+            right: 16px;
+            bottom: 10px;
+
+            font-size: 11px;
+            color: rgba(120, 120, 120, 0.45);
+
+            user-select: none;
+            pointer-events: none;
+            z-index: 20;
+            letter-spacing: 0.3px;
+        }
+
+        body.dark-mode .version-label {
+            color: rgba(255, 255, 255, 0.22);
         }
 
     
@@ -4058,6 +4077,10 @@ async function sendVideo(file) {
         loadFriends().then(updateBlockState);
 
     </script>
+
+    <div class="version-label">
+        Beta v26.8.11
+    </div>
 
 </div>
 
