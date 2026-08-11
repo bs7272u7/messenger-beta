@@ -30,6 +30,8 @@
 
         const chats = {};
         let friends = [];
+        let messageRefreshPromise = null;
+        let lastMessageRefreshAt = 0;
 
         async function loadFriends() {
             const response  = await fetch("/api/conversations");
@@ -200,7 +202,7 @@
                 }
                 linkPreviewCache.set(url, preview);
             }
-            if (!preview || !messageEl.isConnected) return;
+            if (!preview || (!messageEl.isConnected && !messageEl.parentNode)) return;
             const card = createLinkPreview(preview);
             const content = messageEl.querySelector(".msg-content-col") || messageEl;
             const bubbleRow = content.querySelector(".bubble-row");
@@ -548,7 +550,18 @@
         
             
         async function readMessages() {
-            messages.innerHTML = "";
+            if (messageRefreshPromise) return messageRefreshPromise;
+
+            messageRefreshPromise = renderMessages();
+            try {
+                return await messageRefreshPromise;
+            } finally {
+                messageRefreshPromise = null;
+                lastMessageRefreshAt = Date.now();
+            }
+        }
+
+        async function renderMessages() {
 
             if (currentConversationID === null) {
                 if (chatPanel) chatPanel.classList.add("no-conversation");
@@ -580,7 +593,7 @@
             const isGroupChat = !!(currentConversationID && currentConversationsInfo.isGroup);
             groupMembersBtn.style.display = isGroupChat ? "inline-block" : "none";
 
-            messages.innerHTML = "";
+            const renderTarget = document.createDocumentFragment();
 
             if (chatList.length === 0) {
                 pinnedBox.style.display = "none";
@@ -629,7 +642,7 @@
                     const dateLine = document.createElement("div");
                     dateLine.className = "date-divider";
                     dateLine.innerText = chat.date;
-                    messages.appendChild(dateLine);
+                    renderTarget.appendChild(dateLine);
                     lastDate = chat.date;
                 }
 
@@ -815,9 +828,10 @@
                     });
                 }
 
-                messages.appendChild(message);
+                renderTarget.appendChild(message);
             });
 
+            messages.replaceChildren(renderTarget);
             messages.scrollTop = messages.scrollHeight;
         }
 
@@ -2140,7 +2154,7 @@ async function sendVideo(file) {
             if (data.conversationId === currentConversationID) {
                 // 지금 내가 보고 있는 방이면: 읽음 처리하고 대화 내용을 새로 불러온다
                 await fetch(`/api/conversations/${currentConversationID}/read`, { method: "POST" });
-                await readMessages();
+                if (Date.now() - lastMessageRefreshAt > 250) await readMessages();
             }
             // 열려있지 않은 방이어도 미리보기/안읽음 배지는 갱신해야 하니 항상 실행
             await loadFriends();
