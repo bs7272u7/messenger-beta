@@ -498,9 +498,14 @@ def login():
     with get_db() as conn:
         if "@" in identifier:
             user = conn.execute(
-            "SELECT id, username, password_hash, display_name, profile_image FROM users WHERE email = %s", 
-            (identifier.lower(),)
-        ).fetchone()
+                "SELECT id, username, password_hash, display_name, profile_image FROM users WHERE email = %s",
+                (identifier.lower(),)
+            ).fetchone()
+        else:
+            user = conn.execute(
+                "SELECT id, username, password_hash, display_name, profile_image FROM users WHERE username = %s",
+                (identifier,)
+            ).fetchone()
 
     if not user or not check_password_hash(user["password_hash"], password):
         return jsonify({"success": False, "error": "아이디/이메일 또는 비밀번호가 올바르지 않습니다."})
