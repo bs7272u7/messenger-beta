@@ -408,6 +408,35 @@ def home():
 
     return render_template("index.html", user_id=user_id, username=display_name, profile_image=profile_image)
 
+@app.route("/")
+@login_required_page
+def home():
+    user_id = session["user_id"]
+    with get_db() as conn:
+        user = conn.execute(
+            "SELECT username, display_name, profile_image, email FROM users WHERE id = %s",
+            (user_id),
+        ).fetchone()
+
+    if not user:
+        session.clear()
+        return redirect(url_for("login_page"))
+
+    display_name = user["display_name"] or user ["username"]
+    profile_image = user["profile_image"]
+
+    session["display_name"] = display_name
+    session["profile_image"] = profile_image
+
+    return render_template(
+        "index.html",
+        user_id=user_id,
+        username=display_name,
+        profile_image=profile_image,
+        user_email=user["email"],  
+
+    )
+
 
 @app.route("/login")
 def login_page():
@@ -479,17 +508,18 @@ def register():
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.get_json() or {}
-    username = (data.get("username") or "").strip()
+    identifier = (data.get("identifier") or "").strip()
     password = data.get("password") or ""
 
     with get_db() as conn:
-        user = conn.execute(
-            "SELECT id, username, password_hash, display_name, profile_image FROM users WHERE username = %s", 
-            (username,)
+        if "@" in identifier:
+            user = conn.execute(
+            "SELECT id, username, password_hash, display_name, profile_image FROM users WHERE email = %s", 
+            (identifier.lower(),)
         ).fetchone()
 
     if not user or not check_password_hash(user["password_hash"], password):
-        return jsonify({"success": False, "error": "아이디 또는 비밀번호가 올바르지 않습니다."})
+        return jsonify({"success": False, "error": "아이디/이메일 또는 비밀번호가 올바르지 않습니다."})
 
     session["user_id"] = user["id"]
     session["username"] = user["username"]
@@ -1563,6 +1593,81 @@ def send_verification_code():
         return jsonify({"success": False, "error": "이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요."}), 500
 
     return jsonify({"success": True, "message": "인증 코드가 이메일로 전송되었습니다."})
+
+@app.route("/api/account/email/send-code", methods=["POST"])
+@login_required_api
+def send_account_email_code():
+    user_id = session["user_id"]
+    data = request.get_json() or {}
+    new_email = (data.get("email") or "").strip().lower()
+
+    if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", new_email):
+        return jsonify({"success": False, "error": "올바른 이메일 주소를 입력해주세요."}), 400
+
+    with get_db() as conn:
+        # 내 계정 제외하고 이미 쓰이는 이메일인지 체크
+        existing = conn.execute(
+            "SELECT id FROM users WHERE email = %s AND id != %s", (new_email, user_id)
+        ).fetchone()
+        if existing:
+            return jsonify({"success": False, "error": "이미 사용 중인 이메일입니다."}), 400
+
+        code = f"{random.randint(0, 999999):06d}"
+        kst = timezone(timedelta(hours=9))
+        expires_at = (datetime.now(kst) + timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")
+
+        conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (new_email,))
+        conn.execute(
+            "INSERT INTO email_verification_codes (email, code, expires_at, created_at) VALUES (%s, %s, %s, %s)",
+            (new_email, code, expires_at, now_str())
+        )
+        conn.commit()
+
+    try:
+        send_verification_email(new_email, code)
+    except Exception:
+        app.logger.exception("이메일 발송 실패 (email=%s)", new_email)
+        return jsonify({"success": False, "error": "이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요."}), 500
+
+    return jsonify({"success": True, "message": "인증 코드가 이메일로 전송되었습니다."})
+
+
+@app.route("/api/account/email", methods=["PATCH"])
+@login_required_api
+def update_account_email():
+    user_id = session["user_id"]
+    data = request.get_json() or {}
+    new_email = (data.get("email") or "").strip().lower()
+    code = (data.get("code") or "").strip()
+    current_password = data.get("current_password") or ""
+
+    with get_db() as conn:
+        user = conn.execute("SELECT password_hash FROM users WHERE id = %s", (user_id,)).fetchone()
+        if not check_password_hash(user["password_hash"], current_password):
+            return jsonify({"success": False, "error": "현재 비밀번호가 일치하지 않습니다."})
+
+        verification = conn.execute(
+            "SELECT * FROM email_verification_codes WHERE email = %s AND code = %s",
+            (new_email, code)
+        ).fetchone()
+        if not verification:
+            return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."})
+        if verification["expires_at"] < now_str():
+            return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."})
+
+        # 코드 발송 이후 다른 사람이 선점했을 수도 있으니 한 번 더 체크
+        existing = conn.execute(
+            "SELECT id FROM users WHERE email = %s AND id != %s", (new_email, user_id)
+        ).fetchone()
+        if existing:
+            return jsonify({"success": False, "error": "이미 사용 중인 이메일입니다."})
+
+        conn.execute("UPDATE users SET email = %s WHERE id = %s", (new_email, user_id))
+        conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (new_email,))
+        conn.commit()
+
+    session["email"] = new_email
+    return jsonify({"success": True, "email": new_email})
 
 
 @app.route("/api/conversations/<int:conversation_id>/read", methods=["POST"])

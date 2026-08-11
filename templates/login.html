@@ -348,11 +348,6 @@
         </div>
 
         <form id="auth-form">
-            <div class="field">
-                <label for="username">아이디</label>
-                <input type="text" id="username" autocomplete="username" required>
-            </div>
-
             <div class="field" id="email-field" style="display: none;">
                 <label for="email">이메일</label>
                 <div style="display: flex; gap: 6px;">
@@ -370,7 +365,13 @@
             </div>
 
             <div class="field">
+                <label for="username" id="username-label">아이디</label>
+                <input type="text" id="username" autocomplete="username" required>
+            </div>
+
+            <div class="field">
                 <label for="password">비밀번호</label>
+
                 <div class="password_wrapper">
                     <input type="password" id="password" autocomplete="current-password" required>
                 </div>
@@ -414,6 +415,7 @@
         const signupTabs = document.getElementById("signup-tabs");
         const tabIdBtn = document.getElementById("tab-id");
         const tabEmailBtn = document.getElementById("tab-email");
+        const usernameLabel = document.getElementById("username-label");
 
         let signupType = "id"; // "id" | "email" — 회원가입 모드일 때만 의미 있음
         let codeSent = false;
@@ -431,6 +433,8 @@
                 switchLink.textContent = "회원가입";
                 passwordInput.setAttribute("autocomplete", "current-password");
                 signupTabs.style.display = "none";
+                usernameLabel.textContent = "아이디 또는 이메일";
+                usernameInput.placeholder = "아이디 또는 이메일";
             } else {
                 formSubtitle.textContent = signupType === "id"
                     ? "아이디와 비밀번호(4자 이상)를 정해주세요."
@@ -441,6 +445,8 @@
                 switchLink.textContent = "로그인";
                 passwordInput.setAttribute("autocomplete", "new-password");
                 signupTabs.style.display = "flex";
+                usernameLabel.textContent = "아이디";
+                usernameInput.placeholder = "";
             }
             applySignupType();
         }
@@ -486,10 +492,10 @@
             submitBtn.disabled = true;
 
             const endpoint = mode === "login" ? "/api/login" : "/api/register";
-            const body = {
-                username: usernameInput.value.trim(),
-                password: passwordInput.value
-            };
+            const body = mode === "login"
+                ? { identifier: usernameInput.value.trim(), password: passwordInput.value }
+                : { username: usernameInput.value.trim(), password: passwordInput.value };
+            
             if (mode === "register" && signupType === "email") {
                 body.email = emailInput.value.trim();
                 body.code = codeInput.value.trim();
@@ -506,9 +512,9 @@
                 if (result.success) {
                     if (mode === "login") {
                         if (rememberCheckbox.checked) {
-                            localStorage.setItem("savedUsername", usernameInput.value.trim());
+                            localStorage.setItem("savedIdentifier", usernameInput.value.trim());
                         } else {
-                            localStorage.removeItem("savedUsername");
+                            localStorage.removeItem("savedIdentifier");
                         }
                     }
                     window.location.href = "/";
@@ -575,9 +581,9 @@
             timerInterval = setInterval(tick, 1000);
         }
 
-        const saveUserName = localStorage.getItem("savedUsername");
-        if (saveUserName) {
-            usernameInput.value = saveUserName;
+        const savedIdentifier = localStorage.getItem("savedIdentifier");
+        if (savedIdentifier) {
+            usernameInput.value = savedIdentifier;
             rememberCheckbox.checked = true;
         }
 

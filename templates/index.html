@@ -1529,6 +1529,14 @@
             .input-area button i.fa-paper-plane.launch { animation: none; }
         }
 
+        .switch-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            font-size: 14px;
+        }
+
     
     </style>
 
@@ -1558,6 +1566,8 @@
 <div id="settings-menu" class="message-menu">
     <div id="theme-toggle-item"><i class="fa-solid fa-moon" id="theme-toggle-icon"></i><span id="theme-toggle-label">다크 모드</span></div>
     <div id="account-settings-item"><i class="fa-solid fa-user-gear"></i>계정 설정</div>
+    <div id="notification-settings-item"><i class="fa-solid fa-bell"></i>알림 설정</div>
+    <div id="help-item"><i class="fa-solid fa-circle-question"></i>공지사항 · 도움말</div>
     <div id="logout-btn"><i class="fa-solid fa-right-from-bracket"></i>로그아웃</div>
 </div>
 
@@ -1851,6 +1861,47 @@
     </div>
 
     <div class="modal-overlay" id="account-settings-overlay">
+        <div class="modal-overlay" id="notification-settings-overlay">
+            <div class="modal-box settings-modal">
+                <div class="settings-modal-header">
+                    <h3>알림 설정</h3>
+                    <button id="notification-settings-close-btn" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="settings-modal-body">
+                    <label class="switch-row">
+                        <span>새 메시지 알림</span>
+                        <input type="checkbox" id="notify-message-toggle" checked>
+                    </label>
+                    <label class="switch-row">
+                        <span>친구 요청 알림</span>
+                        <input type="checkbox" id="notify-friend-toggle" checked>
+                    </label>
+                    <label class="switch-row">
+                        <span>그룹 초대 알림</span>
+                        <input type="checkbox" id="notify-group-toggle" checked>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="help-overlay">
+            <div class="modal-box settings-modal">
+                <div class="settings-modal-header">
+                    <h3>공지사항 · 도움말</h3>
+                    <button id="help-close-btn" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="settings-modal-body">
+                    <div class="settings-section">
+                        <div class="settings-section-label">공지사항</div>
+                        <p style="font-size:13px;">현재 등록된 공지사항이 없습니다.</p>
+                    </div>
+                    <div class="settings-section">
+                        <div class="settings-section-label">도움말</div>
+                        <p style="font-size:13px;">문의사항은 관리자에게 연락해주세요.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     <div class="modal-box settings-modal">
         <div class="settings-modal-header">
             <h3>계정 설정</h3>
@@ -1859,6 +1910,19 @@
 
         <div class="settings-modal-body">
             <div class="settings-section">
+                <div class="settings-section">
+                    <div class="settings-section-label">이메일</div>
+                    <div style="font-size:13px; color: var(--text-color); margin-bottom:10px;">
+                        현재 이메일: <span id="current-email-text">{{ user_email or "등록된 이메일 없음" }}</span>
+                    </div>
+                    <input type="email" id="new-email-input" class="settings-input" placeholder="새 이메일 주소">
+                    <button id="send-email-code-btn" class="settings-btn">인증코드 받기</button>
+                    <input type="text" id="email-code-input" class="settings-input" placeholder="인증코드 6자리" style="margin-top:8px;">
+                    <input type="password" id="email-change-password" class="settings-input" placeholder="현재 비밀번호">
+                    <button id="save-email-btn" class="settings-btn">이메일 변경</button>
+                </div>
+
+                <hr class="settings-divider">
                 <div class="settings-section-label">아이디 변경</div>
                 <input type="text" id="new-username-input" class="settings-input" placeholder="새 아이디 (소문자+숫자 5자 이상)">
                 <input type="password" id="username-change-password" class="settings-input" placeholder="현재 비밀번호">
@@ -2135,6 +2199,12 @@
         const editProfileBtn = document.querySelector("#edit-profile-btn");
         const myProfileOverlay = document.querySelector("#my-profile-overlay");
         const accountSettingsItem = document.querySelector("#account-settings-item");
+        const notificationSettingsItem = document.querySelector("#notification-settings-item");
+        const notificationSettingsOverlay = document.querySelector("#notification-settings-overlay");
+        const notificationSettingsCloseBtn = document.querySelector("#notification-settings-close-btn");
+        const helpItem = document.querySelector("#help-item");
+        const helpOverlay = document.querySelector("#help-overlay");
+        const helpCloseBtn = document.querySelector("#help-close-btn");
         const accountSettingsOverlay = document.querySelector("#account-settings-overlay");
         const accountSettingsCloseBtn = document.querySelector("#account-settings-close-btn");
         const newUsernameInput = document.querySelector("#new-username-input");
@@ -2191,6 +2261,12 @@
         const sideNavProfilePic = document.querySelector("#side-nav-profile-pic");
         const videoBtn = document.querySelector("#video-btn");
         const videoInput = document.querySelector("#video-input");
+        const newEmailInput = document.querySelector("#new-email-input");
+        const sendEmailCodeBtn = document.querySelector("#send-email-code-btn");
+        const emailCodeInput = document.querySelector("#email-code-input");
+        const emailChangePassword = document.querySelector("#email-change-password");
+        const saveEmailBtn = document.querySelector("#save-email-btn");
+        const currentEmailText = document.querySelector("#current-email-text");
 
         /* ======================================================
          * 다크모드
@@ -3550,6 +3626,22 @@
     accountSettingsOverlay.style.display = "flex";
 });
 
+notificationSettingsItem.addEventListener("click", function () {
+    settingsMenu.style.display = "none";
+    notificationSettingsOverlay.style.display = "flex";
+});
+notificationSettingsCloseBtn.addEventListener("click", function () {
+    notificationSettingsOverlay.style.display = "none";
+});
+
+helpItem.addEventListener("click", function () {
+    settingsMenu.style.display = "none";
+    helpOverlay.style.display = "flex";
+});
+helpCloseBtn.addEventListener("click", function () {
+    helpOverlay.style.display = "none";
+});
+
 accountSettingsCloseBtn.addEventListener("click", function () {
     accountSettingsOverlay.style.display = "none";
 });
@@ -3574,6 +3666,60 @@ saveUsernameBtn.addEventListener("click", async function () {
         newUsernameInput.value = "";
         usernameChangePassword.value = "";
         showAlert("아이디가 변경되었습니다.");
+    } catch (err) {
+        showAlert("서버와 통신 중 문제가 발생했습니다.");
+    }
+});
+
+sendEmailCodeBtn.addEventListener("click", async function () {
+    const email = newEmailInput.value.trim();
+    if (!email) {
+        showAlert("이메일을 입력해주세요.");
+        return;
+    }
+
+    try {
+        const response = await fetch("/api/account/email/send-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            showAlert(result.error);
+            return;
+        }
+
+        showAlert("인증 코드가 이메일로 전송되었습니다.");
+    } catch (err) {
+        showAlert("서버와 통신 중 문제가 발생했습니다.");
+    }
+});
+
+saveEmailBtn.addEventListener("click", async function () {
+    try {
+        const response = await fetch("/api/account/email", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                email: newEmailInput.value.trim(),
+                code: emailCodeInput.value.trim(),
+                current_password: emailChangePassword.value
+            })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            showAlert(result.error);
+            return;
+        }
+
+        currentEmailText.innerText = result.email;
+        newEmailInput.value = "";
+        emailCodeInput.value = "";
+        emailChangePassword.value = "";
+        showAlert("이메일이 변경되었습니다.");
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");
     }
