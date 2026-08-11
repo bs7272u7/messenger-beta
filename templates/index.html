@@ -260,6 +260,14 @@
             font-weight: 500;
         }
 
+        .friend-preview {
+            display: block;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .status-dot {
             position: absolute;
             bottom: 2px;
@@ -3030,7 +3038,7 @@
                             <div class="friend-name">${escapeHTML(friend.name)}</div>
                             ${timeHTML}
                         </div>
-                        <small>${previewHTML}</small>
+                        <small class="friend-preview" title="${escapeHTML(friend.message || "")}">${previewHTML}</small>
                     </div>
                     ${unreadHTML}
                 `;

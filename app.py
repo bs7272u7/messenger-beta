@@ -11,7 +11,7 @@ import resend
 import ipaddress
 import socket
 from html.parser import HTMLParser
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 import requests
 from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -76,16 +76,43 @@ def is_public_web_url(url):
 
 
 def get_link_preview(url):
-    if not is_public_web_url(url):
-        return None
     try:
-        response = requests.get(
-            url,
-            headers={"User-Agent": "Messenger-Beta-LinkPreview/1.0"},
-            timeout=4,
-            stream=True,
-            allow_redirects=False,
-        )
+        current_url = url
+        initial_host = (urlparse(url).hostname or "").lower()
+        if initial_host == "youtu.be" or initial_host.endswith("youtube.com"):
+            oembed = requests.get(
+                "https://www.youtube.com/oembed",
+                params={"url": url, "format": "json"},
+                headers={"User-Agent": "Mozilla/5.0 (compatible; Messenger-Beta-LinkPreview/1.0)"},
+                timeout=5,
+            )
+            if oembed.ok:
+                data = oembed.json()
+                return {
+                    "url": url,
+                    "domain": "YouTube",
+                    "title": data.get("title", "YouTube 동영상")[:200],
+                    "description": data.get("author_name", ""),
+                    "image": data.get("thumbnail_url", ""),
+                }
+        for _ in range(4):
+            if not is_public_web_url(current_url):
+                return None
+            response = requests.get(
+                current_url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; Messenger-Beta-LinkPreview/1.0)"},
+                timeout=5,
+                stream=True,
+                allow_redirects=False,
+            )
+            if not 300 <= response.status_code < 400:
+                break
+            location = response.headers.get("Location")
+            if not location:
+                return None
+            current_url = urljoin(current_url, location)
+        else:
+            return None
         if response.status_code < 200 or response.status_code >= 300:
             return None
         if "text/html" not in response.headers.get("Content-Type", "").lower():
@@ -93,7 +120,7 @@ def get_link_preview(url):
         content = response.raw.read(512 * 1024, decode_content=True).decode(response.encoding or "utf-8", errors="replace")
         parser = OpenGraphParser()
         parser.feed(content)
-        parsed = urlparse(url)
+        parsed = urlparse(current_url)
         title = parser.metadata.get("og:title") or parser.metadata.get("twitter:title") or parser.title.strip() or parsed.hostname
         description = parser.metadata.get("og:description") or parser.metadata.get("twitter:description") or ""
         image = parser.metadata.get("og:image") or parser.metadata.get("twitter:image") or ""
