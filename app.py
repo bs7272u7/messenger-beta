@@ -13,6 +13,8 @@ import socket
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 import requests
+import cloudinary
+import cloudinary.uploader
 from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
@@ -34,6 +36,17 @@ socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
 UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 DEFAULT_PROFILE_IMAGE = "/static/default_profile.png"
+CLOUDINARY_ENABLED = all(os.environ.get(name) for name in (
+    "CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"
+))
+
+if CLOUDINARY_ENABLED:
+    cloudinary.config(
+        cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"],
+        api_key=os.environ["CLOUDINARY_API_KEY"],
+        api_secret=os.environ["CLOUDINARY_API_SECRET"],
+        secure=True,
+    )
 
 
 class OpenGraphParser(HTMLParser):
@@ -300,6 +313,14 @@ def notify_user(user_id, event, payload):
 
 def save_base64_image(data_url):
     try:
+        if CLOUDINARY_ENABLED:
+            result = cloudinary.uploader.upload(
+                data_url,
+                folder="messenger_beta/images",
+                resource_type="image",
+            )
+            return result["secure_url"]
+
         header, encoded = data_url.split(",", 1)
         mime = header.split(";")[0].split(":")[1]
         ext = mime.split("/")[1] if "/" in mime else "png"
@@ -320,7 +341,17 @@ def save_base64_image(data_url):
 
 
 def delete_image_file(image_path):
-    if not image_path or not image_path.startswith("/static/uploads/"):
+    if not image_path:
+        return
+    if CLOUDINARY_ENABLED and "/messenger_beta/images/" in image_path:
+        try:
+            path = urlparse(image_path).path.split("/upload/", 1)[1]
+            path = re.sub(r"^v\d+/", "", path)
+            cloudinary.uploader.destroy(os.path.splitext(path)[0], resource_type="image")
+        except (IndexError, ValueError, KeyError):
+            app.logger.warning("Cloudinary 이미지 삭제에 실패했습니다: %s", image_path)
+        return
+    if not image_path.startswith("/static/uploads/"):
         return
     filepath = os.path.join(app.root_path, image_path.lstrip("/"))
     if os.path.exists(filepath):

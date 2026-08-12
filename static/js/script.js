@@ -32,6 +32,9 @@
         let friends = [];
         let messageRefreshPromise = null;
         let lastMessageRefreshAt = 0;
+        let pendingProfileImageData = null;
+        let pendingProfileImageRemoval = false;
+        let savedProfileImageHTML = "";
 
         async function loadFriends() {
             const response  = await fetch("/api/conversations");
@@ -1570,10 +1573,18 @@
         });
 
         editProfileBtn.addEventListener("click", function () {
+            pendingProfileImageData = null;
+            pendingProfileImageRemoval = false;
+            savedProfileImageHTML = sideNavProfilePic.innerHTML;
+            profileModalPic.innerHTML = savedProfileImageHTML;
+            document.querySelector("#my-profile-name").value = document.querySelector("#current-username").innerText;
             myProfileOverlay.style.display = "flex";
         });
 
         myProfileCancelBtn.addEventListener("click", function () {
+            profileModalPic.innerHTML = savedProfileImageHTML;
+            pendingProfileImageData = null;
+            pendingProfileImageRemoval = false;
             myProfileOverlay.style.display = "none";
         });
 
@@ -1585,6 +1596,32 @@
             }
 
             try {
+                if (pendingProfileImageData) {
+                    const imageResponse = await fetch("/api/account/profile-image", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ image: pendingProfileImageData })
+                    });
+                    const imageResult = await imageResponse.json();
+                    if (!imageResult.success) {
+                        showAlert(imageResult.error);
+                        return;
+                    }
+                    const imageHTML = `<img src="${imageResult.profile_image}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+                    profileModalPic.innerHTML = imageHTML;
+                    sideNavProfilePic.innerHTML = imageHTML;
+                } else if (pendingProfileImageRemoval) {
+                    const imageResponse = await fetch("/api/account/profile-image", { method: "DELETE" });
+                    const imageResult = await imageResponse.json();
+                    if (!imageResult.success) {
+                        showAlert(imageResult.error);
+                        return;
+                    }
+                    const defaultHTML = `<i class="fa-solid fa-circle-user"></i>`;
+                    profileModalPic.innerHTML = defaultHTML;
+                    sideNavProfilePic.innerHTML = defaultHTML;
+                }
+
                 const response = await fetch("/api/account/display-name", {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
@@ -1599,6 +1636,8 @@
                 }
 
                 document.querySelector("#current-username").innerText = result.display_name;
+                pendingProfileImageData = null;
+                pendingProfileImageRemoval = false;
                 myProfileOverlay.style.display = "none";
             } catch (err) {
                 showAlert("서버와 통신 중 문제가 발생했습니다.");
@@ -1936,7 +1975,6 @@ groupPhotoInput.addEventListener("change", function () {
 removeGroupPhotoBtn.addEventListener("click", function () {
     showConfirm("그룹 사진을 삭제하시겠습니까?", async function (confirmRemove) {
         if (!confirmRemove) return;
-
         try {
             const response = await fetch(`/api/conversations/${currentConversationID}/photo`, { method: "DELETE" });
             const result = await response.json();
@@ -1967,6 +2005,10 @@ profileImageInput.addEventListener("change", function () {
 
     const reader = new FileReader();
     reader.onload = async function () {
+        pendingProfileImageData = reader.result;
+        pendingProfileImageRemoval = false;
+        profileModalPic.innerHTML = `<img src="${reader.result}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+        return;
         try {
             const response = await fetch("/api/account/profile-image", {
                 method: "PATCH",
@@ -1995,6 +2037,10 @@ profileImageInput.addEventListener("change", function () {
 removeProfilePicBtn.addEventListener("click", function () {
     showConfirm("프로필 사진을 삭제하시겠습니까?", async function (confirmRemove) {
         if (!confirmRemove) return;
+        pendingProfileImageData = null;
+        pendingProfileImageRemoval = true;
+        profileModalPic.innerHTML = `<i class="fa-solid fa-circle-user"></i>`;
+        return;
 
         try {
             const response = await fetch("/api/account/profile-image", { method: "DELETE" });
