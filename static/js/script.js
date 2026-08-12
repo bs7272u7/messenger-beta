@@ -320,6 +320,16 @@
         const helpItem = document.querySelector("#help-item");
         const helpOverlay = document.querySelector("#help-overlay");
         const helpCloseBtn = document.querySelector("#help-close-btn");
+        const helpFindUsernameEmail = document.querySelector("#help-find-username-email");
+        const helpFindUsernameBtn = document.querySelector("#help-find-username-btn");
+        const helpFindUsernameResult = document.querySelector("#help-find-username-result");
+        const helpResetEmail = document.querySelector("#help-reset-email");
+        const helpResetCodeBtn = document.querySelector("#help-reset-code-btn");
+        const helpResetFields = document.querySelector("#help-reset-fields");
+        const helpResetCode = document.querySelector("#help-reset-code");
+        const helpResetNewPassword = document.querySelector("#help-reset-new-password");
+        const helpResetSubmitBtn = document.querySelector("#help-reset-submit-btn");
+        const helpResetResult = document.querySelector("#help-reset-result");
         const supportInquiryForm = document.querySelector("#support-inquiry-form");
         const supportMessage = document.querySelector("#support-message");
         const supportAttachment = document.querySelector("#support-attachment");
@@ -1961,6 +1971,91 @@ supportInquiryForm.addEventListener("submit", async function (event) {
     } finally {
         supportInquirySubmitBtn.disabled = false;
         supportInquirySubmitBtn.textContent = "문의 전송하기";
+    }
+});
+
+helpFindUsernameBtn.addEventListener("click", async function () {
+    const email = helpFindUsernameEmail.value.trim();
+    if (!email) {
+        helpFindUsernameResult.textContent = "가입 이메일 주소를 입력해주세요.";
+        helpFindUsernameEmail.focus();
+        return;
+    }
+
+    helpFindUsernameBtn.disabled = true;
+    helpFindUsernameBtn.textContent = "발송 중...";
+    try {
+        const response = await fetch("/api/find-username", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email })
+        });
+        const result = await response.json();
+        helpFindUsernameResult.textContent = result.message || result.error || "아이디 안내 메일을 보냈습니다.";
+    } catch (error) {
+        helpFindUsernameResult.textContent = "서버와 통신 중 문제가 발생했습니다.";
+    } finally {
+        helpFindUsernameBtn.disabled = false;
+        helpFindUsernameBtn.textContent = "아이디 안내 메일 보내기";
+    }
+});
+
+helpResetCodeBtn.addEventListener("click", async function () {
+    const email = helpResetEmail.value.trim();
+    if (!email) {
+        helpResetResult.textContent = "가입 이메일 주소를 입력해주세요.";
+        helpResetEmail.focus();
+        return;
+    }
+
+    helpResetCodeBtn.disabled = true;
+    helpResetCodeBtn.textContent = "발송 중...";
+    try {
+        const response = await fetch("/api/password-reset/send-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email })
+        });
+        const result = await response.json();
+        helpResetResult.textContent = result.message || result.error || "인증번호를 보냈습니다.";
+        helpResetFields.hidden = false;
+        helpResetCode.focus();
+    } catch (error) {
+        helpResetResult.textContent = "서버와 통신 중 문제가 발생했습니다.";
+    } finally {
+        helpResetCodeBtn.disabled = false;
+        helpResetCodeBtn.textContent = "인증번호 받기";
+    }
+});
+
+helpResetSubmitBtn.addEventListener("click", async function () {
+    const email = helpResetEmail.value.trim();
+    const code = helpResetCode.value.trim();
+    const newPassword = helpResetNewPassword.value;
+    if (!code || !newPassword) {
+        helpResetResult.textContent = "인증번호와 새 비밀번호를 모두 입력해주세요.";
+        return;
+    }
+
+    helpResetSubmitBtn.disabled = true;
+    helpResetSubmitBtn.textContent = "변경 중...";
+    try {
+        const response = await fetch("/api/password-reset/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, code, new_password: newPassword })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "비밀번호 변경에 실패했습니다.");
+
+        helpResetResult.textContent = "비밀번호가 변경되었습니다.";
+        helpResetCode.value = "";
+        helpResetNewPassword.value = "";
+    } catch (error) {
+        helpResetResult.textContent = error.message || "서버와 통신 중 문제가 발생했습니다.";
+    } finally {
+        helpResetSubmitBtn.disabled = false;
+        helpResetSubmitBtn.textContent = "비밀번호 변경";
     }
 });
 

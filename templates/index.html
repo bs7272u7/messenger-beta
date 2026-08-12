@@ -394,6 +394,33 @@
                         <div class="settings-section-label">도움말</div>
                         <p class="help-description">불편한 점이나 개선 의견을 남겨주시면 이메일로 직접 전달됩니다.</p>
                     </div>
+                    <div class="settings-section account-recovery-section">
+                        <div class="settings-section-label">계정 복구</div>
+                        <p class="help-description">로그인 중에도 아이디 안내와 비밀번호 재설정을 이용할 수 있습니다.</p>
+
+                        <details class="account-recovery-details">
+                            <summary><i class="fa-solid fa-user-magnifying"></i> 아이디 찾기</summary>
+                            <div class="account-recovery-content">
+                                <input type="email" id="help-find-username-email" class="settings-input" placeholder="가입 이메일 주소" autocomplete="email">
+                                <button type="button" id="help-find-username-btn" class="settings-btn">아이디 안내 메일 보내기</button>
+                                <p id="help-find-username-result" class="account-recovery-result" aria-live="polite"></p>
+                            </div>
+                        </details>
+
+                        <details class="account-recovery-details">
+                            <summary><i class="fa-solid fa-key"></i> 비밀번호 재설정</summary>
+                            <div class="account-recovery-content">
+                                <input type="email" id="help-reset-email" class="settings-input" placeholder="가입 이메일 주소" autocomplete="email">
+                                <button type="button" id="help-reset-code-btn" class="settings-btn">인증번호 받기</button>
+                                <div id="help-reset-fields" hidden>
+                                    <input type="text" id="help-reset-code" class="settings-input" placeholder="인증번호 6자리" maxlength="6" inputmode="numeric">
+                                    <input type="password" id="help-reset-new-password" class="settings-input" placeholder="새 비밀번호 (소문자·숫자·특수문자 포함 7자 이상)" autocomplete="new-password">
+                                    <button type="button" id="help-reset-submit-btn" class="settings-btn">비밀번호 변경</button>
+                                </div>
+                                <p id="help-reset-result" class="account-recovery-result" aria-live="polite"></p>
+                            </div>
+                        </details>
+                    </div>
                     <div class="support-card">
                         <div class="support-card-title">
                             <i class="fa-solid fa-paper-plane"></i>

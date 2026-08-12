@@ -1656,6 +1656,71 @@
             line-height: 1.6;
         }
 
+        .account-recovery-section {
+            padding: 14px;
+            border: 1px solid var(--input-border);
+            border-radius: 14px;
+            background: var(--bg-color);
+        }
+
+        .account-recovery-section .help-description {
+            margin-bottom: 10px;
+        }
+
+        .account-recovery-details {
+            border-top: 1px solid var(--input-border);
+        }
+
+        .account-recovery-details:last-child {
+            border-bottom: 1px solid var(--input-border);
+        }
+
+        .account-recovery-details summary {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 2px;
+            color: var(--text-color);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .account-recovery-details summary::-webkit-details-marker { display: none; }
+        .account-recovery-details summary::after {
+            content: "⌄";
+            margin-left: auto;
+            color: gray;
+            transition: transform .15s;
+        }
+        .account-recovery-details[open] summary::after { transform: rotate(180deg); }
+        .account-recovery-details summary i { color: var(--brand-color); }
+
+        .account-recovery-content {
+            padding: 0 2px 12px;
+        }
+
+        .account-recovery-content .settings-input {
+            margin-bottom: 8px;
+        }
+
+        .account-recovery-content .settings-btn {
+            margin-top: 0;
+        }
+
+        .account-recovery-result {
+            min-height: 18px;
+            margin: 8px 0 0;
+            color: gray;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        #help-reset-fields {
+            margin-top: 8px;
+        }
+
         .support-card {
             padding: 16px;
             border: 1px solid var(--input-border);
