@@ -8,6 +8,7 @@ import uuid
 import re
 import random
 import time
+from threading import Lock
 import resend
 import ipaddress
 import socket
@@ -48,6 +49,8 @@ _update_history_cache = {"expires_at": 0, "data": None}
 SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL")
 SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
+active_socket_ids = {}
+active_socket_ids_lock = Lock()
 
 if CLOUDINARY_ENABLED:
     cloudinary.config(
@@ -331,7 +334,30 @@ def is_blocked_either_way(conn, user_a, user_b):
 def handle_socket_connect():
     if "user_id" not in session:
         return False
-    join_room(f"user_{session['user_id']}")
+    user_id = session["user_id"]
+    with active_socket_ids_lock:
+        active_socket_ids.setdefault(user_id, set()).add(request.sid)
+    join_room(f"user_{user_id}")
+    socketio.emit("presence_updated", {"userId": user_id, "online": True})
+
+
+@socketio.on("disconnect")
+def handle_socket_disconnect():
+    user_id = session.get("user_id")
+    if not user_id:
+        return
+    with active_socket_ids_lock:
+        socket_ids = active_socket_ids.get(user_id, set())
+        socket_ids.discard(request.sid)
+        if socket_ids:
+            return
+        active_socket_ids.pop(user_id, None)
+    socketio.emit("presence_updated", {"userId": user_id, "online": False})
+
+
+def is_user_online(user_id):
+    with active_socket_ids_lock:
+        return bool(active_socket_ids.get(user_id))
 
 
 def get_conversation_member_ids(conn, conversation_id):
@@ -1107,6 +1133,7 @@ def get_conversations():
                 "peerId": peer_id,
                 "peerUsername": peer_username,
                 "peerProfileImage": peer_profile_image,
+                "isOnline": bool(peer_id and is_user_online(peer_id)),
                 "groupProfileImage": group_profile_image,
                 "memberCount": member_count,
                 "blockedByMe": blocked_by_me,

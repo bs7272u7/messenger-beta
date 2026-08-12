@@ -1070,11 +1070,14 @@
                 const avatarImg = friend.isGroup
                     ? (friend.groupProfieImage || friend.profileImage || "/static/default_profile.png")
                     : (friend.profileImage || "/static/default_profile.png");
+                const statusHTML = friend.isGroup
+                    ? ""
+                    : `<span class="status-dot ${friend.isOnline ? "online" : "offline"}" title="${friend.isOnline ? "온라인" : "오프라인"}" aria-label="${friend.isOnline ? "온라인" : "오프라인"}"></span>`;
                 
                 newFriend.innerHTML = `
                     <div class="profile">
                         <img src="${avatarImg}" alt="Profile Image">
-                        <span class="status-dot online"></span>
+                        ${statusHTML}
                     </div>
                     <div style="flex:1; min-width:0;">
                         <div class="friend-header-row">
@@ -2382,6 +2385,11 @@ async function sendVideo(file) {
                 renderFriendPanelList();
                 await loadFriendRequests();
             }
+        });
+
+        // 상대방의 접속 상태가 바뀌면 목록의 온라인 표시를 바로 갱신한다.
+        socket.on("presence_updated", async function () {
+            await loadFriends();
         });
 
         /* ======================================================
