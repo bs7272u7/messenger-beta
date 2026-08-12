@@ -1841,3 +1841,270 @@
             font-size: 12px;
             line-height: 1.7;
         }
+
+        /* ======================================================
+         * 모바일 1차 레이아웃
+         * 767px 이하는 메신저 앱처럼 '목록 → 대화' 한 화면씩 보여준다.
+         * PC용 구조는 유지하므로 기능마다 별도 모바일 페이지를 만들 필요가 없다.
+         * ====================================================== */
+        #mobile-back-btn {
+            display: none;
+        }
+
+        #mobile-sheet-backdrop {
+            display: none;
+        }
+
+        @media (max-width: 767px) {
+            body {
+                display: block;
+                min-height: 100dvh;
+                overflow: hidden;
+            }
+
+            .container {
+                width: 100%;
+                height: 100dvh;
+                gap: 0;
+            }
+
+            .friend-list,
+            .chat {
+                width: 100%;
+                height: 100%;
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            .friend-list {
+                padding: 20px 16px 28px;
+            }
+
+            .chat {
+                display: none;
+            }
+
+            body.mobile-chat-open .friend-list {
+                display: none;
+            }
+
+            body.mobile-chat-open .chat {
+                display: flex;
+            }
+
+            .friend {
+                padding: 11px 8px;
+                margin-top: 6px;
+                border-radius: 12px;
+            }
+
+            .friend:hover {
+                transform: none;
+            }
+
+            .chat-header {
+                min-height: 64px;
+                box-sizing: border-box;
+                padding: 12px 14px;
+            }
+
+            .chat-header-title {
+                max-width: 130px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 17px;
+            }
+
+            #mobile-back-btn {
+                display: inline-flex;
+                width: 36px;
+                height: 36px;
+                align-items: center;
+                justify-content: center;
+                border: 0;
+                border-radius: 50%;
+                background: var(--friend-hover);
+                color: var(--text-color);
+                font-size: 16px;
+                cursor: pointer;
+                flex-shrink: 0;
+            }
+
+            .chat-header-avatar {
+                width: 34px;
+                height: 34px;
+            }
+
+            .messages {
+                padding: 16px 12px;
+                gap: 7px;
+            }
+
+            .message-left,
+            .bubble,
+            .image-bubble {
+                max-width: min(78vw, 420px);
+                font-size: 15px;
+            }
+
+            .input-area {
+                padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+            }
+
+            .input-area textarea {
+                min-height: 44px;
+                padding: 11px 14px;
+                font-size: 16px;
+            }
+
+            .input-area button {
+                width: 46px;
+                height: 44px;
+                margin-left: 7px;
+                border-radius: 22px;
+            }
+
+            #plus-btn {
+                margin-left: 0;
+            }
+
+            .side-nav {
+                top: auto;
+                right: 14px;
+                bottom: calc(84px + env(safe-area-inset-bottom));
+                left: auto;
+                width: auto;
+                height: auto;
+                padding: 0;
+                transform: none;
+                border: 0;
+                background: transparent;
+                box-shadow: none;
+                z-index: 450;
+            }
+
+            .side-nav-profile,
+            .side-nav-spacer {
+                display: none;
+            }
+
+            .side-nav-settings {
+                width: 46px;
+                height: 46px;
+                background: var(--panel-bg);
+                border: 1px solid var(--border-color);
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+            }
+
+            #friend-panel-tab {
+                top: auto;
+                right: 14px;
+                bottom: 146px;
+                width: 46px;
+                height: 46px;
+                transform: none;
+                border-radius: 50%;
+                z-index: 450;
+            }
+
+            #friend-panel {
+                top: auto;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                height: min(76dvh, 620px);
+                padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+                border-radius: 24px 24px 0 0;
+                box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.2);
+                transform: translateY(105%);
+                transition: transform .25s ease;
+                z-index: 700;
+            }
+
+            #friend-panel.open {
+                right: 0;
+                transform: translateY(0);
+            }
+
+            /* 설정·친구 관리는 손가락으로 닫기 쉬운 하단 시트로 통일한다. */
+            #mobile-sheet-backdrop {
+                position: fixed;
+                inset: 0;
+                display: none;
+                background: rgba(15, 23, 42, 0.42);
+                z-index: 600;
+            }
+
+            body.mobile-settings-open #mobile-sheet-backdrop,
+            body.mobile-friends-open #mobile-sheet-backdrop {
+                display: block;
+            }
+
+            #settings-menu {
+                position: fixed;
+                right: 0;
+                bottom: 0;
+                left: 0 !important;
+                top: auto !important;
+                width: auto;
+                padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+                border: 0;
+                border-radius: 24px 24px 0 0;
+                box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.2);
+                transform: translateY(105%);
+                transition: transform .25s ease;
+                z-index: 700;
+            }
+
+            body.mobile-settings-open #settings-menu {
+                display: block !important;
+                transform: translateY(0);
+            }
+
+            #settings-menu::before,
+            #friend-panel::before {
+                content: "";
+                display: block;
+                width: 38px;
+                height: 4px;
+                margin: 0 auto 8px;
+                border-radius: 999px;
+                background: var(--input-border);
+            }
+
+            #settings-menu div {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-height: 48px;
+                padding: 0 12px;
+                border-radius: 12px;
+                font-size: 15px;
+            }
+
+            #settings-menu #logout-btn {
+                color: #e05252;
+            }
+
+            .modal-overlay {
+                padding: 12px;
+                box-sizing: border-box;
+            }
+
+            .settings-modal,
+            .modal-box {
+                max-width: 100%;
+            }
+
+            .settings-modal-body {
+                max-height: 76dvh;
+                padding: 18px;
+            }
+
+            .support-form-meta {
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+        }

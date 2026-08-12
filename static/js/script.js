@@ -311,7 +311,7 @@
         const pinLabel = document.querySelector("#pin-label");
         const friendPanelTab = document.querySelector("#friend-panel-tab");
         const friendPanel = document.querySelector("#friend-panel");
-        const closeFriendPanel = document.querySelector("#close-friend-panel");
+        const closeFriendPanelBtn = document.querySelector("#close-friend-panel");
         const newFriendInput = document.querySelector("#new-friend-input");
         const addFriendConfirmBtn = document.querySelector("#add-friend-confirm-btn");
         const friendRequestList = document.querySelector("#friend-request-list");
@@ -324,6 +324,7 @@
         const newGroupCreateBtn = document.querySelector("#new-group-create-btn");
         const sideNavSettings = document.querySelector(".side-nav-settings");
         const settingsMenu = document.querySelector("#settings-menu");
+        const mobileSheetBackdrop = document.querySelector("#mobile-sheet-backdrop");
         const logoutBtn = document.querySelector("#logout-btn");
         const editProfileBtn = document.querySelector("#edit-profile-btn");
         const myProfileOverlay = document.querySelector("#my-profile-overlay");
@@ -387,9 +388,44 @@
 
         const chatPanel = document.querySelector(".chat");
         const chatHeader = document.querySelector(".chat-header h2");
+        const mobileBackBtn = document.querySelector("#mobile-back-btn");
         const chatHeaderAvatar = document.querySelector("#chat-header-avatar");
         const chatHeaderMemberCount = document.querySelector("#chat-header-member-count");
         const blockBanner = document.querySelector("#block-banner");
+
+        // 모바일은 한 화면에 목록과 대화창을 함께 두지 않는다.
+        // PC에서는 이 클래스가 CSS에 영향을 주지 않아 기존 레이아웃을 그대로 유지한다.
+        function openMobileChat() {
+            if (window.matchMedia("(max-width: 767px)").matches) {
+                document.body.classList.add("mobile-chat-open");
+            }
+        }
+
+        function closeMobileChat() {
+            document.body.classList.remove("mobile-chat-open");
+        }
+
+        function isMobileViewport() {
+            return window.matchMedia("(max-width: 767px)").matches;
+        }
+
+        function openFriendPanel() {
+            friendPanel.classList.add("open");
+            if (isMobileViewport()) document.body.classList.add("mobile-friends-open");
+            renderFriendPanelList();
+            loadFriendRequests();
+        }
+
+        function closeFriendPanel() {
+            friendPanel.classList.remove("open");
+            document.body.classList.remove("mobile-friends-open");
+        }
+
+        function closeSettingsMenu() {
+            settingsMenu.style.display = "none";
+            settingsMenu.style.pointerEvents = "none";
+            document.body.classList.remove("mobile-settings-open");
+        }
 
         const modalOverlay = document.querySelector("#modal-overlay");
         const modalMessage = document.querySelector("#modal-message");
@@ -431,7 +467,7 @@
 
         themeToggleItem.addEventListener("click", function (event) {
             event.stopPropagation();
-            settingsMenu.style.display = "none";
+            closeSettingsMenu();
             document.body.classList.toggle("dark-mode");
 
             if (document.body.classList.contains("dark-mode")) {
@@ -613,13 +649,12 @@
                         <button id="empty-chat-add-friend-btn" class="empty-chat-cta"><i class="fa-solid fa-user-plus"></i> 친구 추가하기</button>
                     </div>
                 `;
-                const emptyChatAddFriendBtn = document.querySelector("#empty-chat-add-friend-btn");
-                if (emptyChatAddFriendBtn) {
-                    emptyChatAddFriendBtn.addEventListener("click", function () {
-                        friendPanel.classList.add("open");
-                        loadFriendRequests();
-                    });
-                }
+                    const emptyChatAddFriendBtn = document.querySelector("#empty-chat-add-friend-btn");
+                    if (emptyChatAddFriendBtn) {
+                        emptyChatAddFriendBtn.addEventListener("click", function () {
+                        openFriendPanel();
+                        });
+                    }
                 return;
             }
 
@@ -1053,6 +1088,7 @@
 
                 newFriend.addEventListener("click", async function () {
                     currentConversationID = friend.id;
+                    openMobileChat();
                     updateChatHeader(friend);
                     updateBlockState();
 
@@ -1606,15 +1642,25 @@
         });
 
         friendPanelTab.addEventListener("click", function () {
-            friendPanel.classList.toggle("open");
-            if (friendPanel.classList.contains("open")) {
-                renderFriendPanelList();
-                loadFriendRequests();
-            }
+            if (friendPanel.classList.contains("open")) closeFriendPanel();
+            else openFriendPanel();
         });
 
-        closeFriendPanel.addEventListener("click", function () {
-            friendPanel.classList.remove("open");
+        closeFriendPanelBtn.addEventListener("click", function () {
+            closeFriendPanel();
+        });
+
+        mobileBackBtn.addEventListener("click", function () {
+            // 대화는 닫지 않고 목록만 보여준다. 다시 같은 방을 눌러도 메시지가 유지된다.
+            closeMobileChat();
+        });
+
+        window.addEventListener("resize", function () {
+            // 휴대폰을 가로로 돌리거나 PC 폭으로 넓히면 데스크톱 2단 레이아웃으로 복귀한다.
+            if (!isMobileViewport()) {
+                closeMobileChat();
+                document.body.classList.remove("mobile-friends-open", "mobile-settings-open");
+            }
         });
 
         /* ======================================================
@@ -1626,19 +1672,27 @@
             const rect = sideNavSettings.getBoundingClientRect();
             settingsMenu.style.display = "block";
             settingsMenu.style.pointerEvents = "auto";
-            settingsMenu.style.left = (rect.right + window.scrollX + 10) + "px";
+            if (isMobileViewport()) document.body.classList.add("mobile-settings-open");
+            // 모바일에서는 설정 버튼이 화면 오른쪽에 있으므로 메뉴가 밖으로 나가지 않게 보정한다.
+            const preferredLeft = rect.right + window.scrollX + 10;
+            const maxLeft = window.innerWidth - settingsMenu.offsetWidth - 10;
+            settingsMenu.style.left = Math.max(10, Math.min(preferredLeft, maxLeft)) + "px";
             settingsMenu.style.top = (rect.top + window.scrollY) + "px";
         });
 
         document.addEventListener("click", function (event) {
             if (!settingsMenu.contains(event.target) && !sideNavSettings.contains(event.target)) {
-                settingsMenu.style.display = "none";
-                settingsMenu.style.pointerEvents = "none";
+                closeSettingsMenu();
             }
         });
 
+        mobileSheetBackdrop.addEventListener("click", function () {
+            closeSettingsMenu();
+            closeFriendPanel();
+        });
+
         logoutBtn.addEventListener("click", function () {
-            settingsMenu.style.display = "none";
+            closeSettingsMenu();
 
             showConfirm("로그아웃 하시겠습니까?", async function (confirmLogout) {
                 if (!confirmLogout) return;
@@ -1860,7 +1914,7 @@
         });
 
         accountSettingsItem.addEventListener("click", function () {
-    settingsMenu.style.display = "none";
+    closeSettingsMenu();
     accountSettingsOverlay.style.display = "flex";
 });
 
@@ -1918,7 +1972,7 @@ async function loadUpdateHistory() {
 }
 
 notificationSettingsItem.addEventListener("click", function () {
-    settingsMenu.style.display = "none";
+    closeSettingsMenu();
     notificationSettingsOverlay.style.display = "flex";
 
     if (currentUpdateVersion) {
@@ -2076,7 +2130,7 @@ helpResetSubmitBtn.addEventListener("click", async function () {
 });
 
 helpItem.addEventListener("click", function () {
-    settingsMenu.style.display = "none";
+    closeSettingsMenu();
     helpOverlay.style.display = "flex";
 });
 helpCloseBtn.addEventListener("click", function () {

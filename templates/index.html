@@ -54,6 +54,7 @@
     <div id="help-item"><i class="fa-solid fa-circle-question"></i>공지사항 · 도움말</div>
     <div id="logout-btn"><i class="fa-solid fa-right-from-bracket"></i>로그아웃</div>
 </div>
+<div id="mobile-sheet-backdrop" aria-hidden="true"></div>
 
 <!-- # 메인 레이아웃: 친구 목록과 채팅 화면을 나란히 배치한다. -->
 <div class="container">
@@ -107,6 +108,9 @@
 
         <div class="chat-header">
             <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+                <button id="mobile-back-btn" type="button" aria-label="채팅방 목록으로 돌아가기">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
                 <div id="chat-header-avatar" class="chat-header-avatar"><i class="fa-solid fa-circle-user"></i></div>
                 <h2 class="chat-header-title"></h2>
                 <span id="chat-header-member-count" style="display:none; font-size:13px; font-weight:500; color:var(--text-color); opacity:0.6;"></span>
