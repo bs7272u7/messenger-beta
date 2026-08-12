@@ -384,6 +384,16 @@ def init_db():
             )
         """)
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_codes (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                code TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT")
 
         cur.execute("""
@@ -711,6 +721,38 @@ def send_friend_request():
             )
         conn.commit()
         notify_user(target_id, "friend_updated", {})
+    return jsonify({"success": True})
+
+@app.route("/api/friend-requests/<int:request_id>", methods=["DELETE"])
+@login_required_api
+def cancel_friend_request(request_id):
+    user_id = session["user_id"]
+
+    with get_db() as conn:
+        request_row = conn.execute(
+            """
+            SELECT id, addressee_id
+            FROM friend_requests
+            WHERE id = %s
+                AND requester_id = %s
+                AND status = 'pending'
+            """,
+            (request_id, user_id)
+        ).fetchone()
+
+        if not request_row:
+            return jsonify({
+                "success": False,
+                "error": "취소할 친구 요청을 찾을 수 없습니다."
+            }), 404
+
+        conn.execute(
+            "DELETE FROM friend_requests WHERE id = %s",
+            (request_id)
+        )
+        conn.commit()
+
+    notify_user(request_row["addressee_id"], "friend_updated", {})
     return jsonify({"success": True})
 
 
@@ -1687,6 +1729,152 @@ def send_verification_email(email, code):
         "subject": "이메일 인증 코드",
         "html": f"<p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>",
     })
+
+def send_password_reset_email(email, code):
+    resend.Emails.send({
+        "from": os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+        "to": email,
+        "subject": "클라우드 채팅 비밀번호 재설정 코드",
+        "html": (
+            "<p>비밀번호 재설정 코드입니다.</p>"
+            f"<p>인증 코드: <strong>{code}</strong></p>"
+            "<p>3분 이내에 입력해주세요.</p>"
+        ),
+    })
+
+@app.route("/api/password-reset/send-code", methods=["POST"])
+def send_password_reset_code():
+    email = (request.get_json() or {}).get("email", "").strip().lower()
+
+    # 계정 존재 여부를 노출하지 않는 공통 안내 문구
+    message = "입력한 이메일로 가입된 계정이 있다면 인증 코드를 보냈습니다."
+
+    if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email):
+        return jsonify({"success": True, "message": message})
+
+    with get_db() as conn:
+        user = conn.execute(
+            "SELECT id FROM users WHERE email = %s",
+            (email,)
+        ).fetchone()
+
+        if not user:
+            return jsonify({"success": True, "message": message})
+
+        code = f"{random.randint(0, 999999):06d}"
+        kst = timezone(timedelta(hours=9))
+        expires_at = (
+            datetime.now(kst) + timedelta(minutes=3)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+
+        conn.execute(
+            "DELETE FROM password_reset_codes WHERE email = %s",
+            (email,)
+        )
+        conn.execute(
+            """
+            INSERT INTO password_reset_codes
+                (email, code, expires_at, created_at)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (email, code, expires_at, now_str())
+        )
+        conn.commit()
+
+    try:
+        send_password_reset_email(email, code)
+    except Exception:
+        app.logger.exception("비밀번호 재설정 메일 발송 실패")
+
+    return jsonify({"success": True, "message": message})
+
+@app.route("/api/password-reset/confirm", methods=["POST"])
+def confirm_password_reset():
+    data = request.get_json() or {}
+
+    email = (data.get("email") or "").strip().lower()
+    code = (data.get("code") or "").strip()
+    new_password = data.get("new_password") or ""
+
+    if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email):
+        return jsonify({"success": False, "error": "올바른 이메일 주소를 입력해주세요."}), 400
+
+    if not re.fullmatch(
+        r"(?=.*[a-z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{7,}",
+        new_password
+    ):
+        return jsonify({
+            "success": False,
+            "error": "비밀번호는 영문 소문자, 숫자, 특수문자를 포함해 7자 이상이어야 합니다."
+        }), 400
+
+    with get_db() as conn:
+        reset_code = conn.execute(
+            """
+            SELECT * FROM password_reset_codes
+            WHERE email = %s AND code = %s
+            """,
+            (email, code)
+        ).fetchone()
+
+        if not reset_code:
+            return jsonify({
+                "success": False,
+                "error": "인증번호가 올바르지 않습니다."
+            }),400
+
+        if reset_code["expires_at"] < now_str():
+            return jsonify({
+                "success": False,
+                "error": "인증번호가 만료되었습니다. 다시 요청해주세요."
+            }),400
+
+        conn.execute(
+            "UPDATE users SET password_hash = %s WHERE email = %s",
+            (generate_password_hash(new_password), email)
+        )
+        conn.execute(
+            "DELETE FROM password_reset_codes WHERE email = %s",
+            (email,)
+        )
+        conn.commit()
+
+    return jsonify({"success": True})
+
+def send_username_reminder_email(email, username):
+    resend.Emails.send({
+        "from": os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+        "to": email,
+        "subject": "클라우드 채팅 아이디 안내",
+        "html": (
+            "<p>요청하신 아이디 안내입니다.</p>"
+            f"<p>아이디: <strong>{username}</strong></p>"
+        ),
+    })
+
+@app.route("/api/find-username", methods=["POST"])
+def find_username():
+    email = (request.get_json() or {}).get("email", "").strip().lower()
+
+    # 이메일 형식이 틀려도 동일한 응답을 보내 계정 존재 여부를 감춥니다.
+    message = "입력한 이메일로 가입된 계정이 있다면 아이디 안내 메일을 보냈습니다."
+
+    if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email):
+        return jsonify({"success": True, "message": message})
+
+    with get_db() as conn:
+        user = conn.execute(
+            "SELECT username FROM users WHERE email = %s",
+            (email,)
+        ).fetchone()
+
+    if user:
+        try:
+            send_username_reminder_email(email, user["username"])
+        except Exception:
+            app.logger.exception("아이디 안내 이메일 발송 실패")
+
+    return jsonify({"success": True, "message": message})
 
 
 @app.route("/api/send-verification-code", methods=["POST"])

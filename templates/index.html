@@ -46,7 +46,11 @@
 <div id="settings-menu" class="message-menu">
     <div id="theme-toggle-item"><i class="fa-solid fa-moon" id="theme-toggle-icon"></i><span id="theme-toggle-label">다크 모드</span></div>
     <div id="account-settings-item"><i class="fa-solid fa-user-gear"></i>계정 설정</div>
-    <div id="notification-settings-item"><i class="fa-solid fa-bell"></i>알림 설정</div>
+    <div id="notification-settings-item">
+        <i class="fa-solid fa-bell"></i>
+        <span>알림 설정</span>
+        <span id="update-notice-badge" class="update-notice-badge">NEW</span>
+    </div>
     <div id="help-item"><i class="fa-solid fa-circle-question"></i>공지사항 · 도움말</div>
     <div id="logout-btn"><i class="fa-solid fa-right-from-bracket"></i>로그아웃</div>
 </div>
@@ -85,6 +89,11 @@
 
             <h4 class="friend-panel-subbheading"> 받은 친구 요청 </h4>
             <div id="friend-request-list"></div>
+
+            <div class="friend-request-section">
+                <h4>보낸 친구 요청</h4>
+                <div id="outgoing-friend-request-list"></div>
+            </div>
 
             <h4 class="friend-panel-subbheading">친구 목록</h4>
 
@@ -360,6 +369,21 @@
                         <span>그룹 초대 알림</span>
                         <input type="checkbox" id="notify-group-toggle" checked>
                     </label>
+
+                    <div class="settings-section update-history-section">
+                        <div class="settings-section-label">업데이트 사항</div>
+                        <article class="update-history-item">
+                            <div class="update-history-top">
+                                <strong>Beta v26.8.11</strong>
+                                <span>2026.08.12</span>
+                            </div>
+                            <ul>
+                                <li>링크 미리보기 기능 추가</li>
+                                <li>보낸 친구 요청 확인 및 취소 기능 추가</li>
+                                <li>채팅 화면 갱신 방식 개선</li>
+                            </ul>
+                        </article>
+                    </div>
                 </div>
             </div>
         </div>

@@ -313,6 +313,7 @@
         const myProfileOverlay = document.querySelector("#my-profile-overlay");
         const accountSettingsItem = document.querySelector("#account-settings-item");
         const notificationSettingsItem = document.querySelector("#notification-settings-item");
+        const updateNoticeBadge = document.querySelector("#update-notice-badge");
         const notificationSettingsOverlay = document.querySelector("#notification-settings-overlay");
         const notificationSettingsCloseBtn = document.querySelector("#notification-settings-close-btn");
         const helpItem = document.querySelector("#help-item");
@@ -380,6 +381,9 @@
         const emailChangePassword = document.querySelector("#email-change-password");
         const saveEmailBtn = document.querySelector("#save-email-btn");
         const currentEmailText = document.querySelector("#current-email-text");
+        const outgoingFriendRequestList = document.querySelector(
+            "#outgoing-friend-request-list"
+        );
 
         /* ======================================================
          * 다크모드
@@ -1111,6 +1115,45 @@
         async function loadFriendRequests() {
             const response = await fetch("/api/friend-requests");
             const result = await response.json();
+
+            outgoingFriendRequestList.innerHTML = "";
+
+            if(!result.outgoing || result.outgoing.length === 0) {
+                outgoingFriendRequestList.innerHTML = 
+                `<div class="request-empty">보낸 친구 요청이 아직 없습니다.</div>`;
+            } else {
+                result.outgoing.forEach(function (request) {
+                    const item = document.createElement("div");
+                    item.className = "friend-request-item";
+
+                    item.innerHTML = `
+                        <span>${escapeHTML(request.display_name)}</span>
+                        <button class="cancel-friend-request-btn">요청 취소</button>
+                    `;
+
+                    item.querySelector(".cancel-friend-request-btn")
+                        .addEventListener("click", async function () {
+                            
+                            const response = await fetch(
+                                `/api/friend-requests/${request.id}`,
+                                { method: "DELETE" }
+                            );
+
+                            const result = await response.json();
+
+                            if (!result.success) {
+                                showAlert(result.error);
+                                return;
+                            }
+
+                            await loadFriendRequests();
+
+                        });
+
+                    outgoingFriendRequestList.appendChild(item);
+                });
+            }
+
             renderFriendRequestList(result.incoming);
         }
 
@@ -1789,10 +1832,22 @@
     accountSettingsOverlay.style.display = "flex";
 });
 
+const CURRENT_UPDATE_VERSION = "26.8.11";
+
+function updateUpdateNoticeBadge() {
+    const seenVersion = localStorage.getItem("seenUpdateVersion");
+    updateNoticeBadge.style.display =
+        seenVersion === CURRENT_UPDATE_VERSION ? "none" : "inline-block";
+}
+
 notificationSettingsItem.addEventListener("click", function () {
     settingsMenu.style.display = "none";
     notificationSettingsOverlay.style.display = "flex";
+
+    localStorage.setItem("seenUpdateVersion", CURRENT_UPDATE_VERSION);
+    updateUpdateNoticeBadge();
 });
+
 notificationSettingsCloseBtn.addEventListener("click", function () {
     notificationSettingsOverlay.style.display = "none";
 });
@@ -2226,3 +2281,4 @@ async function sendVideo(file) {
 
         readMessages();
         loadFriends().then(updateBlockState);
+        updateUpdateNoticeBadge();
