@@ -314,6 +314,7 @@
         const accountSettingsItem = document.querySelector("#account-settings-item");
         const notificationSettingsItem = document.querySelector("#notification-settings-item");
         const updateNoticeBadge = document.querySelector("#update-notice-badge");
+        const updateHistoryList = document.querySelector("#update-history-list");
         const notificationSettingsOverlay = document.querySelector("#notification-settings-overlay");
         const notificationSettingsCloseBtn = document.querySelector("#notification-settings-close-btn");
         const helpItem = document.querySelector("#help-item");
@@ -1832,19 +1833,59 @@
     accountSettingsOverlay.style.display = "flex";
 });
 
-const CURRENT_UPDATE_VERSION = "26.8.11";
+let currentUpdateVersion = "";
 
 function updateUpdateNoticeBadge() {
+    if (!currentUpdateVersion) return;
     const seenVersion = localStorage.getItem("seenUpdateVersion");
     updateNoticeBadge.style.display =
-        seenVersion === CURRENT_UPDATE_VERSION ? "none" : "inline-block";
+        seenVersion === currentUpdateVersion ? "none" : "inline-block";
+}
+
+function renderUpdateHistory(updates) {
+    updateHistoryList.replaceChildren();
+    updates.forEach(function (update) {
+        const item = document.createElement("article");
+        item.className = "update-history-item";
+
+        const top = document.createElement("div");
+        top.className = "update-history-top";
+        const title = document.createElement("strong");
+        title.textContent = "업데이트";
+        const date = document.createElement("span");
+        date.textContent = update.date;
+        top.append(title, date);
+
+        const list = document.createElement("ul");
+        const message = document.createElement("li");
+        message.textContent = update.message;
+        list.append(message);
+        item.append(top, list);
+        updateHistoryList.append(item);
+    });
+}
+
+async function loadUpdateHistory() {
+    try {
+        const response = await fetch("/api/updates");
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.updates.length) throw new Error("업데이트 내역 없음");
+
+        currentUpdateVersion = result.latest_version;
+        renderUpdateHistory(result.updates);
+        updateUpdateNoticeBadge();
+    } catch (error) {
+        updateHistoryList.textContent = "업데이트 내역을 불러오지 못했습니다.";
+    }
 }
 
 notificationSettingsItem.addEventListener("click", function () {
     settingsMenu.style.display = "none";
     notificationSettingsOverlay.style.display = "flex";
 
-    localStorage.setItem("seenUpdateVersion", CURRENT_UPDATE_VERSION);
+    if (currentUpdateVersion) {
+        localStorage.setItem("seenUpdateVersion", currentUpdateVersion);
+    }
     updateUpdateNoticeBadge();
 });
 
@@ -2281,4 +2322,4 @@ async function sendVideo(file) {
 
         readMessages();
         loadFriends().then(updateBlockState);
-        updateUpdateNoticeBadge();
+        loadUpdateHistory();

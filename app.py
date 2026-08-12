@@ -7,6 +7,7 @@ import base64
 import uuid
 import re
 import random
+import time
 import resend
 import ipaddress
 import socket
@@ -39,6 +40,10 @@ DEFAULT_PROFILE_IMAGE = "/static/default_profile.png"
 CLOUDINARY_ENABLED = all(os.environ.get(name) for name in (
     "CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"
 ))
+GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "bs7272u7/messenger-beta")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+UPDATE_HISTORY_CACHE_SECONDS = 600
+_update_history_cache = {"expires_at": 0, "data": None}
 
 if CLOUDINARY_ENABLED:
     cloudinary.config(
@@ -141,6 +146,41 @@ def get_link_preview(url):
             image = ""
         return {"url": url, "domain": parsed.hostname, "title": title[:200], "description": description[:300], "image": image}
     except (requests.RequestException, OSError, ValueError):
+        return None
+
+
+def get_update_history():
+    """최근 GitHub 커밋을 사용자에게 보여줄 업데이트 내역으로 변환한다."""
+    if _update_history_cache["data"] and time.time() < _update_history_cache["expires_at"]:
+        return _update_history_cache["data"]
+
+    headers = {"Accept": "application/vnd.github+json"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{GITHUB_REPOSITORY}/commits",
+            params={"per_page": 5},
+            headers=headers,
+            timeout=5,
+        )
+        response.raise_for_status()
+        updates = []
+        for commit in response.json():
+            committed_at = commit["commit"]["author"]["date"]
+            date = datetime.fromisoformat(committed_at.replace("Z", "+00:00"))
+            updates.append({
+                "version": commit["sha"][:7],
+                "date": date.astimezone(timezone(timedelta(hours=9))).strftime("%Y.%m.%d"),
+                "message": commit["commit"]["message"].splitlines()[0][:160],
+            })
+
+        result = {"updates": updates, "latest_version": updates[0]["version"] if updates else ""}
+        _update_history_cache.update({"expires_at": time.time() + UPDATE_HISTORY_CACHE_SECONDS, "data": result})
+        return result
+    except (requests.RequestException, KeyError, TypeError, ValueError):
+        app.logger.warning("GitHub 업데이트 내역을 불러오지 못했습니다.")
         return None
 
 # PostgreSQL 접속 정보 정규화
@@ -569,6 +609,15 @@ def login_page():
 def api_logout():
     session.clear()
     return jsonify({"success": True})
+
+
+@app.route("/api/updates", methods=["GET"])
+@login_required_api
+def get_updates():
+    update_history = get_update_history()
+    if update_history is None:
+        return jsonify({"success": False, "error": "업데이트 내역을 불러오지 못했습니다."}), 503
+    return jsonify({"success": True, **update_history})
 
 
 # ----------------------------------------------------------------

@@ -1630,6 +1630,17 @@
             background: var(--bg-color);
         }
 
+        .update-history-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .update-history-status {
+            margin: 0;
+            color: gray;
+            font-size: 12px;
+        }
+
         .update-history-top {
             display: flex;
             justify-content: space-between;
