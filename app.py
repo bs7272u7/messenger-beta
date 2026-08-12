@@ -700,7 +700,7 @@ def send_support_inquiry():
 
     display_name = user["display_name"] or user["username"]
     email_params = {
-        "from": os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+        "from": get_resend_sender(),
         "to": [SUPPORT_EMAIL],
         "subject": f"[클라우드 채팅 문의] {display_name}",
         "html": (
@@ -1889,15 +1889,24 @@ def delete_group_photo(conversation_id):
 
 def send_verification_email(email, code):
     resend.Emails.send({
-        "from": os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+        "from": get_resend_sender(),
         "to": email,
         "subject": "이메일 인증 코드",
         "html": f"<p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>",
     })
 
+
+def get_resend_sender():
+    """Resend에서 인증한 발신 주소만 사용해 메일이 조용히 실패하지 않게 한다."""
+    sender = os.environ.get("RESEND_FROM_EMAIL")
+    if not sender:
+        raise RuntimeError("RESEND_FROM_EMAIL 환경변수가 설정되지 않았습니다.")
+    return sender
+
+
 def send_password_reset_email(email, code):
     resend.Emails.send({
-        "from": os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+        "from": get_resend_sender(),
         "to": email,
         "subject": "클라우드 채팅 비밀번호 재설정 코드",
         "html": (
@@ -1950,6 +1959,8 @@ def send_password_reset_code():
         send_password_reset_email(email, code)
     except Exception:
         app.logger.exception("비밀번호 재설정 메일 발송 실패")
+        # 이전에는 실패해도 성공 문구를 돌려줘서 사용자가 원인을 알 수 없었다.
+        return jsonify({"success": False, "error": "인증번호 이메일 전송에 실패했습니다. 관리자에게 문의해주세요."}), 503
 
     return jsonify({"success": True, "message": message})
 
@@ -2008,7 +2019,7 @@ def confirm_password_reset():
 
 def send_username_reminder_email(email, username):
     resend.Emails.send({
-        "from": os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+        "from": get_resend_sender(),
         "to": email,
         "subject": "클라우드 채팅 아이디 안내",
         "html": (
@@ -2038,6 +2049,7 @@ def find_username():
             send_username_reminder_email(email, user["username"])
         except Exception:
             app.logger.exception("아이디 안내 이메일 발송 실패")
+            return jsonify({"success": False, "error": "아이디 안내 이메일 전송에 실패했습니다. 관리자에게 문의해주세요."}), 503
 
     return jsonify({"success": True, "message": message})
 

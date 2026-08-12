@@ -2061,7 +2061,9 @@ helpFindUsernameBtn.addEventListener("click", async function () {
             body: JSON.stringify({ email })
         });
         const result = await response.json();
-        helpFindUsernameResult.textContent = result.message || result.error || "아이디 안내 메일을 보냈습니다.";
+        helpFindUsernameResult.textContent = result.success
+            ? result.message
+            : (result.error || "아이디 안내 이메일 전송에 실패했습니다.");
     } catch (error) {
         helpFindUsernameResult.textContent = "서버와 통신 중 문제가 발생했습니다.";
     } finally {
@@ -2087,11 +2089,12 @@ helpResetCodeBtn.addEventListener("click", async function () {
             body: JSON.stringify({ email })
         });
         const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "인증번호 이메일 전송에 실패했습니다.");
         helpResetResult.textContent = result.message || result.error || "인증번호를 보냈습니다.";
         helpResetFields.hidden = false;
         helpResetCode.focus();
     } catch (error) {
-        helpResetResult.textContent = "서버와 통신 중 문제가 발생했습니다.";
+        helpResetResult.textContent = error.message || "서버와 통신 중 문제가 발생했습니다.";
     } finally {
         helpResetCodeBtn.disabled = false;
         helpResetCodeBtn.textContent = "인증번호 받기";

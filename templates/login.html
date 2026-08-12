@@ -742,7 +742,9 @@
                         body: JSON.stringify({ email })
                     });
                     const result = await response.json();
-                    findUsernameResult.textContent = result.message;
+                    findUsernameResult.textContent = result.success
+                        ? result.message
+                        : (result.error || "아이디 안내 이메일 전송에 실패했습니다.");
                 } catch (error) {
                     findUsernameResult.textContent = "서버와 통신 중 문제가 발생했습니다.";
                 } finally {
@@ -783,11 +785,12 @@
                 try {
                     const response = await fetch("/api/password-reset/send-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
                     const result = await response.json();
+                    if (!response.ok || !result.success) throw new Error(result.error || "인증번호 이메일 전송에 실패했습니다.");
                     findPasswordResult.textContent = result.message;
                     passwordResetFields.style.display = "block";
                     passwordResetCode.focus();
                 } catch (error) {
-                    findPasswordResult.textContent = "서버와 통신 중 문제가 발생했습니다.";
+                    findPasswordResult.textContent = error.message || "서버와 통신 중 문제가 발생했습니다.";
                 } finally {
                     passwordCodeSendBtn.disabled = false;
                     passwordCodeSendBtn.textContent = "인증번호 받기";
