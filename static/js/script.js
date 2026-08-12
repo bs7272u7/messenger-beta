@@ -1869,7 +1869,14 @@ async function loadUpdateHistory() {
     try {
         const response = await fetch("/api/updates");
         const result = await response.json();
-        if (!response.ok || !result.success || !result.updates.length) throw new Error("업데이트 내역 없음");
+        if (!response.ok || !result.success) throw new Error("업데이트 내역 없음");
+
+        if (!result.updates.length) {
+            currentUpdateVersion = "";
+            updateNoticeBadge.style.display = "none";
+            updateHistoryList.textContent = "최근 7일 내 업데이트가 없습니다.";
+            return;
+        }
 
         currentUpdateVersion = result.latest_version;
         renderUpdateHistory(result.updates);

@@ -167,9 +167,12 @@ def get_update_history():
         )
         response.raise_for_status()
         updates = []
+        one_week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         for commit in response.json():
             committed_at = commit["commit"]["author"]["date"]
             date = datetime.fromisoformat(committed_at.replace("Z", "+00:00"))
+            if date < one_week_ago:
+                continue
             updates.append({
                 "version": commit["sha"][:7],
                 "date": date.astimezone(timezone(timedelta(hours=9))).strftime("%Y.%m.%d"),
