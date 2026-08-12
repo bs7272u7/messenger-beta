@@ -392,9 +392,31 @@
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-label">도움말</div>
-                        <p style="font-size:13px;">문의사항은 관리자에게 연락해주세요.</p>
+                        <p class="help-description">불편한 점이나 개선 의견을 남겨주시면 이메일로 직접 전달됩니다.</p>
                     </div>
-            </div>
+                    <div class="support-card">
+                        <div class="support-card-title">
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <span>문의 보내기</span>
+                        </div>
+                        <p>문의 내용은 10자 이상 작성해주세요. 사진 또는 동영상은 선택 사항입니다.</p>
+                        <form id="support-inquiry-form">
+                            <textarea id="support-message" maxlength="3000" placeholder="어떤 점이 불편했는지 자세히 알려주세요." required></textarea>
+                            <div class="support-form-meta">
+                                <label for="support-attachment" class="support-attachment-btn">
+                                    <i class="fa-solid fa-paperclip"></i>
+                                    사진 · 동영상 첨부 <span>선택</span>
+                                </label>
+                                <input id="support-attachment" type="file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime">
+                                <span id="support-attachment-name" class="support-attachment-name">첨부 파일 없음</span>
+                            </div>
+                            <div id="support-inquiry-result" class="support-inquiry-result" aria-live="polite"></div>
+                            <button id="support-inquiry-submit-btn" type="submit" class="settings-btn support-submit-btn">
+                                문의 전송하기
+                            </button>
+                        </form>
+                    </div>
+                </div>
         </div>
     </div>
 

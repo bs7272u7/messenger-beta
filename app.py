@@ -12,6 +12,7 @@ import resend
 import ipaddress
 import socket
 from html.parser import HTMLParser
+from html import escape
 from urllib.parse import urljoin, urlparse
 import requests
 import cloudinary
@@ -44,6 +45,9 @@ GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "bs7272u7/messenger-beta
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 UPDATE_HISTORY_CACHE_SECONDS = 600
 _update_history_cache = {"expires_at": 0, "data": None}
+SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL")
+SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
 
 if CLOUDINARY_ENABLED:
     cloudinary.config(
@@ -612,6 +616,77 @@ def login_page():
 def api_logout():
     session.clear()
     return jsonify({"success": True})
+
+
+@app.route("/api/support-inquiries", methods=["POST"])
+@login_required_api
+def send_support_inquiry():
+    message = (request.form.get("message") or "").strip()
+    if len(message) < 10:
+        return jsonify({"success": False, "error": "문의 내용은 10자 이상 입력해주세요."}), 400
+    if len(message) > 3000:
+        return jsonify({"success": False, "error": "문의 내용은 3,000자 이하로 입력해주세요."}), 400
+    if not SUPPORT_EMAIL:
+        app.logger.error("SUPPORT_EMAIL 환경변수가 설정되지 않았습니다.")
+        return jsonify({"success": False, "error": "문의 수신 이메일이 아직 설정되지 않았습니다."}), 503
+
+    attachment = request.files.get("attachment")
+    attachment_data = None
+    if attachment and attachment.filename:
+        extension = attachment.filename.rsplit(".", 1)[-1].lower() if "." in attachment.filename else ""
+        if extension not in SUPPORT_ATTACHMENT_EXTENSIONS:
+            return jsonify({"success": False, "error": "사진(png, jpg, gif, webp) 또는 동영상(mp4, webm, mov)만 첨부할 수 있습니다."}), 400
+
+        file_content = attachment.read(SUPPORT_ATTACHMENT_MAX_BYTES + 1)
+        if len(file_content) > SUPPORT_ATTACHMENT_MAX_BYTES:
+            return jsonify({"success": False, "error": "첨부파일은 10MB 이하만 보낼 수 있습니다."}), 400
+
+        safe_filename = re.sub(r"[^\w.가-힣-]", "_", attachment.filename)
+        attachment_data = {
+            "filename": safe_filename or f"attachment.{extension}",
+            "content": base64.b64encode(file_content).decode("ascii"),
+        }
+
+    user_id = session["user_id"]
+    with get_db() as conn:
+        user = conn.execute(
+            "SELECT username, display_name, email FROM users WHERE id = %s", (user_id,)
+        ).fetchone()
+
+    if not user:
+        session.clear()
+        return jsonify({"success": False, "error": "로그인 정보를 확인할 수 없습니다."}), 401
+
+    now = time.time()
+    if now - session.get("last_support_inquiry_at", 0) < 60:
+        return jsonify({"success": False, "error": "문의는 1분에 한 번만 보낼 수 있습니다."}), 429
+
+    display_name = user["display_name"] or user["username"]
+    email_params = {
+        "from": os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+        "to": [SUPPORT_EMAIL],
+        "subject": f"[클라우드 채팅 문의] {display_name}",
+        "html": (
+            "<h2>새 문의사항</h2>"
+            f"<p><strong>이름:</strong> {escape(display_name)}</p>"
+            f"<p><strong>아이디:</strong> {escape(user['username'])}</p>"
+            f"<p><strong>이메일:</strong> {escape(user['email'] or '등록된 이메일 없음')}</p>"
+            f"<hr><p>{escape(message).replace(chr(10), '<br>')}</p>"
+        ),
+    }
+    if user["email"]:
+        email_params["reply_to"] = user["email"]
+    if attachment_data:
+        email_params["attachments"] = [attachment_data]
+
+    try:
+        resend.Emails.send(email_params)
+        session["last_support_inquiry_at"] = now
+    except Exception:
+        app.logger.exception("문의사항 이메일 발송 실패")
+        return jsonify({"success": False, "error": "문의 전송에 실패했습니다. 잠시 후 다시 시도해주세요."}), 500
+
+    return jsonify({"success": True, "message": "문의가 전송되었습니다. 확인 후 답변드리겠습니다."})
 
 
 @app.route("/api/updates", methods=["GET"])

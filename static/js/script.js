@@ -320,6 +320,12 @@
         const helpItem = document.querySelector("#help-item");
         const helpOverlay = document.querySelector("#help-overlay");
         const helpCloseBtn = document.querySelector("#help-close-btn");
+        const supportInquiryForm = document.querySelector("#support-inquiry-form");
+        const supportMessage = document.querySelector("#support-message");
+        const supportAttachment = document.querySelector("#support-attachment");
+        const supportAttachmentName = document.querySelector("#support-attachment-name");
+        const supportInquiryResult = document.querySelector("#support-inquiry-result");
+        const supportInquirySubmitBtn = document.querySelector("#support-inquiry-submit-btn");
         const accountSettingsOverlay = document.querySelector("#account-settings-overlay");
         const accountSettingsCloseBtn = document.querySelector("#account-settings-close-btn");
         const newUsernameInput = document.querySelector("#new-username-input");
@@ -1898,6 +1904,61 @@ notificationSettingsItem.addEventListener("click", function () {
 
 notificationSettingsCloseBtn.addEventListener("click", function () {
     notificationSettingsOverlay.style.display = "none";
+});
+
+supportAttachment.addEventListener("change", function () {
+    const file = supportAttachment.files[0];
+    if (!file) {
+        supportAttachmentName.textContent = "첨부 파일 없음";
+        return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        supportAttachment.value = "";
+        supportAttachmentName.textContent = "첨부 파일 없음";
+        supportInquiryResult.className = "support-inquiry-result error";
+        supportInquiryResult.textContent = "첨부파일은 10MB 이하만 보낼 수 있습니다.";
+        return;
+    }
+    supportAttachmentName.textContent = file.name;
+    supportInquiryResult.textContent = "";
+    supportInquiryResult.className = "support-inquiry-result";
+});
+
+supportInquiryForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    const message = supportMessage.value.trim();
+    if (message.length < 10) {
+        supportInquiryResult.className = "support-inquiry-result error";
+        supportInquiryResult.textContent = "문의 내용은 10자 이상 입력해주세요.";
+        supportMessage.focus();
+        return;
+    }
+
+    supportInquirySubmitBtn.disabled = true;
+    supportInquirySubmitBtn.textContent = "전송 중...";
+    supportInquiryResult.textContent = "";
+    supportInquiryResult.className = "support-inquiry-result";
+
+    try {
+        const formData = new FormData();
+        formData.append("message", message);
+        if (supportAttachment.files[0]) formData.append("attachment", supportAttachment.files[0]);
+
+        const response = await fetch("/api/support-inquiries", { method: "POST", body: formData });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "문의 전송에 실패했습니다.");
+
+        supportInquiryResult.className = "support-inquiry-result success";
+        supportInquiryResult.textContent = result.message;
+        supportInquiryForm.reset();
+        supportAttachmentName.textContent = "첨부 파일 없음";
+    } catch (error) {
+        supportInquiryResult.className = "support-inquiry-result error";
+        supportInquiryResult.textContent = error.message || "문의 전송에 실패했습니다. 잠시 후 다시 시도해주세요.";
+    } finally {
+        supportInquirySubmitBtn.disabled = false;
+        supportInquirySubmitBtn.textContent = "문의 전송하기";
+    }
 });
 
 helpItem.addEventListener("click", function () {
