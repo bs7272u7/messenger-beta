@@ -65,6 +65,20 @@
             return friends.find(function (friend) { return friend.id === currentConversationID; });
         }
 
+        // 대화방 목록과 채팅 헤더가 같은 프로필 규칙을 쓰도록 한 곳에서 결정한다.
+        function getConversationAvatar(friend) {
+            if (friend.isGroup) return friend.groupProfileImage || "/static/default_profile.png";
+            return friend.peerProfileImage || "/static/default_profile.png";
+        }
+
+        // 그룹은 한 명의 접속 상태를 나타낼 수 없으므로 온라인 점을 표시하지 않는다.
+        function getPresenceIndicatorHTML(friend) {
+            if (friend.isGroup) return "";
+            const state = friend.isOnline ? "online" : "offline";
+            const label = friend.isOnline ? "온라인" : "오프라인";
+            return `<span class="status-dot ${state}" title="${label}" aria-label="${label}"></span>`;
+        }
+
         function updateChatHeader(friend) {
             if (!friend) {
                 chatHeader.innerText = "";
@@ -124,7 +138,9 @@
             input.placeholder = blocked ? "차단된 사용자입니다" : "메시지를 입력하세요";
         }
 
-        function updateFriendPreviewFromSever() {
+        // 메시지 전송 직후에는 서버 재조회 전에도 목록 미리보기를 즉시 갱신한다.
+        // 나중에 미리보기 문구를 바꾸고 싶다면 getPreviewText()만 수정하면 된다.
+        function updateFriendPreviewFromServer() {
             const friend = getCurrentFriend();
             const chatList = chats[currentConversationID] || [];
             if (friend) {
@@ -526,7 +542,7 @@
                 });
 
                 await readMessages();
-                updateFriendPreviewFromSever();
+                updateFriendPreviewFromServer();
 
                 editingIndex = null;
                 input.value = "";
@@ -559,7 +575,7 @@
             }
 
             await readMessages();
-            updateFriendPreviewFromSever();
+            updateFriendPreviewFromServer();
 
             input.value = "";
             replyMessage = null;
@@ -922,7 +938,7 @@
                         });
                         
                         await readMessages();
-                        updateFriendPreviewFromSever();
+                        updateFriendPreviewFromServer();
                     }
                     focusInputSafely();     
                 });
@@ -994,7 +1010,7 @@
                 }
 
                 await readMessages();
-                updateFriendPreviewFromSever();
+                updateFriendPreviewFromServer();
 
                 imageInput.value = "";
                 replyMessage = null;
@@ -1077,12 +1093,8 @@
                     ? `<span class="unread-badge">${friend.unreadCount}</span>`
                     : "";
 
-                const avatarImg = friend.isGroup
-                    ? (friend.groupProfieImage || friend.profileImage || "/static/default_profile.png")
-                    : (friend.profileImage || "/static/default_profile.png");
-                const statusHTML = friend.isGroup
-                    ? ""
-                    : `<span class="status-dot ${friend.isOnline ? "online" : "offline"}" title="${friend.isOnline ? "온라인" : "오프라인"}" aria-label="${friend.isOnline ? "온라인" : "오프라인"}"></span>`;
+                const avatarImg = getConversationAvatar(friend);
+                const statusHTML = getPresenceIndicatorHTML(friend);
                 
                 newFriend.innerHTML = `
                     <div class="profile">
@@ -1974,6 +1986,10 @@ supportInquiryForm.addEventListener("submit", async function (event) {
     }
 });
 
+/* ==============================================================
+ * 계정 복구: 로그인 화면과 같은 Flask API를 재사용한다.
+ * 화면만 다를 뿐, 인증번호 발송·검증 규칙은 서버 한 곳에서 관리한다.
+ * ============================================================ */
 helpFindUsernameBtn.addEventListener("click", async function () {
     const email = helpFindUsernameEmail.value.trim();
     if (!email) {
@@ -2267,29 +2283,11 @@ profileImageInput.addEventListener("change", function () {
 
     const reader = new FileReader();
     reader.onload = async function () {
+        // 프로필 편집창에서는 바로 서버에 저장하지 않는다.
+        // 재현님이 '저장' 버튼을 눌렀을 때만 실제 계정 사진이 바뀌도록 임시 상태에 보관한다.
         pendingProfileImageData = reader.result;
         pendingProfileImageRemoval = false;
         profileModalPic.innerHTML = `<img src="${reader.result}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
-        return;
-        try {
-            const response = await fetch("/api/account/profile-image", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ image: reader.result })
-            });
-            const result = await response.json();
-
-            if (!result.success) {
-                showAlert(result.error);
-                return;
-            }
-
-            const imgHTML = `<img src="${result.profile_image}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
-            profileModalPic.innerHTML = imgHTML;
-            sideNavProfilePic.innerHTML = imgHTML;
-        } catch (err) {
-            showAlert("서버와 통신 중 문제가 발생했습니다.");
-        }
     };
     reader.readAsDataURL(file);
 
@@ -2302,23 +2300,6 @@ removeProfilePicBtn.addEventListener("click", function () {
         pendingProfileImageData = null;
         pendingProfileImageRemoval = true;
         profileModalPic.innerHTML = `<i class="fa-solid fa-circle-user"></i>`;
-        return;
-
-        try {
-            const response = await fetch("/api/account/profile-image", { method: "DELETE" });
-            const result = await response.json();
-
-            if (!result.success) {
-                showAlert(result.error);
-                return;
-            }
-
-            const defaultHTML = `<i class="fa-solid fa-circle-user"></i>`;
-            profileModalPic.innerHTML = defaultHTML;
-            sideNavProfilePic.innerHTML = defaultHTML;
-        } catch (err) {
-            showAlert("서버와 통신 중 문제가 발생했습니다.");
-        }
     });
 });
 
@@ -2356,7 +2337,7 @@ async function sendVideo(file) {
         }
 
         await readMessages();
-        updateFriendPreviewFromSever();
+        updateFriendPreviewFromServer();
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");
     }

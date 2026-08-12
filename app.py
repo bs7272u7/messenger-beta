@@ -157,7 +157,11 @@ def get_link_preview(url):
 
 
 def get_update_history():
-    """최근 GitHub 커밋을 사용자에게 보여줄 업데이트 내역으로 변환한다."""
+    """최근 GitHub 커밋을 사용자에게 보여줄 업데이트 내역으로 변환한다.
+
+    재현님이 한국어 커밋 메시지를 작성하면 그 문장이 그대로 사용자 화면에 표시된다.
+    GitHub API를 매번 호출하지 않도록 10분 동안만 메모리에 보관한다.
+    """
     if _update_history_cache["data"] and time.time() < _update_history_cache["expires_at"]:
         return _update_history_cache["data"]
 
@@ -356,6 +360,7 @@ def handle_socket_disconnect():
 
 
 def is_user_online(user_id):
+    # 한 사용자가 여러 탭을 열어도 마지막 탭까지 닫혀야 오프라인으로 바뀐다.
     with active_socket_ids_lock:
         return bool(active_socket_ids.get(user_id))
 
@@ -369,6 +374,7 @@ def get_conversation_member_ids(conn, conversation_id):
 
 
 def broadcast_to_conversation(conn, conversation_id, event, payload):
+    # 메시지 수정·삭제처럼 대화방 전체가 알아야 하는 일은 참여자별 Socket.IO 방으로 보낸다.
     for uid in get_conversation_member_ids(conn, conversation_id):
         socketio.emit(event, payload, room=f"user_{uid}")
 
@@ -385,6 +391,8 @@ def notify_user(user_id, event, payload):
 
 
 def save_base64_image(data_url):
+    # Render의 임시 디스크 문제를 피하기 위해 Cloudinary가 설정되면 우선 사용한다.
+    # 로컬 개발 중에는 기존 static/uploads 저장 방식으로 자동 폴백된다.
     try:
         if CLOUDINARY_ENABLED:
             result = cloudinary.uploader.upload(
@@ -647,6 +655,8 @@ def api_logout():
 @app.route("/api/support-inquiries", methods=["POST"])
 @login_required_api
 def send_support_inquiry():
+    # 문의는 이메일로 전송되므로 서버에서도 길이·파일 형식·용량을 반드시 다시 검사한다.
+    # 브라우저 검사만 믿으면 요청을 직접 조작해 제한을 우회할 수 있다.
     message = (request.form.get("message") or "").strip()
     if len(message) < 10:
         return jsonify({"success": False, "error": "문의 내용은 10자 이상 입력해주세요."}), 400
@@ -684,6 +694,7 @@ def send_support_inquiry():
         return jsonify({"success": False, "error": "로그인 정보를 확인할 수 없습니다."}), 401
 
     now = time.time()
+    # 문의 메일 발송 기능이 스팸 발송 통로가 되지 않도록 계정별 전송 간격을 둔다.
     if now - session.get("last_support_inquiry_at", 0) < 60:
         return jsonify({"success": False, "error": "문의는 1분에 한 번만 보낼 수 있습니다."}), 429
 
