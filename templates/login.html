@@ -378,7 +378,19 @@
         .recovery-modal input {
             width: 100%;
             box-sizing: border-box;
+            padding: 11px 12px;
+            font: inherit;
+            font-size: 14px;
+            color: #344054;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            outline: none;
             margin-bottom: 12px;
+        }
+
+        .recovery-modal input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
         }
 
         .recovery-close-btn {
