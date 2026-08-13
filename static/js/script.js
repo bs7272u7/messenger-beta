@@ -418,6 +418,7 @@
         const supportAttachmentName = document.querySelector("#support-attachment-name");
         const supportInquiryResult = document.querySelector("#support-inquiry-result");
         const supportInquirySubmitBtn = document.querySelector("#support-inquiry-submit-btn");
+        const supportInquiryHistory = document.querySelector("#support-inquiry-history");
         const reviewRating = document.querySelector("#review-rating");
         const reviewContent = document.querySelector("#review-content");
         const reviewSubmitBtn = document.querySelector("#review-submit-btn");
@@ -2707,6 +2708,7 @@ supportInquiryForm.addEventListener("submit", async function (event) {
         supportInquiryResult.textContent = result.message;
         supportInquiryForm.reset();
         supportAttachmentName.textContent = "첨부 파일 없음";
+        loadSupportInquiryHistory();
     } catch (error) {
         supportInquiryResult.className = "support-inquiry-result error";
         supportInquiryResult.textContent = error.message || "문의 전송에 실패했습니다. 잠시 후 다시 시도해주세요.";
@@ -2714,6 +2716,49 @@ supportInquiryForm.addEventListener("submit", async function (event) {
         supportInquirySubmitBtn.disabled = false;
         supportInquirySubmitBtn.textContent = "문의 전송하기";
     }
+});
+
+async function loadSupportInquiryHistory() {
+    try {
+        const response = await fetch("/api/support-inquiries/history");
+        const inquiries = await response.json();
+        if (!response.ok) throw new Error("문의 내역을 불러오지 못했습니다.");
+        supportInquiryHistory.innerHTML = inquiries.length ? inquiries.map(function (inquiry) {
+            const statusLabel = inquiry.status === "pending" ? "답변 대기" : inquiry.status === "answered" ? "답변 완료" : "처리 완료";
+            const editable = inquiry.status === "pending";
+            return `<article class="support-history-item">
+                <div class="support-history-head"><strong>${statusLabel}</strong><span>${escapeHTML((inquiry.created_at || "").slice(0, 16))}</span></div>
+                <p>${escapeHTML(inquiry.message)}</p>
+                ${inquiry.attachment_url ? `<a href="${escapeHTML(inquiry.attachment_url)}" target="_blank" rel="noopener">첨부 파일 보기</a>` : ""}
+                ${inquiry.admin_reply ? `<div class="support-admin-reply"><strong><i class="fa-solid fa-reply"></i> 관리자 답변</strong><p>${escapeHTML(inquiry.admin_reply)}</p></div>` : ""}
+                <div class="support-history-actions">${editable ? `<button type="button" data-edit-inquiry="${inquiry.id}">수정</button>` : ""}<button type="button" data-delete-inquiry="${inquiry.id}" class="danger">삭제</button></div>
+            </article>`;
+        }).join("") : '<p class="support-history-empty">보낸 문의가 없습니다.</p>';
+    } catch (error) {
+        supportInquiryHistory.innerHTML = '<p class="support-history-empty">문의 내역을 불러오지 못했습니다.</p>';
+    }
+}
+
+supportInquiryHistory.addEventListener("click", async function (event) {
+    const editId = event.target.dataset.editInquiry;
+    const deleteId = event.target.dataset.deleteInquiry;
+    if (editId) {
+        const item = event.target.closest(".support-history-item");
+        const previous = item.querySelector(".support-history-head").nextElementSibling.textContent;
+        const message = prompt("문의 내용을 수정하세요.", previous);
+        if (message === null) return;
+        const response = await fetch(`/api/support-inquiries/${editId}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({message})});
+        const result = await response.json();
+        if (!response.ok || !result.success) return showToast(result.error || "수정에 실패했습니다.", "error");
+        showToast("문의 내용을 수정했습니다.");
+    } else if (deleteId) {
+        if (!confirm("이 문의 내역을 삭제할까요?")) return;
+        const response = await fetch(`/api/support-inquiries/${deleteId}`, {method:"DELETE"});
+        const result = await response.json();
+        if (!response.ok || !result.success) return showToast(result.error || "삭제에 실패했습니다.", "error");
+        showToast("문의 내역을 삭제했습니다.");
+    } else return;
+    loadSupportInquiryHistory();
 });
 
 /* 인증 성공·재발송·만료 때 동일하게 사용할 3분 카운트다운 처리다. */
@@ -2934,12 +2979,13 @@ reviewSubmitBtn.addEventListener("click", async function () {
     reviewRating.value=""; reviewContent.value=""; loadReviews(); showToast("리뷰를 등록했습니다.");
 });
 
-helpItem.addEventListener("click", function () {
-    closeSettingsMenu();
-    loadPublicNotices();
-    loadReviews();
-    helpOverlay.style.display = "flex";
-});
+        helpItem.addEventListener("click", function () {
+            closeSettingsMenu();
+            loadPublicNotices();
+            loadReviews();
+            loadSupportInquiryHistory();
+            helpOverlay.style.display = "flex";
+        });
 helpCloseBtn.addEventListener("click", function () {
     helpOverlay.style.display = "none";
 });

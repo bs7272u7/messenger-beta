@@ -1200,6 +1200,48 @@ def send_support_inquiry():
     return jsonify({"success": True, "message": "문의가 전송되었습니다. 확인 후 답변드리겠습니다."})
 
 
+@app.route("/api/support-inquiries/history", methods=["GET"])
+@login_required_api
+def get_my_support_inquiries():
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, message, attachment_name, attachment_url, status, admin_reply, created_at, answered_at
+            FROM support_inquiries WHERE user_id = %s ORDER BY id DESC
+        """, (session["user_id"],)).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/support-inquiries/<int:inquiry_id>", methods=["PATCH", "DELETE"])
+@login_required_api
+def update_or_delete_my_support_inquiry(inquiry_id):
+    user_id = session["user_id"]
+    with get_db() as conn:
+        inquiry = conn.execute("""
+            SELECT id, message, attachment_url, status FROM support_inquiries
+            WHERE id = %s AND user_id = %s
+        """, (inquiry_id, user_id)).fetchone()
+        if not inquiry:
+            return jsonify({"success": False, "error": "문의 내역을 찾을 수 없습니다."}), 404
+
+        if request.method == "DELETE":
+            conn.execute("DELETE FROM support_inquiries WHERE id = %s", (inquiry_id,))
+            conn.commit()
+            attachment_url = inquiry["attachment_url"]
+        else:
+            if inquiry["status"] != "pending":
+                return jsonify({"success": False, "error": "답변 또는 처리된 문의는 수정할 수 없습니다."}), 400
+            message = ((request.get_json() or {}).get("message") or "").strip()
+            if not 10 <= len(message) <= 3000:
+                return jsonify({"success": False, "error": "문의 내용은 10자 이상 3,000자 이하로 입력해주세요."}), 400
+            conn.execute("UPDATE support_inquiries SET message = %s WHERE id = %s", (message, inquiry_id))
+            conn.commit()
+            return jsonify({"success": True, "message": message})
+
+    if attachment_url:
+        delete_image_file(attachment_url)
+    return jsonify({"success": True})
+
+
 @app.route("/api/updates", methods=["GET"])
 @login_required_api
 def get_updates():
