@@ -31,29 +31,6 @@
     <!-- # 스타일 영역: 친구 목록, 채팅창, 모달 UI의 모양을 정의한다. -->
     
 
-<!-- # 사이드 네비게이션: 프로필 요약과 설정 메뉴를 고정으로 보여준다. -->
-<div class="side-nav">
-    <div class="side-nav-profile">
-        <div class="profile">
-            <div class="profile" id="side-nav-profile-pic">
-            {% if profile_image %}
-                <img src="{{ profile_image }}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">
-            {% else %}
-                <i class="fa-solid fa-circle-user"></i>
-            {% endif %}
-        </div>
-        </div>
-        <div id="current-username" style="font-size:13px; font-weight:600; margin-right: 15px;">{{ username }}</div>
-        <button id="edit-profile-btn">프로필 편집</button>
-    </div>
-
-    <div class="side-nav-spacer"></div>
-
-    <div class="side-nav-settings">
-        <i class="fa-solid fa-gear"></i>
-    </div>
-</div>
-
 <div id="settings-menu" class="message-menu">
     <div class="settings-menu-section-title">화면</div>
     <div id="theme-toggle-item"><i class="fa-solid fa-moon" id="theme-toggle-icon"></i><span id="theme-toggle-label">다크 모드</span></div>
@@ -94,16 +71,35 @@
 
     <!-- # 친구 목록 영역: 친구를 추가하고 선택할 수 있는 패널이다. -->
     <div class="friend-list">
-        <div style="display: flex; justify-content:space-between; align-items:center;">
-            <h2>채팅방</h2>
+        <!-- PC에서는 내 프로필과 탐색 기능을 이 패널에 합쳐 하나의 앱 창처럼 보이게 한다. -->
+        <div class="desktop-profile-card">
+            <div class="profile" id="side-nav-profile-pic">
+            {% if profile_image %}
+                <img src="{{ profile_image }}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">
+            {% else %}
+                <i class="fa-solid fa-circle-user"></i>
+            {% endif %}
+            </div>
+            <div class="desktop-profile-copy">
+                <strong id="current-username">{{ username }}</strong>
+                <span>Cloud Chatting</span>
+            </div>
+            <button id="edit-profile-btn" type="button" title="프로필 편집" aria-label="프로필 편집"><i class="fa-solid fa-pen"></i></button>
+        </div>
+        <div class="desktop-quick-actions">
+            <button id="friend-inbox-btn" type="button"><i class="fa-regular fa-envelope"></i> 메시지함 <span id="friend-request-badge" class="inbox-count" hidden>0</span></button>
+            <button class="side-nav-settings" type="button" aria-label="설정"><i class="fa-solid fa-gear"></i></button>
+        </div>
+        <div class="friend-list-heading">
+            <div>
+                <h2>채팅방</h2>
+                <p id="conversation-summary">대화를 선택해 시작하세요</p>
+            </div>
+            <button id="friend-panel-tab" type="button" aria-label="친구 관리" title="친구 관리"><i class="fa-solid fa-user-plus"></i></button>
         </div>
         <hr/>
 
         <div id="friend-list"></div>
-
-        <button id="friend-panel-tab" type="button" aria-label="친구 관리" title="친구 관리">
-            <i class="fa-solid fa-user-group"></i>
-        </button>
 
         <!-- # 친구 관리 패널: 새 친구를 추가하고 기존 친구를 삭제할 수 있는 우측 메뉴다. -->
         <div id="friend-panel">
@@ -120,14 +116,6 @@
             <button id="open-new-group-btn" style="width: 100%; margin-top: 10px; padding: 8px 0; border-radius: 8px; border: 1px solid var(--input-border); background: none; color: var(--text-color); cursor: pointer; font-size: 13px;">
                 <i class="fa-solid fa-user-group"></i> 새 그룹 만들기
             </button>
-
-            <h4 class="friend-panel-subbheading"> 받은 친구 요청 </h4>
-            <div id="friend-request-list"></div>
-
-            <div class="friend-request-section">
-                <h4>보낸 친구 요청</h4>
-                <div id="outgoing-friend-request-list"></div>
-            </div>
 
             <h4 class="friend-panel-subbheading">친구 목록</h4>
 
@@ -303,6 +291,38 @@
                     <span class="chat-theme-preview theme-preview-glass"><i class="fa-solid fa-droplet"></i></span>
                     <strong>글라스</strong><small>맑은 블루 유리</small>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <aside id="desktop-chat-info" aria-label="채팅 정보">
+        <div class="desktop-info-label">현재 대화</div>
+        <div class="desktop-info-avatar"><i class="fa-regular fa-comments"></i></div>
+        <strong id="desktop-info-name">대화를 선택하세요</strong>
+        <p id="desktop-info-status">친구를 추가하거나 채팅방을 선택해보세요.</p>
+        <div class="desktop-info-actions">
+            <button id="desktop-theme-btn" type="button"><i class="fa-solid fa-palette"></i> 테마</button>
+            <button id="desktop-gallery-btn" type="button"><i class="fa-regular fa-images"></i> 사진</button>
+        </div>
+        <div class="desktop-info-note"><i class="fa-solid fa-thumbtack"></i> 고정 메시지와 공유 사진은 대화방에서 확인할 수 있어요.</div>
+    </aside>
+
+    <div class="modal-overlay" id="friend-inbox-overlay">
+        <div class="modal-box friend-inbox-modal">
+            <div class="settings-modal-header">
+                <div>
+                    <h3>메시지함</h3>
+                    <p>친구 요청을 한 곳에서 관리하세요.</p>
+                </div>
+                <button id="friend-inbox-close-btn" class="settings-modal-close" aria-label="메시지함 닫기"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="friend-inbox-tabs" role="tablist">
+                <button type="button" class="active" data-inbox-tab="incoming">받은 요청 <span id="incoming-request-count">0</span></button>
+                <button type="button" data-inbox-tab="outgoing">보낸 요청 <span id="outgoing-request-count">0</span></button>
+            </div>
+            <div class="friend-inbox-body">
+                <div id="friend-request-list" class="friend-inbox-list"></div>
+                <div id="outgoing-friend-request-list" class="friend-inbox-list" hidden></div>
             </div>
         </div>
     </div>

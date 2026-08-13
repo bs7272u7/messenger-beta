@@ -87,12 +87,18 @@
                 chatHeaderMemberCount.style.display = "none";
                 if (chatPanel) chatPanel.classList.add("no-conversation");
                 applyChatTheme(null);
+                desktopInfoName.innerText = "대화를 선택하세요";
+                desktopInfoStatus.innerText = "친구를 추가하거나 채팅방을 선택해보세요.";
                 return;
             }
 
             if (chatPanel) chatPanel.classList.remove("no-conversation");
             applyChatTheme(friend);
             chatHeader.innerText = friend.name;
+            desktopInfoName.innerText = friend.name;
+            desktopInfoStatus.innerText = friend.isGroup
+                ? `${friend.memberCount || 0}명이 참여 중인 그룹 채팅입니다.`
+                : (friend.isOnline ? "현재 온라인입니다." : "현재 오프라인입니다.");
 
             if (friend.isGroup) {
                 // 서버에서 전달받은 그룹 프로필 이미지 변수 (groupProfileImage 또는 profileImage)
@@ -317,6 +323,13 @@
         const newFriendInput = document.querySelector("#new-friend-input");
         const addFriendConfirmBtn = document.querySelector("#add-friend-confirm-btn");
         const friendRequestList = document.querySelector("#friend-request-list");
+        const friendInboxBtn = document.querySelector("#friend-inbox-btn");
+        const friendRequestBadge = document.querySelector("#friend-request-badge");
+        const friendInboxOverlay = document.querySelector("#friend-inbox-overlay");
+        const friendInboxCloseBtn = document.querySelector("#friend-inbox-close-btn");
+        const friendInboxTabs = document.querySelectorAll("[data-inbox-tab]");
+        const incomingRequestCount = document.querySelector("#incoming-request-count");
+        const outgoingRequestCount = document.querySelector("#outgoing-request-count");
         const friendPanelList = document.querySelector("#friend-panel-list");
         const openNewGroupBtn = document.querySelector("#open-new-group-btn");
         const newGroupOverlay = document.querySelector("#new-group-overlay");
@@ -404,6 +417,11 @@
         const chatHeaderAvatar = document.querySelector("#chat-header-avatar");
         const chatHeaderMemberCount = document.querySelector("#chat-header-member-count");
         const blockBanner = document.querySelector("#block-banner");
+        const conversationSummary = document.querySelector("#conversation-summary");
+        const desktopInfoName = document.querySelector("#desktop-info-name");
+        const desktopInfoStatus = document.querySelector("#desktop-info-status");
+        const desktopThemeBtn = document.querySelector("#desktop-theme-btn");
+        const desktopGalleryBtn = document.querySelector("#desktop-gallery-btn");
 
         // 모바일은 한 화면에 목록과 대화창을 함께 두지 않는다.
         // PC에서는 이 클래스가 CSS에 영향을 주지 않아 기존 레이아웃을 그대로 유지한다.
@@ -453,6 +471,16 @@
         function closeFriendPanel() {
             friendPanel.classList.remove("open");
             document.body.classList.remove("mobile-friends-open");
+        }
+
+        async function openFriendInbox() {
+            closeFriendPanel();
+            await loadFriendRequests();
+            friendInboxOverlay.style.display = "flex";
+        }
+
+        function closeFriendInbox() {
+            friendInboxOverlay.style.display = "none";
         }
 
         function closeSettingsMenu() {
@@ -734,6 +762,11 @@
                         <div class="empty-chat-icon"><i class="fa-solid fa-paper-plane"></i></div>
                         <div class="empty-chat-title">아직 열린 대화가 없어요</div>
                         <div class="empty-chat-subtitle">친구를 추가하고 대화를 시작해보세요!</div>
+                        <div class="empty-chat-features">
+                            <span><i class="fa-solid fa-palette"></i> 채팅 테마</span>
+                            <span><i class="fa-regular fa-images"></i> 사진 공유</span>
+                            <span><i class="fa-solid fa-reply"></i> 답장</span>
+                        </div>
                         <button id="empty-chat-add-friend-btn" class="empty-chat-cta"><i class="fa-solid fa-user-plus"></i> 친구 추가하기</button>
                     </div>
                 `;
@@ -1170,6 +1203,9 @@
 
         function readFriends() {
             friendList.innerHTML = "";
+            conversationSummary.innerText = friends.length > 0
+                ? `${friends.length}개의 채팅방`
+                : "대화를 선택해 시작하세요";
 
             if (friends.length === 0) {
                 friendList.innerHTML = `
@@ -1287,14 +1323,21 @@
         async function loadFriendRequests() {
             const response = await fetch("/api/friend-requests");
             const result = await response.json();
+            const incoming = result.incoming || [];
+            const outgoing = result.outgoing || [];
+
+            incomingRequestCount.innerText = incoming.length;
+            outgoingRequestCount.innerText = outgoing.length;
+            friendRequestBadge.innerText = incoming.length;
+            friendRequestBadge.hidden = incoming.length === 0;
 
             outgoingFriendRequestList.innerHTML = "";
 
-            if(!result.outgoing || result.outgoing.length === 0) {
+            if(outgoing.length === 0) {
                 outgoingFriendRequestList.innerHTML = 
                 `<div class="request-empty">보낸 친구 요청이 아직 없습니다.</div>`;
             } else {
-                result.outgoing.forEach(function (request) {
+                outgoing.forEach(function (request) {
                     const item = document.createElement("div");
                     item.className = "friend-request-item";
 
@@ -1326,7 +1369,7 @@
                 });
             }
 
-            renderFriendRequestList(result.incoming);
+            renderFriendRequestList(incoming);
         }
 
         function renderFriendRequestList(incoming) {
@@ -1752,6 +1795,29 @@
 
         closeFriendPanelBtn.addEventListener("click", function () {
             closeFriendPanel();
+        });
+
+        friendInboxBtn.addEventListener("click", openFriendInbox);
+        friendInboxCloseBtn.addEventListener("click", closeFriendInbox);
+        friendInboxOverlay.addEventListener("click", function (event) {
+            if (event.target === friendInboxOverlay) closeFriendInbox();
+        });
+        friendInboxTabs.forEach(function (tab) {
+            tab.addEventListener("click", function () {
+                const incomingTab = tab.dataset.inboxTab === "incoming";
+                friendInboxTabs.forEach(function (button) { button.classList.toggle("active", button === tab); });
+                friendRequestList.hidden = !incomingTab;
+                outgoingFriendRequestList.hidden = incomingTab;
+            });
+        });
+
+        desktopThemeBtn.addEventListener("click", function () { chatThemeBtn.click(); });
+        desktopGalleryBtn.addEventListener("click", function () {
+            if (!currentConversationID) {
+                showAlert("먼저 채팅방을 선택해주세요.");
+                return;
+            }
+            galleryToggleBtn.click();
         });
 
         mobileBackBtn.addEventListener("click", function () {
@@ -2713,9 +2779,9 @@ async function sendVideo(file) {
             await loadFriends();
             readFriends();
             updateBlockState();
+            await loadFriendRequests();
             if (friendPanel.classList.contains("open")) {
                 renderFriendPanelList();
-                await loadFriendRequests();
             }
         });
 
@@ -2730,4 +2796,5 @@ async function sendVideo(file) {
 
         readMessages();
         loadFriends().then(updateBlockState);
+        loadFriendRequests();
         loadUpdateHistory();
