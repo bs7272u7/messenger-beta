@@ -145,12 +145,6 @@
                 <button id="mobile-chat-more-btn" type="button" aria-label="채팅방 더보기"><i class="fa-solid fa-ellipsis-vertical"></i></button>
             </div>
         </div>
-        <div id="bulk-message-toolbar" class="bulk-message-toolbar" hidden>
-            <span id="bulk-message-count">0개 선택</span>
-            <button id="bulk-select-all-btn" type="button">전체 선택</button>
-            <button id="bulk-delete-btn" type="button" class="danger">선택 삭제</button>
-            <button id="bulk-cancel-btn" type="button">취소</button>
-        </div>
         <div id="mobile-chat-actions-sheet" aria-hidden="true">
             <button type="button" data-chat-action="theme"><i class="fa-solid fa-palette"></i> 채팅 테마</button>
             <button type="button" data-chat-action="gallery"><i class="fa-regular fa-images"></i> 사진 모아보기</button>
@@ -210,7 +204,6 @@
             <div id="pin-message"><i class="fa-solid fa-thumbtack"></i><span id="pin-label">고정</span></div>
             <div id="forward-message"><i class="fa-solid fa-share"></i>전달</div>
             <div id="report-message"><i class="fa-solid fa-flag"></i>신고</div>
-            <div id="bulk-delete-mode"><i class="fa-solid fa-check-double"></i>여러 개 삭제</div>
             <div id="delete-message"><i class="fa-solid fa-trash"></i> 삭제</div>
         </div>
 
@@ -410,17 +403,21 @@
                 {% endif %}
             </div>
             <input type="file" id="profile-image-input" accept="image/*" style="display:none;">
-            <div style="text-align:center; margin-bottom: 20px;">
-                <span id="change-profile-pic-btn" style="font-size:12px; color:#4a90e2; cursor:pointer; margin-right:12px;">사진 변경</span>
-                <span id="remove-profile-pic-btn" style="font-size:12px; color:#e05252; cursor:pointer;">사진 삭제</span>
+            <div class="profile-edit-actions">
+                <button type="button" id="change-profile-pic-btn"><i class="fa-regular fa-image"></i> 사진 변경</button>
+                <button type="button" id="remove-profile-pic-btn" class="danger"><i class="fa-regular fa-trash-can"></i> 사진 삭제</button>
             </div>
 
-            <input type="text" id="my-profile-name" placeholder="이름" style="width: 100%; height: 40px; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--input-border); padding: 0 12px; margin-bottom: 20px; background-color: var(--panel-bg); color: var(--text-color);">
-            <input type="text" id="my-profile-status" placeholder="상태메시지 (최대 100자)" maxlength="100" class="settings-input">
+            <input type="text" id="my-profile-name" placeholder="이름" class="settings-input">
             <textarea id="my-profile-bio" placeholder="소개글 (최대 300자)" maxlength="300" class="settings-input" style="min-height:76px;"></textarea>
-            <label class="support-attachment-btn" for="cover-image-input"><i class="fa-solid fa-image"></i> 프로필 배경사진 변경</label>
+            <div id="profile-cover-preview" class="profile-cover-preview" aria-label="프로필 배경사진 미리보기">
+                <span><i class="fa-regular fa-image"></i> 배경사진 없음</span>
+            </div>
+            <div class="profile-cover-actions">
+                <label for="cover-image-input"><i class="fa-solid fa-image"></i> 배경사진 변경</label>
+                <button type="button" id="remove-cover-image-btn"><i class="fa-regular fa-trash-can"></i> 제거</button>
+            </div>
             <input type="file" id="cover-image-input" accept="image/*" style="display:none;">
-            <button type="button" id="remove-cover-image-btn" class="settings-btn" style="margin-top:8px;">배경사진 제거</button>
 
             <div class="modal-buttons">
                 <button id="my-profile-cancel-btn">취소</button>
@@ -434,7 +431,7 @@
             <button id="profile-card-close" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button>
             <div id="profile-card-cover" class="profile-card-cover"></div>
             <img id="profile-card-avatar" class="profile-card-avatar" src="/static/default_profile.png">
-            <div class="profile-card-body"><h3 id="profile-card-name"></h3><p id="profile-card-status"></p><p id="profile-card-bio"></p><span id="profile-card-presence"></span></div>
+            <div class="profile-card-body"><h3 id="profile-card-name"></h3><p id="profile-card-bio"></p><span id="profile-card-presence"></span></div>
         </article>
     </div>
 

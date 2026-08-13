@@ -1084,11 +1084,6 @@
             text-decoration: none;
             background: color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color));
         }
-        .bulk-message-toolbar { display:flex; align-items:center; gap:8px; padding:9px 16px; border-bottom:1px solid var(--input-border); background:var(--panel-bg); font-size:13px; }
-        .bulk-message-toolbar button { padding:6px 9px; border:1px solid var(--input-border); border-radius:7px; background:transparent; color:var(--text-color); cursor:pointer; }
-        .bulk-message-toolbar .danger { color:#e05252; }
-        .message-select-check { position:absolute; left:-29px; top:50%; transform:translateY(-50%); accent-color:var(--brand-color); }
-        .message-right, .message-left-container { position:relative; }
         .profile-card { position:relative; width:min(380px,calc(100vw - 32px)); overflow:hidden; border-radius:18px; background:var(--panel-bg); color:var(--text-color); box-shadow:0 20px 60px rgba(0,0,0,.28); }
         .profile-card-cover { height:126px; background:linear-gradient(135deg,var(--brand-color),#9bc4ff); background-size:cover; background-position:center; }
         .profile-card-avatar { width:86px; height:86px; margin:-43px 0 0 22px; border:4px solid var(--panel-bg); border-radius:50%; object-fit:cover; background:#fff; }
@@ -1100,6 +1095,13 @@
         .request-profile-image { width:36px; height:36px; border-radius:50%; object-fit:cover; background:#eef2f8; }
         .friend-request-item span { min-width:0; display:grid; gap:2px; flex:1; }.friend-request-item small { overflow:hidden; color:color-mix(in srgb,var(--text-color) 58%,transparent); text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
         .friend-inbox-badge { display:inline-grid; min-width:17px; height:17px; padding:0 4px; border-radius:999px; place-items:center; color:#fff; background:#e05252; font-size:10px; }
+        .friend-inbox-badge[hidden] { display:none !important; }
+        .profile-edit-actions, .profile-cover-actions { display:flex; gap:8px; margin:0 0 14px; }
+        .profile-edit-actions button, .profile-cover-actions button, .profile-cover-actions label { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; border:1px solid var(--input-border); border-radius:9px; background:color-mix(in srgb, var(--panel-bg) 90%, var(--brand-color)); color:var(--text-color); font-size:12px; font-weight:700; cursor:pointer; box-sizing:border-box; }
+        .profile-edit-actions .danger, .profile-cover-actions button { color:#d75c5c; background:color-mix(in srgb, var(--panel-bg) 92%, #e05252); }
+        .profile-cover-preview { height:104px; display:grid; place-items:center; margin:2px 0 8px; overflow:hidden; border:1px dashed color-mix(in srgb, var(--input-border) 70%, var(--brand-color)); border-radius:11px; background:linear-gradient(135deg, color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color)), var(--panel-bg)); background-position:center; background-size:cover; color:color-mix(in srgb, var(--text-color) 60%, transparent); font-size:12px; }
+        .profile-cover-preview span { display:inline-flex; align-items:center; gap:7px; padding:7px 10px; border-radius:999px; background:color-mix(in srgb, var(--panel-bg) 88%, transparent); }
+        .profile-cover-preview.has-image { border-style:solid; }
         .chat-file-card:hover { border-color: var(--brand-color); }
         .chat-file-card > i { color: var(--brand-color); font-size: 22px; }
         .chat-file-card span { min-width: 0; display: grid; gap: 3px; }

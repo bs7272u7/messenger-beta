@@ -84,7 +84,6 @@
             profileCardAvatar.src = friend.peerProfileImage || "/static/default_profile.png";
             profileCardCover.style.backgroundImage = friend.peerCoverImage ? `url("${friend.peerCoverImage}")` : "";
             profileCardName.textContent = friend.name;
-            profileCardStatus.textContent = friend.peerStatusMessage || "상태메시지가 없습니다.";
             profileCardBio.textContent = friend.peerBio || "소개글이 없습니다.";
             profileCardPresence.textContent = friend.isOnline ? "● 온라인" : "● 오프라인";
             profileCardOverlay.style.display = "flex";
@@ -356,7 +355,6 @@
         const reportReasonSelect = document.querySelector("#report-reason-select");
         const reportDetail = document.querySelector("#report-detail");
         const reportMessageSubmit = document.querySelector("#report-message-submit");
-        const bulkDeleteMode = document.querySelector("#bulk-delete-mode");
         const friendPanelTab = document.querySelector("#friend-panel-tab");
         const friendPanel = document.querySelector("#friend-panel");
         const closeFriendPanelBtn = document.querySelector("#close-friend-panel");
@@ -477,24 +475,17 @@
         const desktopConversationActions = document.querySelector("#desktop-conversation-actions");
         const desktopConversationPin = document.querySelector("#desktop-conversation-pin");
         const desktopConversationMute = document.querySelector("#desktop-conversation-mute");
-        const bulkMessageToolbar = document.querySelector("#bulk-message-toolbar");
-        const bulkMessageCount = document.querySelector("#bulk-message-count");
-        const bulkSelectAllBtn = document.querySelector("#bulk-select-all-btn");
-        const bulkDeleteBtn = document.querySelector("#bulk-delete-btn");
-        const bulkCancelBtn = document.querySelector("#bulk-cancel-btn");
         const profileCardOverlay = document.querySelector("#profile-card-overlay");
         const profileCardClose = document.querySelector("#profile-card-close");
         const profileCardCover = document.querySelector("#profile-card-cover");
         const profileCardAvatar = document.querySelector("#profile-card-avatar");
         const profileCardName = document.querySelector("#profile-card-name");
-        const profileCardStatus = document.querySelector("#profile-card-status");
         const profileCardBio = document.querySelector("#profile-card-bio");
         const profileCardPresence = document.querySelector("#profile-card-presence");
-        const myProfileStatus = document.querySelector("#my-profile-status");
         const myProfileBio = document.querySelector("#my-profile-bio");
         const coverImageInput = document.querySelector("#cover-image-input");
         const removeCoverImageBtn = document.querySelector("#remove-cover-image-btn");
-        let selectedMessageIds = new Set();
+        const profileCoverPreview = document.querySelector("#profile-cover-preview");
 
         // 모바일은 한 화면에 목록과 대화창을 함께 두지 않는다.
         // PC에서는 이 클래스가 CSS에 영향을 주지 않아 기존 레이아웃을 그대로 유지한다.
@@ -971,8 +962,6 @@
                     }
                     forwardMessageButton.style.display = "block";
                     reportMessageButton.style.display = chat.mine ? "none" : "block";
-                    bulkDeleteMode.style.display = chat.mine ? "block" : "none";
-
                     messageMenu.style.display = "block";
                     messageMenu.style.pointerEvents = "auto";
 
@@ -1131,19 +1120,6 @@
                 }
 
                 if (chat.text && !chat.image && !chat.video) appendLinkPreview(message, chat);
-
-                if (chat.mine) {
-                    const selectCheck = document.createElement("input");
-                    selectCheck.type = "checkbox";
-                    selectCheck.className = "message-select-check";
-                    selectCheck.checked = selectedMessageIds.has(chat.id);
-                    selectCheck.hidden = bulkMessageToolbar.hidden;
-                    selectCheck.addEventListener("change", function () {
-                        if (this.checked) selectedMessageIds.add(chat.id); else selectedMessageIds.delete(chat.id);
-                        updateBulkToolbar();
-                    });
-                    message.appendChild(selectCheck);
-                }
 
                 const swipeIcon = document.createElement("i");
                 swipeIcon.className = "fa-solid fa-reply swipe-reply-icon";
@@ -1307,34 +1283,6 @@
             if (!response.ok || !result.success) return showToast(result.error || "신고 접수에 실패했습니다.", "error");
             reportMessageOverlay.style.display = "none";
             showToast("신고가 접수되었습니다.");
-        });
-
-        function updateBulkToolbar() {
-            bulkMessageCount.textContent = `${selectedMessageIds.size}개 선택`;
-            bulkDeleteBtn.disabled = selectedMessageIds.size === 0;
-        }
-        bulkDeleteMode.addEventListener("click", function () {
-            selectedMessageIds = new Set(selectedIndex ? [selectedIndex] : []);
-            bulkMessageToolbar.hidden = false;
-            closeMessageMenu();
-            updateBulkToolbar();
-            readMessages();
-        });
-        bulkCancelBtn.addEventListener("click", function () { selectedMessageIds.clear(); bulkMessageToolbar.hidden = true; readMessages(); });
-        bulkSelectAllBtn.addEventListener("click", function () {
-            const mine = (chats[currentConversationID] || []).filter(function (chat) { return chat.mine && chat.messageType !== "system"; });
-            selectedMessageIds = new Set(mine.map(function (chat) { return chat.id; }));
-            updateBulkToolbar(); readMessages();
-        });
-        bulkDeleteBtn.addEventListener("click", function () {
-            if (!selectedMessageIds.size) return;
-            showConfirm(`${selectedMessageIds.size}개 메시지를 삭제할까요?`, async function (ok) {
-                if (!ok) return;
-                const response = await fetch(`/api/conversations/${currentConversationID}/messages/bulk-delete`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({message_ids:[...selectedMessageIds]}) });
-                const result = await response.json();
-                if (!response.ok || !result.success) return showToast(result.error || "삭제에 실패했습니다.", "error");
-                selectedMessageIds.clear(); bulkMessageToolbar.hidden = true; await readMessages(); updateFriendPreviewFromServer();
-            });
         });
 
         /* ======================================================
@@ -1518,7 +1466,7 @@
                     });
                 
 
-                const previewHTML = escapeHTML(friend.message || friend.statusMessage || "상태메시지가 없습니다.")
+                const previewHTML = escapeHTML(friend.message || "아직 대화가 없습니다.")
                 .replace("__CAMERA__", '<i class="fa-regular fa-image"></i>')
                 .replace("__VIDEO__", '<i class="fa-solid fa-circle-play"></i>')
                 .replace("__FILE__", '<i class="fa-solid fa-paperclip"></i>')
@@ -1603,7 +1551,7 @@
                     item.className = "friend-request-item";
 
                     item.innerHTML = `
-                        <img class="request-profile-image" src="${escapeHTML(request.profile_image || "/static/default_profile.png")}"><span><strong>${escapeHTML(request.display_name || request.username)}</strong><small>${escapeHTML(request.status_message || "친구 요청을 보냈습니다.")}</small></span>
+                        <img class="request-profile-image" src="${escapeHTML(request.profile_image || "/static/default_profile.png")}"><span><strong>${escapeHTML(request.display_name || request.username)}</strong><small>친구 요청을 보냈습니다.</small></span>
                         <button class="cancel-friend-request-btn">요청 취소</button>
                     `;
 
@@ -1645,7 +1593,7 @@
                 const item = document.createElement("div");
                 item.className = "friend-request-item";
                 item.innerHTML = `
-                    <img class="request-profile-image" src="${escapeHTML(req.profile_image || "/static/default_profile.png")}"><span><strong>${escapeHTML(req.display_name || req.username)}</strong><small>${escapeHTML(req.status_message || "친구 요청을 보냈습니다.")}</small></span>
+                    <img class="request-profile-image" src="${escapeHTML(req.profile_image || "/static/default_profile.png")}"><span><strong>${escapeHTML(req.display_name || req.username)}</strong><small>친구 요청을 보냈습니다.</small></span>
                     <span class="accept-request-icon"><i class="fa-solid fa-check"></i></span>
                     <span class="decline-request-icon"><i class="fa-solid fa-xmark"></i></span>
                 `;
@@ -2271,8 +2219,8 @@
             document.querySelector("#my-profile-name").value = document.querySelector("#current-username").innerText;
             try {
                 const profile = await fetch("/api/account/profile").then(response => response.json());
-                myProfileStatus.value = profile.status_message || "";
                 myProfileBio.value = profile.bio || "";
+                updateProfileCoverPreview(profile.cover_image);
             } catch (error) { /* 기본 편집은 계속 가능 */ }
             myProfileOverlay.style.display = "flex";
         }
@@ -2334,7 +2282,7 @@
                 }
 
                 document.querySelector("#current-username").innerText = result.display_name;
-                const profileResponse = await fetch("/api/account/profile", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({bio:myProfileBio.value.trim(), status_message:myProfileStatus.value.trim()}) });
+                const profileResponse = await fetch("/api/account/profile", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({bio:myProfileBio.value.trim()}) });
                 const profileResult = await profileResponse.json();
                 if (!profileResponse.ok || !profileResult.success) throw new Error(profileResult.error || "프로필 정보를 저장하지 못했습니다.");
                 pendingProfileImageData = null;
@@ -2350,10 +2298,17 @@
             const reader = new FileReader();
             reader.onload = async function () {
                 const response = await fetch("/api/account/cover-image", {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({image:reader.result})});
-                const result = await response.json(); showToast(result.success ? "배경사진을 변경했습니다." : result.error, result.success ? undefined : "error");
+                const result = await response.json();
+                if (result.success) updateProfileCoverPreview(result.cover_image);
+                showToast(result.success ? "배경사진을 변경했습니다." : result.error, result.success ? undefined : "error");
             }; reader.readAsDataURL(file);
         });
-        removeCoverImageBtn.addEventListener("click", async function () { const response = await fetch("/api/account/cover-image", {method:"DELETE"}); const result=await response.json(); showToast(result.success ? "배경사진을 제거했습니다." : result.error, result.success ? undefined : "error"); });
+        function updateProfileCoverPreview(imageUrl) {
+            profileCoverPreview.style.backgroundImage = imageUrl ? `url("${imageUrl}")` : "";
+            profileCoverPreview.classList.toggle("has-image", Boolean(imageUrl));
+            profileCoverPreview.innerHTML = imageUrl ? "" : '<span><i class="fa-regular fa-image"></i> 배경사진 없음</span>';
+        }
+        removeCoverImageBtn.addEventListener("click", async function () { const response = await fetch("/api/account/cover-image", {method:"DELETE"}); const result=await response.json(); if (result.success) updateProfileCoverPreview(null); showToast(result.success ? "배경사진을 제거했습니다." : result.error, result.success ? undefined : "error"); });
         profileCardClose.addEventListener("click", function () { profileCardOverlay.style.display="none"; });
         profileCardOverlay.addEventListener("click", function(event){ if(event.target===profileCardOverlay) profileCardOverlay.style.display="none"; });
 

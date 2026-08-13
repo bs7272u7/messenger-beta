@@ -1404,7 +1404,7 @@ def list_friend_requests():
     with get_db() as conn:
         incoming = conn.execute("""
             SELECT friend_requests.id, users.id AS user_id, users.username, users.display_name,
-                   users.profile_image, users.status_message, friend_requests.created_at
+                   users.profile_image, friend_requests.created_at
             FROM friend_requests
             JOIN users ON users.id = friend_requests.requester_id
             WHERE friend_requests.addressee_id = %s AND friend_requests.status = 'pending'
@@ -1413,7 +1413,7 @@ def list_friend_requests():
 
         outgoing = conn.execute("""
             SELECT friend_requests.id, users.id AS user_id, users.username, users.display_name,
-                   users.profile_image, users.status_message, friend_requests.created_at
+                   users.profile_image, friend_requests.created_at
             FROM friend_requests
             JOIN users ON users.id = friend_requests.addressee_id
             WHERE friend_requests.requester_id = %s AND friend_requests.status = 'pending'
@@ -1567,7 +1567,7 @@ def get_conversations():
             else:
                 group_profile_image = None
                 peer = conn.execute("""
-                    SELECT users.id, users.display_name, users.username, users.profile_image, users.status_message, users.cover_image, users.bio FROM conversation_members
+                    SELECT users.id, users.display_name, users.username, users.profile_image, users.cover_image, users.bio FROM conversation_members
                     JOIN users ON users.id = conversation_members.user_id
                     WHERE conversation_members.conversation_id = %s AND conversation_members.user_id != %s
                 """, (conversation_id, user_id)).fetchone()
@@ -1632,10 +1632,8 @@ def get_conversations():
                 "peerId": peer_id,
                 "peerUsername": peer_username,
                 "peerProfileImage": peer_profile_image,
-                "peerStatusMessage": peer["status_message"] if not row["is_group"] and peer else "",
                 "peerCoverImage": peer["cover_image"] if not row["is_group"] and peer else None,
                 "peerBio": peer["bio"] if not row["is_group"] and peer else "",
-                "statusMessage": peer["status_message"] if not row["is_group"] and peer else "",
                 "isOnline": bool(peer_id and is_user_online(peer_id)),
                 "groupProfileImage": group_profile_image,
                 "memberCount": member_count,
@@ -2373,32 +2371,6 @@ def delete_message(message_id):
     return jsonify({"success": True})
 
 
-@app.route("/api/conversations/<int:conversation_id>/messages/bulk-delete", methods=["POST"])
-@login_required_api
-def bulk_delete_messages(conversation_id):
-    user_id = session["user_id"]
-    data = request.get_json() or {}
-    ids = data.get("message_ids") or []
-    delete_all = bool(data.get("all"))
-    with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id):
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-        if delete_all:
-            rows = conn.execute("SELECT id, image FROM messages WHERE conversation_id = %s AND sender_id = %s AND message_type = 'user'", (conversation_id, user_id)).fetchall()
-        else:
-            safe_ids = [int(item) for item in ids if str(item).isdigit()]
-            if not safe_ids:
-                return jsonify({"success": False, "error": "삭제할 메시지를 선택해주세요."}), 400
-            rows = conn.execute("SELECT id, image FROM messages WHERE conversation_id = %s AND sender_id = %s AND id = ANY(%s)", (conversation_id, user_id, safe_ids)).fetchall()
-        if rows:
-            conn.execute("DELETE FROM messages WHERE id = ANY(%s)", ([row["id"] for row in rows],))
-            conn.commit()
-            broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
-    for row in rows:
-        delete_image_file(row["image"])
-    return jsonify({"success": True, "deleted": len(rows)})
-
-
 @app.route("/api/messages/<int:message_id>/pin", methods=["POST"])
 @login_required_api
 def pin_message(message_id):
@@ -2469,20 +2441,19 @@ def account_profile():
     user_id = session["user_id"]
     if request.method == "GET":
         with get_db() as conn:
-            user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio, status_message FROM users WHERE id = %s", (user_id,)).fetchone()
+            user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio FROM users WHERE id = %s", (user_id,)).fetchone()
         return jsonify(dict(user))
 
     data = request.get_json() or {}
     bio = (data.get("bio") or "").strip()
-    status_message = (data.get("status_message") or "").strip()
-    if len(bio) > 300 or len(status_message) > 100:
-        return jsonify({"success": False, "error": "소개글 또는 상태메시지가 너무 깁니다."}), 400
+    if len(bio) > 300:
+        return jsonify({"success": False, "error": "소개글은 최대 300자까지 입력할 수 있습니다."}), 400
     with get_db() as conn:
-        conn.execute("UPDATE users SET bio = %s, status_message = %s WHERE id = %s", (bio, status_message, user_id))
+        conn.execute("UPDATE users SET bio = %s WHERE id = %s", (bio, user_id))
         recipient_ids = profile_update_recipient_ids(conn, user_id)
         conn.commit()
     notify_profile_updated(recipient_ids, user_id)
-    return jsonify({"success": True, "bio": bio, "status_message": status_message})
+    return jsonify({"success": True, "bio": bio})
 
 
 @app.route("/api/account/cover-image", methods=["PATCH", "DELETE"])
@@ -2515,7 +2486,7 @@ def account_cover_image():
 @login_required_api
 def public_profile(user_id):
     with get_db() as conn:
-        user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio, status_message FROM users WHERE id = %s", (user_id,)).fetchone()
+        user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio FROM users WHERE id = %s", (user_id,)).fetchone()
     if not user:
         return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
     return jsonify({"success": True, **dict(user), "is_online": is_user_online(user_id)})
