@@ -1867,12 +1867,19 @@
                         : `<span class="block-friend-icon" title="차단"><i class="fa-solid fa-ban"></i></span>`);
 
                 item.innerHTML = `
-                    <span>${escapeHTML(friend.name)}</span>
-                    <div style="display:flex; align-items:center; gap:12px;">
+                    <button type="button" class="friend-panel-profile-trigger" aria-label="${escapeHTML(friend.name)} 프로필 보기">
+                        <img src="${escapeHTML(friend.peerProfileImage || "/static/default_profile.png")}" alt="">
+                        <span>${escapeHTML(friend.name)}</span>
+                    </button>
+                    <div class="friend-panel-actions">
                         ${blockIconHTML}
                         <span class="delete-friend-icon"><i class="fa-solid fa-trash"></i></span>
                     </div>
                 `;
+
+                item.querySelector(".friend-panel-profile-trigger").addEventListener("click", function () {
+                    openProfileCard(friend);
+                });
 
                 item.querySelector(".delete-friend-icon").addEventListener("click", function () {
                     showConfirm(`"${friend.name}"님을 삭제하시겠습니까?`, async function (confirmDelete) {
