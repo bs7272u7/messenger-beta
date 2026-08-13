@@ -133,6 +133,7 @@
             .desktop-info-avatar { display: grid; width: 62px; height: 62px; margin: 28px 0 12px; border-radius: 22px; place-items: center; background: var(--panel-tint-strong); color: var(--brand-color); font-size: 27px; }
             #desktop-info-name { max-width: 100%; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
             #desktop-info-status { margin: 8px 0 20px; color: color-mix(in srgb, var(--text-color) 60%, transparent); font-size: 12px; line-height: 1.55; }
+            #desktop-info-status:empty { display: none; }
             .desktop-info-actions { display: grid; width: 100%; grid-template-columns: repeat(2, 1fr); gap: 7px; }
             .desktop-info-actions button { min-height: 36px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--panel-bg); color: var(--text-color); cursor: pointer; font: inherit; font-size: 12px; }
             .desktop-info-actions button:hover { border-color: var(--brand-color); color: var(--brand-color); }

@@ -88,7 +88,7 @@
                 if (chatPanel) chatPanel.classList.add("no-conversation");
                 applyChatTheme(null);
                 desktopInfoName.innerText = "대화를 선택하세요";
-                desktopInfoStatus.innerText = "친구를 추가하거나 채팅방을 선택해보세요.";
+                desktopInfoStatus.innerText = "";
                 return;
             }
 
@@ -1211,8 +1211,7 @@
                 friendList.innerHTML = `
                     <div class="empty-friends">
                         <i class="fa-solid fa-user-group"></i>
-                        <strong>아직 채팅 친구가 없어요</strong>
-                        <p>친구를 추가하면 바로 대화를 시작할 수 있어요.</p>
+                        <strong>아직 채팅방 없어요</strong>
                         <button type="button" class="empty-chat-cta" id="empty-friends-add-btn">
                             <i class="fa-solid fa-user-plus"></i> 친구 추가하기
                         </button>
