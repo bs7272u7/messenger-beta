@@ -2763,12 +2763,12 @@
                 color: #e05252;
             }
 
-            /* 버전 표시는 입력창 근처가 아닌 목록 화면 상단에 두어 버튼과 겹치지 않게 한다. */
+            /* 하단 메뉴바 위의 오른쪽 안전영역에 두어 메시지함 등 상단 버튼과 분리한다. */
             .version-label {
                 position: fixed;
-                top: 18px;
+                top: auto;
                 right: 16px;
-                bottom: auto;
+                bottom: calc(76px + env(safe-area-inset-bottom));
                 z-index: 300;
             }
 
