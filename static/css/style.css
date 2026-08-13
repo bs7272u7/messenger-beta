@@ -587,11 +587,11 @@
             font-weight: 900;
             text-shadow: 0 4px 12px rgba(225, 61, 112, .18);
         }
-        .chat-theme-heart .chat-bg-decor .deco-1 { font-size: 38px; animation: heart-float-a 9s ease-in-out infinite; }
-        .chat-theme-heart .chat-bg-decor .deco-2 { font-size: 27px; animation: heart-float-b 8s ease-in-out infinite; }
-        .chat-theme-heart .chat-bg-decor .deco-3 { font-size: 33px; animation: heart-float-c 10s ease-in-out infinite; }
-        .chat-theme-heart .chat-bg-decor .deco-4 { font-size: 43px; animation: heart-float-b 11s ease-in-out infinite; }
-        .chat-theme-heart .chat-bg-decor .deco-5 { font-size: 24px; animation: heart-float-a 7.5s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-1 { font-size: 44px; animation: heart-float-a 9s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-2 { font-size: 32px; animation: heart-float-b 8s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-3 { font-size: 38px; animation: heart-float-c 10s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-4 { font-size: 50px; animation: heart-float-b 11s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-5 { font-size: 28px; animation: heart-float-a 7.5s ease-in-out infinite; }
         .chat-theme-heart .chat-bg-decor .deco-1::before,
         .chat-theme-heart .chat-bg-decor .deco-3::before,
         .chat-theme-heart .chat-bg-decor .deco-4::before {
@@ -605,6 +605,21 @@
         .chat-theme-heart .chat-bg-decor .deco-1::before { top: -12px; left: 31px; }
         .chat-theme-heart .chat-bg-decor .deco-3::before { bottom: -9px; left: -20px; }
         .chat-theme-heart .chat-bg-decor .deco-4::before { top: -12px; right: -17px; }
+        .theme-heart-extra { display: none; }
+        .chat-theme-heart .theme-heart-extra {
+            position: absolute;
+            display: block;
+            color: #f26b91;
+            font-family: "Font Awesome 6 Free";
+            font-size: 30px;
+            font-weight: 900;
+            opacity: .30;
+            text-shadow: 0 4px 12px rgba(225, 61, 112, .18);
+        }
+        .chat-theme-heart .theme-heart-extra::before { content: "\f004"; }
+        .chat-theme-heart .heart-extra-1 { top: 35%; left: 22%; animation: heart-float-c 9.5s ease-in-out infinite; }
+        .chat-theme-heart .heart-extra-2 { top: 72%; right: 23%; font-size: 34px; animation: heart-float-a 10.5s ease-in-out infinite; }
+        .chat-theme-heart .heart-extra-3 { top: 46%; right: 6%; font-size: 25px; animation: heart-float-b 8.5s ease-in-out infinite; }
 
         body.dark-mode .chat-theme-heart .chat-bg-decor .deco-bubble { opacity: .38; }
         body.dark-mode .chat-theme-heart .chat-bg-decor .deco-bubble::after {
@@ -612,12 +627,14 @@
             text-shadow: 0 4px 14px rgba(255, 143, 180, .18);
         }
         body.dark-mode .chat-theme-heart .chat-bg-decor .deco-bubble::before { color: #ff9db8; }
+        body.dark-mode .chat-theme-heart .theme-heart-extra { color: #ff9db8; opacity: .38; }
 
         /* Icons8 테디베어 아이콘은 4개만 배치해 장식이 메시지를 방해하지 않게 한다. */
         .chat-theme-teddy .chat-bg-decor .deco-bubble {
             filter: none;
             background: url("/static/image/teddy-bear-icons8.png") center / contain no-repeat;
             opacity: .36;
+            aspect-ratio: 1 / 1;
         }
         .chat-theme-teddy .chat-bg-decor .deco-bubble svg { display: none; }
         .chat-theme-teddy .chat-bg-decor .deco-1 { width: 106px; animation: teddy-float-a 13s ease-in-out infinite; }
@@ -662,7 +679,8 @@
             50% { transform: translate3d(-9px, 12px, 0) rotate(-3deg); }
         }
         @media (prefers-reduced-motion: reduce) {
-            .chat-bg-decor .deco-bubble { animation: none !important; }
+            .chat-bg-decor .deco-bubble,
+            .theme-heart-extra { animation: none !important; }
         }
         @media (max-width: 480px) {
             .chat-bg-decor .deco-3,
