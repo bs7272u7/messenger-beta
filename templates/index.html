@@ -114,6 +114,15 @@
                 <button id="add-friend-confirm-btn"><i class="fa-solid fa-plus"></i></button>
             </div>
 
+            <div class="friend-search-box">
+                <label for="friend-search-input">친구 찾기</label>
+                <div class="friend-panel-add">
+                    <input type="text" id="friend-search-input" placeholder="아이디로 프로필 찾기">
+                    <button id="friend-search-btn" type="button" aria-label="친구 찾기"><i class="fa-solid fa-magnifying-glass"></i></button>
+                </div>
+                <div id="friend-search-result" class="friend-search-result" aria-live="polite"></div>
+            </div>
+
             <button id="open-new-group-btn" style="width: 100%; margin-top: 10px; padding: 8px 0; border-radius: 8px; border: 1px solid var(--input-border); background: none; color: var(--text-color); cursor: pointer; font-size: 13px;">
                 <i class="fa-solid fa-user-group"></i> 새 그룹 만들기
             </button>
@@ -410,6 +419,12 @@
 
             <input type="text" id="my-profile-name" placeholder="이름" class="settings-input">
             <textarea id="my-profile-bio" placeholder="소개글 (최대 300자)" maxlength="300" class="settings-input" style="min-height:76px;"></textarea>
+            <label class="profile-visibility-label" for="my-profile-visibility">프로필 공개 범위</label>
+            <select id="my-profile-visibility" class="settings-input">
+                <option value="friends">친구만 공개</option>
+                <option value="public">전체 공개</option>
+                <option value="private">비공개</option>
+            </select>
             <div id="profile-cover-preview" class="profile-cover-preview" aria-label="프로필 배경사진 미리보기">
                 <span><i class="fa-regular fa-image"></i> 배경사진 없음</span>
             </div>

@@ -368,6 +368,8 @@ def handle_socket_connect():
     if "user_id" not in session:
         return False
     user_id = session["user_id"]
+    if is_user_suspended(user_id):
+        return False
     with active_socket_ids_lock:
         active_socket_ids.setdefault(user_id, set()).add(request.sid)
     join_room(f"user_{user_id}")
@@ -548,6 +550,10 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_visibility VARCHAR(20) NOT NULL DEFAULT 'friends'")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_until DOUBLE PRECISION NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspension_reason TEXT")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 
         cur.execute("""
@@ -555,6 +561,17 @@ def init_db():
                 user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
                 failed_count INT NOT NULL DEFAULT 0,
                 locked_until DOUBLE PRECISION NOT NULL DEFAULT 0
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS moderation_actions (
+                id SERIAL PRIMARY KEY,
+                target_user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                admin_user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                action VARCHAR(20) NOT NULL,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )
         """)
 
@@ -788,6 +805,9 @@ def login_required_page(view):
     def wrapped(*args, **kwargs):
         if "user_id" not in session:
             return redirect(url_for("login_page"))
+        if is_user_suspended(session["user_id"]):
+            session.clear()
+            return redirect(url_for("login_page", suspended="1"))
         return view(*args, **kwargs)
     return wrapped
 
@@ -797,6 +817,9 @@ def login_required_api(view):
     def wrapped(*args, **kwargs):
         if "user_id" not in session:
             return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
+        if is_user_suspended(session["user_id"]):
+            session.clear()
+            return jsonify({"success": False, "error": "이용 정지 상태입니다. 고객센터로 문의해주세요."}), 403
         return view(*args, **kwargs)
     return wrapped
 
@@ -815,6 +838,48 @@ def is_current_user_admin():
     return bool(user and user["is_admin"])
 
 
+def get_suspension_state(user):
+    """영구·기간 정지를 하나의 상태로 판단하고, 끝난 기간 정지는 자동 해제한다."""
+    if not user or not user["is_suspended"]:
+        return None
+    if user["suspended_until"] and user["suspended_until"] <= time.time():
+        return "expired"
+    return "permanent" if not user["suspended_until"] else "temporary"
+
+
+def is_user_suspended(user_id):
+    with get_db() as conn:
+        user = conn.execute(
+            "SELECT is_suspended, suspended_until FROM users WHERE id = %s", (user_id,)
+        ).fetchone()
+        state = get_suspension_state(user)
+        if state == "expired":
+            conn.execute("UPDATE users SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL WHERE id = %s", (user_id,))
+            conn.commit()
+            return False
+    return bool(state)
+
+
+def are_users_friends(conn, user_a, user_b):
+    if user_a == user_b:
+        return True
+    row = conn.execute("""
+        SELECT 1 FROM conversations c
+        JOIN conversation_members first_member ON first_member.conversation_id = c.id AND first_member.user_id = %s
+        JOIN conversation_members second_member ON second_member.conversation_id = c.id AND second_member.user_id = %s
+        WHERE c.is_group = FALSE LIMIT 1
+    """, (user_a, user_b)).fetchone()
+    return row is not None
+
+
+def can_view_profile(conn, viewer_id, target):
+    if not target or target["is_suspended"]:
+        return False
+    if viewer_id == target["id"] or target["profile_visibility"] == "public":
+        return True
+    return target["profile_visibility"] == "friends" and are_users_friends(conn, viewer_id, target["id"])
+
+
 def is_admin_access_verified():
     verified_until = session.get("admin_verified_until", 0)
     if verified_until and float(verified_until) > time.time():
@@ -828,6 +893,9 @@ def admin_account_required_page(view):
     def wrapped(*args, **kwargs):
         if not is_current_user_admin():
             abort(404)
+        if is_user_suspended(session["user_id"]):
+            session.clear()
+            return redirect(url_for("login_page", suspended="1"))
         return view(*args, **kwargs)
     return wrapped
 
@@ -837,6 +905,9 @@ def admin_account_required_api(view):
     def wrapped(*args, **kwargs):
         if not is_current_user_admin():
             return jsonify({"success": False, "error": "관리자 권한이 필요합니다."}), 404
+        if is_user_suspended(session["user_id"]):
+            session.clear()
+            return jsonify({"success": False, "error": "이용 정지 상태입니다."}), 403
         return view(*args, **kwargs)
     return wrapped
 
@@ -1277,7 +1348,8 @@ def admin_reports():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT r.*, reporter.username AS reporter_username, sender.username AS sender_username,
-                   m.text AS message_text
+                   m.text AS message_text, m.sender_id AS target_user_id,
+                   sender.is_suspended, sender.suspended_until, sender.suspension_reason
             FROM reports r
             JOIN users reporter ON reporter.id = r.reporter_id
             JOIN messages m ON m.id = r.message_id
@@ -1299,6 +1371,48 @@ def admin_report_detail(report_id):
         )
         conn.commit()
     return jsonify({"success": True})
+
+
+@app.route("/api/admin/users/<int:user_id>/suspension", methods=["PATCH"])
+@admin_required_api
+def admin_user_suspension(user_id):
+    """신고 검토 후 경고·기간 정지·영구 정지·해제를 서버 권한으로 처리한다."""
+    data = request.get_json() or {}
+    action = data.get("action")
+    reason = (data.get("reason") or "관리자 운영 정책 위반").strip()
+    durations = {"24h": 24 * 60 * 60, "7d": 7 * 24 * 60 * 60}
+    if action not in {"warning", "24h", "7d", "permanent", "lift"}:
+        return jsonify({"success": False, "error": "지원하지 않는 처리 방식입니다."}), 400
+    if len(reason) > 500:
+        return jsonify({"success": False, "error": "처리 사유는 500자 이하로 입력해주세요."}), 400
+
+    with get_db() as conn:
+        target = conn.execute("SELECT id, is_admin FROM users WHERE id = %s", (user_id,)).fetchone()
+        if not target:
+            return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
+        if target["is_admin"] or user_id == session["user_id"]:
+            return jsonify({"success": False, "error": "관리자 계정은 정지 처리할 수 없습니다."}), 403
+
+        if action == "warning":
+            pass
+        elif action == "lift":
+            conn.execute("UPDATE users SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL WHERE id = %s", (user_id,))
+        elif action == "permanent":
+            conn.execute("UPDATE users SET is_suspended = TRUE, suspended_until = 0, suspension_reason = %s WHERE id = %s", (reason, user_id))
+        else:
+            conn.execute("UPDATE users SET is_suspended = TRUE, suspended_until = %s, suspension_reason = %s WHERE id = %s", (time.time() + durations[action], reason, user_id))
+        conn.execute("""
+            INSERT INTO moderation_actions (target_user_id, admin_user_id, action, reason, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (user_id, session["user_id"], action, reason, now_str()))
+        conn.commit()
+
+    # 이미 열려 있는 탭도 다음 요청부터 차단되고, 실시간 연결도 끊어 온라인 표시가 남지 않는다.
+    if action in {"24h", "7d", "permanent"}:
+        with active_socket_ids_lock:
+            active_socket_ids.pop(user_id, None)
+        socketio.emit("account_suspended", {"reason": reason}, room=f"user_{user_id}")
+    return jsonify({"success": True, "action": action})
 
 
 # ----------------------------------------------------------------
@@ -1369,17 +1483,24 @@ def login():
     with get_db() as conn:
         if "@" in identifier:
             user = conn.execute(
-                "SELECT id, username, password_hash, display_name, profile_image FROM users WHERE email = %s",
+                "SELECT id, username, password_hash, display_name, profile_image, is_suspended, suspended_until, suspension_reason FROM users WHERE email = %s",
                 (identifier.lower(),)
             ).fetchone()
         else:
             user = conn.execute(
-                "SELECT id, username, password_hash, display_name, profile_image FROM users WHERE username = %s",
+                "SELECT id, username, password_hash, display_name, profile_image, is_suspended, suspended_until, suspension_reason FROM users WHERE username = %s",
                 (identifier,)
             ).fetchone()
 
     if not user or not check_password_hash(user["password_hash"], password):
         return jsonify({"success": False, "error": "아이디/이메일 또는 비밀번호가 올바르지 않습니다."})
+    suspension_state = get_suspension_state(user)
+    if suspension_state == "expired":
+        with get_db() as conn:
+            conn.execute("UPDATE users SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL WHERE id = %s", (user["id"],))
+            conn.commit()
+    elif suspension_state:
+        return jsonify({"success": False, "error": "이용 정지 상태인 계정입니다. 고객센터로 문의해주세요."}), 403
 
     session.pop("admin_verified_until", None)
     session["user_id"] = user["id"]
@@ -2531,19 +2652,25 @@ def account_profile():
     user_id = session["user_id"]
     if request.method == "GET":
         with get_db() as conn:
-            user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio FROM users WHERE id = %s", (user_id,)).fetchone()
+            user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio, profile_visibility FROM users WHERE id = %s", (user_id,)).fetchone()
         return jsonify(dict(user))
 
     data = request.get_json() or {}
     bio = (data.get("bio") or "").strip()
+    visibility = data.get("profile_visibility")
+    if visibility is not None and visibility not in {"public", "friends", "private"}:
+        return jsonify({"success": False, "error": "올바른 프로필 공개 범위를 선택해주세요."}), 400
     if len(bio) > 300:
         return jsonify({"success": False, "error": "소개글은 최대 300자까지 입력할 수 있습니다."}), 400
     with get_db() as conn:
-        conn.execute("UPDATE users SET bio = %s WHERE id = %s", (bio, user_id))
+        if visibility is None:
+            current = conn.execute("SELECT profile_visibility FROM users WHERE id = %s", (user_id,)).fetchone()
+            visibility = current["profile_visibility"] if current else "friends"
+        conn.execute("UPDATE users SET bio = %s, profile_visibility = %s WHERE id = %s", (bio, visibility, user_id))
         recipient_ids = profile_update_recipient_ids(conn, user_id)
         conn.commit()
     notify_profile_updated(recipient_ids, user_id)
-    return jsonify({"success": True, "bio": bio})
+    return jsonify({"success": True, "bio": bio, "profile_visibility": visibility})
 
 
 @app.route("/api/account/cover-image", methods=["PATCH", "DELETE"])
@@ -2576,10 +2703,31 @@ def account_cover_image():
 @login_required_api
 def public_profile(user_id):
     with get_db() as conn:
-        user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio FROM users WHERE id = %s", (user_id,)).fetchone()
-    if not user:
-        return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
-    return jsonify({"success": True, **dict(user), "is_online": is_user_online(user_id)})
+        user = conn.execute("SELECT id, display_name, username, profile_image, cover_image, bio, profile_visibility, is_suspended FROM users WHERE id = %s", (user_id,)).fetchone()
+        if not can_view_profile(conn, session["user_id"], user):
+            return jsonify({"success": False, "error": "사용자를 찾을 수 없거나 비공개 프로필입니다."}), 404
+    profile = dict(user)
+    profile.pop("is_suspended", None)
+    return jsonify({"success": True, **profile, "is_online": is_user_online(user_id)})
+
+
+@app.route("/api/users/search", methods=["GET"])
+@login_required_api
+def search_user_profile():
+    username = (request.args.get("username") or "").strip().lower()
+    if not re.fullmatch(r"[a-z0-9]{5,}", username):
+        return jsonify({"success": False, "error": "아이디를 정확히 입력해주세요."}), 400
+    with get_db() as conn:
+        user = conn.execute("""
+            SELECT id, display_name, username, profile_image, cover_image, bio, profile_visibility, is_suspended
+            FROM users WHERE username = %s
+        """, (username,)).fetchone()
+        if not can_view_profile(conn, session["user_id"], user):
+            return jsonify({"success": False, "error": "사용자를 찾을 수 없거나 비공개 프로필입니다."}), 404
+        is_friend = are_users_friends(conn, session["user_id"], user["id"])
+    profile = dict(user)
+    profile.pop("is_suspended", None)
+    return jsonify({"success": True, "user": {**profile, "is_friend": is_friend, "is_online": is_user_online(user["id"])}})
 
 
 @app.route("/api/account/username", methods=["PATCH"])

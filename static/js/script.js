@@ -360,6 +360,9 @@
         const closeFriendPanelBtn = document.querySelector("#close-friend-panel");
         const newFriendInput = document.querySelector("#new-friend-input");
         const addFriendConfirmBtn = document.querySelector("#add-friend-confirm-btn");
+        const friendSearchInput = document.querySelector("#friend-search-input");
+        const friendSearchBtn = document.querySelector("#friend-search-btn");
+        const friendSearchResult = document.querySelector("#friend-search-result");
         const friendRequestList = document.querySelector("#friend-request-list");
         const friendInboxBtn = document.querySelector("#friend-inbox-btn");
         const friendInboxOverlay = document.querySelector("#friend-inbox-overlay");
@@ -483,6 +486,7 @@
         const profileCardBio = document.querySelector("#profile-card-bio");
         const profileCardPresence = document.querySelector("#profile-card-presence");
         const myProfileBio = document.querySelector("#my-profile-bio");
+        const myProfileVisibility = document.querySelector("#my-profile-visibility");
         const coverImageInput = document.querySelector("#cover-image-input");
         const removeCoverImageBtn = document.querySelector("#remove-cover-image-btn");
         const profileCoverPreview = document.querySelector("#profile-cover-preview");
@@ -2031,6 +2035,35 @@
             }
         });
 
+        async function searchFriendProfile() {
+            const username = friendSearchInput.value.trim();
+            if (!username) return;
+            friendSearchResult.innerHTML = '<span class="friend-search-loading">검색 중...</span>';
+            try {
+                const response = await fetch(`/api/users/search?username=${encodeURIComponent(username)}`);
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.error || "사용자를 찾을 수 없습니다.");
+                const user = result.user;
+                const cardFriend = {
+                    isGroup: false, peerId: user.id, name: user.display_name || user.username,
+                    peerProfileImage: user.profile_image, peerCoverImage: user.cover_image,
+                    peerBio: user.bio, isOnline: user.is_online
+                };
+                friendSearchResult.innerHTML = `
+                    <div class="friend-search-card">
+                        <button type="button" class="friend-search-profile" aria-label="${escapeHTML(cardFriend.name)} 프로필 보기"><img src="${escapeHTML(user.profile_image || "/static/default_profile.png")}" alt=""><span><strong>${escapeHTML(cardFriend.name)}</strong><small>@${escapeHTML(user.username)}</small></span></button>
+                        ${user.is_friend ? '<span class="friend-search-state">친구</span>' : `<button type="button" class="friend-search-add" data-username="${escapeHTML(user.username)}">친구 추가</button>`}
+                    </div>`;
+                friendSearchResult.querySelector(".friend-search-profile").addEventListener("click", function () { openProfileCard(cardFriend); });
+                const addButton = friendSearchResult.querySelector(".friend-search-add");
+                if (addButton) addButton.addEventListener("click", async function () { await sendFriendRequest(user.username); });
+            } catch (error) {
+                friendSearchResult.innerHTML = `<span class="friend-search-error">${escapeHTML(error.message)}</span>`;
+            }
+        }
+        friendSearchBtn.addEventListener("click", searchFriendProfile);
+        friendSearchInput.addEventListener("keydown", function (event) { if (event.key === "Enter") { event.preventDefault(); searchFriendProfile(); } });
+
         friendPanelTab.addEventListener("click", function () {
             if (friendPanel.classList.contains("open")) closeFriendPanel();
             else openFriendPanel();
@@ -2241,6 +2274,7 @@
             try {
                 const profile = await fetch("/api/account/profile").then(response => response.json());
                 myProfileBio.value = profile.bio || "";
+                myProfileVisibility.value = profile.profile_visibility || "friends";
                 updateProfileCoverPreview(profile.cover_image);
             } catch (error) { /* 기본 편집은 계속 가능 */ }
             myProfileOverlay.style.display = "flex";
@@ -2303,7 +2337,7 @@
                 }
 
                 document.querySelector("#current-username").innerText = result.display_name;
-                const profileResponse = await fetch("/api/account/profile", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({bio:myProfileBio.value.trim()}) });
+                const profileResponse = await fetch("/api/account/profile", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({bio:myProfileBio.value.trim(), profile_visibility:myProfileVisibility.value}) });
                 const profileResult = await profileResponse.json();
                 if (!profileResponse.ok || !profileResult.success) throw new Error(profileResult.error || "프로필 정보를 저장하지 못했습니다.");
                 pendingProfileImageData = null;
@@ -3519,6 +3553,12 @@ async function sendVideo(file) {
         // 상대방의 접속 상태가 바뀌면 목록의 온라인 표시를 바로 갱신한다.
         socket.on("presence_updated", async function () {
             await loadFriends();
+        });
+
+        socket.on("account_suspended", function (data) {
+            showAlert(`이용이 정지되었습니다. 사유: ${data.reason || "운영 정책 위반"}`, function () {
+                window.location.href = "/login";
+            });
         });
 
         /* ======================================================

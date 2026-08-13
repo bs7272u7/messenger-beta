@@ -2160,6 +2160,16 @@
             color: #4a90e2;
         }
 
+        .friend-search-box { margin-top:14px; padding-top:14px; border-top:1px solid var(--input-border); }
+        .friend-search-box label, .profile-visibility-label { display:block; margin:0 0 7px; color:color-mix(in srgb, var(--text-color) 74%, transparent); font-size:12px; font-weight:700; }
+        .friend-search-result { min-height:0; margin-top:8px; }
+        .friend-search-card { display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--input-border); border-radius:10px; background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color)); }
+        .friend-search-profile { display:flex; min-width:0; flex:1; align-items:center; gap:8px; padding:0; border:0; background:transparent; color:var(--text-color); text-align:left; cursor:pointer; }
+        .friend-search-profile img { width:34px; height:34px; border-radius:50%; object-fit:cover; background:var(--profile-bg); }
+        .friend-search-profile span { display:grid; min-width:0; gap:2px; }.friend-search-profile small { overflow:hidden; color:color-mix(in srgb, var(--text-color) 56%, transparent); text-overflow:ellipsis; white-space:nowrap; }
+        .friend-search-add, .friend-search-state { flex:0 0 auto; padding:7px 9px; border:1px solid color-mix(in srgb, var(--brand-color) 50%, var(--input-border)); border-radius:8px; color:var(--brand-color); background:transparent; font-size:11px; font-weight:700; }.friend-search-add { cursor:pointer; }.friend-search-state { color:#4d9b70; border-color:rgba(77,155,112,.36); }
+        .friend-search-error { display:block; padding:7px 2px; color:#d75c5c; font-size:11px; }.friend-search-loading { color:color-mix(in srgb, var(--text-color) 55%, transparent); font-size:11px; }
+
         #theme-toggle-icon {
             font-size: 20px;
         }
