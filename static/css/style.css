@@ -492,6 +492,25 @@
         .chat-theme-heart .bubble { background: var(--bubble-bg); }
         .chat.chat-theme-heart .chat-header { background: linear-gradient(135deg, #fff7fa, #ffe2ec); }
 
+        /* 다크모드에서도 핑크의 분위기는 유지하되, 눈부시지 않은 로즈 톤으로 맞춘다. */
+        body.dark-mode .chat-theme-heart {
+            --chat-bg: #412b39;
+            --message-left-bg: #624154;
+            --bubble-bg: linear-gradient(135deg, #e95781, #e98270);
+            --bubble-text: #fff9fb;
+        }
+        body.dark-mode .chat-theme-heart .messages-wrap {
+            background: radial-gradient(circle at 12% 16%, rgba(255, 147, 178, .16) 0 2px, transparent 3px) 0 0 / 34px 34px,
+                        linear-gradient(135deg, #553040, #352735);
+        }
+        body.dark-mode .chat.chat-theme-heart .chat-header {
+            background: linear-gradient(135deg, #693b50, #482d3d);
+        }
+        body.dark-mode .chat-theme-heart .input-area {
+            background: #3b2a35;
+            border-top-color: rgba(255, 183, 204, .18);
+        }
+
         .chat-theme-teddy {
             --chat-bg: #f5eadb;
             --message-left-bg: #fffaf3;
@@ -503,6 +522,25 @@
                         linear-gradient(135deg, #f9f0e4, #edd9c2);
         }
         .chat.chat-theme-teddy .chat-header { background: linear-gradient(135deg, #fff8ed, #f2debf); }
+
+        /* 테디베어 테마도 검정에 가깝게 떨어지지 않도록 따뜻한 코코아 톤을 사용한다. */
+        body.dark-mode .chat-theme-teddy {
+            --chat-bg: #44342c;
+            --message-left-bg: #5d473a;
+            --bubble-bg: #c5875b;
+            --bubble-text: #fffaf5;
+        }
+        body.dark-mode .chat-theme-teddy .messages-wrap {
+            background: radial-gradient(circle at 16% 18%, rgba(255, 204, 153, .12) 0 3px, transparent 4px) 0 0 / 36px 36px,
+                        linear-gradient(135deg, #5b4134, #3b302a);
+        }
+        body.dark-mode .chat.chat-theme-teddy .chat-header {
+            background: linear-gradient(135deg, #664939, #49372e);
+        }
+        body.dark-mode .chat-theme-teddy .input-area {
+            background: #3d302a;
+            border-top-color: rgba(255, 218, 183, .16);
+        }
 
         .chat-theme-modal { width: 430px; max-width: 90vw; padding: 0; overflow: hidden; }
         .chat-theme-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 18px; }
@@ -531,6 +569,34 @@
 
         .chat-bg-decor .deco-bubble svg { display: block; }
 
+        /* 하트 테마에서는 기본 말풍선 SVG 대신 Font Awesome 하트가 떠다닌다. */
+        .chat-theme-heart .chat-bg-decor .deco-bubble {
+            width: auto;
+            height: auto;
+            filter: none;
+            opacity: .30;
+        }
+        .chat-theme-heart .chat-bg-decor .deco-bubble svg { display: none; }
+        .chat-theme-heart .chat-bg-decor .deco-bubble::after {
+            content: "\f004";
+            display: block;
+            color: #f26b91;
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            text-shadow: 0 4px 12px rgba(225, 61, 112, .18);
+        }
+        .chat-theme-heart .chat-bg-decor .deco-1 { font-size: 31px; animation: heart-float-a 9s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-2 { font-size: 22px; animation: heart-float-b 8s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-3 { font-size: 27px; animation: heart-float-c 10s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-4 { font-size: 35px; animation: heart-float-b 11s ease-in-out infinite; }
+        .chat-theme-heart .chat-bg-decor .deco-5 { font-size: 19px; animation: heart-float-a 7.5s ease-in-out infinite; }
+
+        body.dark-mode .chat-theme-heart .chat-bg-decor .deco-bubble { opacity: .38; }
+        body.dark-mode .chat-theme-heart .chat-bg-decor .deco-bubble::after {
+            color: #ff9db8;
+            text-shadow: 0 4px 14px rgba(255, 143, 180, .18);
+        }
+
         .chat-bg-decor .deco-1 { top: 6%;  left: 8%;  width: 130px; animation: chat-float-a 13s ease-in-out infinite; }
         .chat-bg-decor .deco-2 { top: 58%; left: -3%; width: 90px;  animation: chat-float-b 10.5s ease-in-out infinite; }
         .chat-bg-decor .deco-3 { top: 14%; right: 6%; width: 100px; animation: chat-float-b 11.5s ease-in-out infinite; }
@@ -544,6 +610,18 @@
         @keyframes chat-float-b {
             0%, 100% { transform: translateY(0) rotate(0deg); }
             50% { transform: translateY(14px) rotate(-4deg); }
+        }
+        @keyframes heart-float-a {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(-7deg); }
+            50% { transform: translate3d(13px, -23px, 0) rotate(8deg); }
+        }
+        @keyframes heart-float-b {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(6deg); }
+            50% { transform: translate3d(-12px, -18px, 0) rotate(-8deg); }
+        }
+        @keyframes heart-float-c {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(-3deg); }
+            50% { transform: translate3d(8px, 17px, 0) rotate(7deg); }
         }
         @media (prefers-reduced-motion: reduce) {
             .chat-bg-decor .deco-bubble { animation: none !important; }
