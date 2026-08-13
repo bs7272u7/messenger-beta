@@ -2296,6 +2296,59 @@
             margin-top: 0;
         }
 
+        .verification-code-row {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 2px;
+        }
+
+        .verification-code-row .settings-input {
+            flex: 1;
+            min-width: 0;
+            margin: 0;
+        }
+
+        .verification-action-btn {
+            flex-shrink: 0;
+            min-width: 70px;
+            height: 40px;
+            padding: 0 11px;
+            border: 1px solid var(--brand-color);
+            border-radius: 10px;
+            background: var(--panel-bg);
+            color: var(--brand-color);
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .verification-action-btn.verified {
+            border-color: var(--accent-2, #55d6c2);
+            background: var(--accent-2, #55d6c2);
+            color: #143a36;
+        }
+
+        .verification-code-timer {
+            flex: 0 0 38px;
+            color: #e05252;
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+
+        .inline-verification-status {
+            min-height: 18px;
+            margin: 5px 0 8px;
+            color: gray;
+            font-size: 12px;
+        }
+
+        .inline-verification-status.success { color: #27906c; font-weight: 700; }
+        .inline-verification-status.error { color: #e05252; }
+        .account-email-code-row { margin-top: 8px; }
+
         .account-recovery-result {
             min-height: 18px;
             margin: 8px 0 0;

@@ -363,6 +363,9 @@
         const helpResetCodeBtn = document.querySelector("#help-reset-code-btn");
         const helpResetFields = document.querySelector("#help-reset-fields");
         const helpResetCode = document.querySelector("#help-reset-code");
+        const helpResetVerifyBtn = document.querySelector("#help-reset-verify-btn");
+        const helpResetCodeTimer = document.querySelector("#help-reset-code-timer");
+        const helpResetVerificationStatus = document.querySelector("#help-reset-verification-status");
         const helpResetNewPassword = document.querySelector("#help-reset-new-password");
         const helpResetSubmitBtn = document.querySelector("#help-reset-submit-btn");
         const helpResetResult = document.querySelector("#help-reset-result");
@@ -526,12 +529,19 @@
         const newEmailInput = document.querySelector("#new-email-input");
         const sendEmailCodeBtn = document.querySelector("#send-email-code-btn");
         const emailCodeInput = document.querySelector("#email-code-input");
+        const verifyEmailCodeBtn = document.querySelector("#verify-email-code-btn");
+        const emailCodeTimer = document.querySelector("#email-code-timer");
+        const emailCodeStatus = document.querySelector("#email-code-status");
         const emailChangePassword = document.querySelector("#email-change-password");
         const saveEmailBtn = document.querySelector("#save-email-btn");
         const currentEmailText = document.querySelector("#current-email-text");
         const outgoingFriendRequestList = document.querySelector(
             "#outgoing-friend-request-list"
         );
+        let accountEmailCodeSent = false;
+        let accountEmailVerified = false;
+        let helpResetCodeSent = false;
+        let helpResetVerified = false;
 
         /* ======================================================
          * 다크모드
@@ -2304,6 +2314,38 @@ supportInquiryForm.addEventListener("submit", async function (event) {
     }
 });
 
+/* 인증 성공·재발송·만료 때 동일하게 사용할 3분 카운트다운 처리다. */
+function stopInlineVerificationTimer(timerElement, hide = false) {
+    if (timerElement._interval) clearInterval(timerElement._interval);
+    timerElement._interval = null;
+    if (hide) {
+        timerElement.textContent = "";
+        timerElement.hidden = true;
+    }
+}
+
+function startInlineVerificationTimer(timerElement, onExpire) {
+    stopInlineVerificationTimer(timerElement);
+    let remaining = 180;
+    timerElement.hidden = false;
+
+    function tick() {
+        const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
+        const seconds = String(remaining % 60).padStart(2, "0");
+        timerElement.textContent = `${minutes}:${seconds}`;
+        if (remaining <= 0) {
+            stopInlineVerificationTimer(timerElement);
+            timerElement.textContent = "만료됨";
+            onExpire();
+            return;
+        }
+        remaining -= 1;
+    }
+
+    tick();
+    timerElement._interval = setInterval(tick, 1000);
+}
+
 /* ==============================================================
  * 계정 복구: 로그인 화면과 같은 Flask API를 재사용한다.
  * 화면만 다를 뿐, 인증번호 발송·검증 규칙은 서버 한 곳에서 관리한다.
@@ -2356,6 +2398,21 @@ helpResetCodeBtn.addEventListener("click", async function () {
         if (!response.ok || !result.success) throw new Error(result.error || "인증번호 이메일 전송에 실패했습니다.");
         helpResetResult.textContent = result.message || result.error || "인증번호를 보냈습니다.";
         helpResetFields.hidden = false;
+        helpResetCodeSent = true;
+        helpResetVerified = false;
+        helpResetCode.value = "";
+        helpResetCode.readOnly = false;
+        helpResetVerificationStatus.textContent = "";
+        helpResetVerificationStatus.className = "inline-verification-status";
+        helpResetVerifyBtn.classList.remove("verified");
+        helpResetVerifyBtn.textContent = "인증하기";
+        helpResetVerifyBtn.disabled = false;
+        startInlineVerificationTimer(helpResetCodeTimer, function () {
+            helpResetCodeSent = false;
+            helpResetVerificationStatus.textContent = "인증번호가 만료되었습니다. 다시 요청해주세요.";
+            helpResetVerificationStatus.className = "inline-verification-status error";
+            helpResetVerifyBtn.disabled = true;
+        });
         helpResetCode.focus();
     } catch (error) {
         helpResetResult.textContent = error.message || "서버와 통신 중 문제가 발생했습니다.";
@@ -2365,12 +2422,61 @@ helpResetCodeBtn.addEventListener("click", async function () {
     }
 });
 
+helpResetVerifyBtn.addEventListener("click", async function () {
+    const email = helpResetEmail.value.trim();
+    const code = helpResetCode.value.trim();
+    if (!helpResetCodeSent || !email || !code) {
+        helpResetVerificationStatus.textContent = "이메일과 인증번호 6자리를 입력해주세요.";
+        helpResetVerificationStatus.className = "inline-verification-status error";
+        return;
+    }
+
+    helpResetVerifyBtn.disabled = true;
+    helpResetVerifyBtn.textContent = "확인 중...";
+    try {
+        const response = await fetch("/api/password-reset/verify-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, code })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "인증에 실패했습니다.");
+
+        helpResetVerified = true;
+        helpResetCode.readOnly = true;
+        stopInlineVerificationTimer(helpResetCodeTimer, true);
+        helpResetVerificationStatus.textContent = "✓ 이메일 인증이 완료되었습니다.";
+        helpResetVerificationStatus.className = "inline-verification-status success";
+        helpResetVerifyBtn.classList.add("verified");
+        helpResetVerifyBtn.textContent = "인증 완료";
+    } catch (error) {
+        helpResetVerified = false;
+        helpResetVerificationStatus.textContent = error.message || "인증에 실패했습니다.";
+        helpResetVerificationStatus.className = "inline-verification-status error";
+        helpResetVerifyBtn.textContent = "인증하기";
+    } finally {
+        helpResetVerifyBtn.disabled = helpResetVerified;
+    }
+});
+
+helpResetEmail.addEventListener("input", function () {
+    if (!helpResetCodeSent) return;
+    helpResetCodeSent = false;
+    helpResetVerified = false;
+    stopInlineVerificationTimer(helpResetCodeTimer, true);
+    helpResetFields.hidden = true;
+});
+
 helpResetSubmitBtn.addEventListener("click", async function () {
     const email = helpResetEmail.value.trim();
     const code = helpResetCode.value.trim();
     const newPassword = helpResetNewPassword.value;
     if (!code || !newPassword) {
         helpResetResult.textContent = "인증번호와 새 비밀번호를 모두 입력해주세요.";
+        return;
+    }
+    if (!helpResetVerified) {
+        helpResetResult.textContent = "인증번호 인증을 먼저 완료해주세요.";
         return;
     }
 
@@ -2388,6 +2494,11 @@ helpResetSubmitBtn.addEventListener("click", async function () {
         helpResetResult.textContent = "비밀번호가 변경되었습니다.";
         helpResetCode.value = "";
         helpResetNewPassword.value = "";
+        helpResetCodeSent = false;
+        helpResetVerified = false;
+        helpResetCode.readOnly = false;
+        helpResetVerifyBtn.classList.remove("verified");
+        helpResetVerifyBtn.textContent = "인증하기";
     } catch (error) {
         helpResetResult.textContent = error.message || "서버와 통신 중 문제가 발생했습니다.";
     } finally {
@@ -2440,6 +2551,8 @@ sendEmailCodeBtn.addEventListener("click", async function () {
         return;
     }
 
+    sendEmailCodeBtn.disabled = true;
+    sendEmailCodeBtn.textContent = "발송 중...";
     try {
         const response = await fetch("/api/account/email/send-code", {
             method: "POST",
@@ -2453,13 +2566,86 @@ sendEmailCodeBtn.addEventListener("click", async function () {
             return;
         }
 
+        accountEmailCodeSent = true;
+        accountEmailVerified = false;
+        emailCodeInput.value = "";
+        emailCodeInput.readOnly = false;
+        emailCodeStatus.textContent = "인증번호를 이메일로 보냈습니다.";
+        emailCodeStatus.className = "inline-verification-status";
+        verifyEmailCodeBtn.classList.remove("verified");
+        verifyEmailCodeBtn.textContent = "인증하기";
+        verifyEmailCodeBtn.disabled = false;
+        startInlineVerificationTimer(emailCodeTimer, function () {
+            accountEmailCodeSent = false;
+            emailCodeStatus.textContent = "인증번호가 만료되었습니다. 다시 요청해주세요.";
+            emailCodeStatus.className = "inline-verification-status error";
+            verifyEmailCodeBtn.disabled = true;
+        });
         showToast("인증 코드를 이메일로 전송했습니다.");
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");
+    } finally {
+        sendEmailCodeBtn.disabled = false;
+        sendEmailCodeBtn.textContent = "인증코드 받기";
     }
 });
 
+verifyEmailCodeBtn.addEventListener("click", async function () {
+    const email = newEmailInput.value.trim();
+    const code = emailCodeInput.value.trim();
+    if (!accountEmailCodeSent || !email || !code) {
+        emailCodeStatus.textContent = "이메일과 인증번호 6자리를 입력해주세요.";
+        emailCodeStatus.className = "inline-verification-status error";
+        return;
+    }
+
+    verifyEmailCodeBtn.disabled = true;
+    verifyEmailCodeBtn.textContent = "확인 중...";
+    try {
+        const response = await fetch("/api/verify-email-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, code })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "인증에 실패했습니다.");
+
+        accountEmailVerified = true;
+        emailCodeInput.readOnly = true;
+        stopInlineVerificationTimer(emailCodeTimer, true);
+        emailCodeStatus.textContent = "✓ 이메일 인증이 완료되었습니다.";
+        emailCodeStatus.className = "inline-verification-status success";
+        verifyEmailCodeBtn.classList.add("verified");
+        verifyEmailCodeBtn.textContent = "인증 완료";
+    } catch (err) {
+        accountEmailVerified = false;
+        emailCodeStatus.textContent = err.message || "인증에 실패했습니다.";
+        emailCodeStatus.className = "inline-verification-status error";
+        verifyEmailCodeBtn.textContent = "인증하기";
+    } finally {
+        verifyEmailCodeBtn.disabled = accountEmailVerified;
+    }
+});
+
+newEmailInput.addEventListener("input", function () {
+    if (!accountEmailCodeSent) return;
+    accountEmailCodeSent = false;
+    accountEmailVerified = false;
+    stopInlineVerificationTimer(emailCodeTimer, true);
+    emailCodeInput.value = "";
+    emailCodeInput.readOnly = false;
+    emailCodeStatus.textContent = "이메일이 변경되어 인증번호를 다시 받아야 합니다.";
+    emailCodeStatus.className = "inline-verification-status";
+    verifyEmailCodeBtn.classList.remove("verified");
+    verifyEmailCodeBtn.textContent = "인증하기";
+    verifyEmailCodeBtn.disabled = false;
+});
+
 saveEmailBtn.addEventListener("click", async function () {
+    if (!accountEmailVerified) {
+        showAlert("인증번호 인증을 먼저 완료해주세요.");
+        return;
+    }
     try {
         const response = await fetch("/api/account/email", {
             method: "PATCH",
@@ -2481,6 +2667,12 @@ saveEmailBtn.addEventListener("click", async function () {
         newEmailInput.value = "";
         emailCodeInput.value = "";
         emailChangePassword.value = "";
+        accountEmailCodeSent = false;
+        accountEmailVerified = false;
+        emailCodeInput.readOnly = false;
+        verifyEmailCodeBtn.classList.remove("verified");
+        verifyEmailCodeBtn.textContent = "인증하기";
+        emailCodeStatus.textContent = "";
         showToast("이메일이 변경되었습니다.");
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");

@@ -2002,6 +2002,30 @@ def send_password_reset_code():
 
     return jsonify({"success": True, "message": message})
 
+
+@app.route("/api/password-reset/verify-code", methods=["POST"])
+def verify_password_reset_code():
+    """비밀번호 변경 전에 재설정 인증번호만 먼저 확인한다."""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    code = (data.get("code") or "").strip()
+
+    if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email) or not re.fullmatch(r"\d{6}", code):
+        return jsonify({"success": False, "error": "이메일과 인증번호 6자리를 확인해주세요."}), 400
+
+    with get_db() as conn:
+        reset_code = conn.execute(
+            "SELECT expires_at FROM password_reset_codes WHERE email = %s AND code = %s",
+            (email, code),
+        ).fetchone()
+
+    if not reset_code:
+        return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."}), 400
+    if reset_code["expires_at"] < now_str():
+        return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."}), 400
+    return jsonify({"success": True, "message": "이메일 인증이 완료되었습니다."})
+
+
 @app.route("/api/password-reset/confirm", methods=["POST"])
 def confirm_password_reset():
     data = request.get_json() or {}
