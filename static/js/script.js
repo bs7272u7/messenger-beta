@@ -1482,7 +1482,7 @@
                 const statusHTML = getPresenceIndicatorHTML(friend);
                 
                 newFriend.innerHTML = `
-                    <div class="profile">
+                    <div class="profile ${friend.isGroup ? "" : "friend-profile-trigger"}" ${friend.isGroup ? "" : 'role="button" tabindex="0" aria-label="상대방 프로필 보기"'}>
                         <img src="${avatarImg}" alt="Profile Image">
                         ${statusHTML}
                     </div>
@@ -1495,6 +1495,20 @@
                     </div>
                     ${unreadHTML}
                 `;
+                if (!friend.isGroup) {
+                    const profileTrigger = newFriend.querySelector(".friend-profile-trigger");
+                    const openFriendProfile = function (event) {
+                        event.stopPropagation();
+                        openProfileCard(friend);
+                    };
+                    profileTrigger.addEventListener("click", openFriendProfile);
+                    profileTrigger.addEventListener("keydown", function (event) {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openFriendProfile(event);
+                        }
+                    });
+                }
                 friendList.appendChild(newFriend);
             });
         }

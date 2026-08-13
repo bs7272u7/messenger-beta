@@ -438,6 +438,24 @@
             object-fit: cover;
         }
 
+        /* 친구 행은 채팅을 열고, 사진만 누르면 상세 프로필을 연다. */
+        .friend-profile-trigger {
+            cursor: pointer;
+            outline: 2px solid transparent;
+            outline-offset: 2px;
+            transition: transform .16s ease, outline-color .16s ease, box-shadow .16s ease;
+        }
+
+        .friend-profile-trigger:hover {
+            transform: scale(1.06);
+            outline-color: color-mix(in srgb, var(--brand-color) 62%, transparent);
+            box-shadow: 0 5px 13px var(--panel-tint-strong);
+        }
+
+        .friend-profile-trigger:focus-visible {
+            outline-color: var(--brand-color);
+        }
+
         .friend-name {
             font-weight: 500;
         }
