@@ -14,7 +14,7 @@
             .container {
                 display: grid;
                 /* 주변 정보는 유지하되, 대화에 가장 넓은 시선을 배분한다. */
-                grid-template-columns: 300px minmax(0, 1fr) 200px;
+                grid-template-columns: 270px minmax(0, 1fr) 170px;
                 gap: 12px;
                 /* 바깥 여백은 줄이고, 남는 폭은 중앙 채팅 영역에 우선 배분한다. */
                 width: min(1520px, calc(100vw - 24px));
@@ -86,20 +86,6 @@
             #friend-inbox-btn:hover,
             .desktop-profile-card #edit-profile-btn:hover,
             .desktop-quick-actions .side-nav-settings:hover { background: var(--friend-hover); color: var(--brand-color); }
-
-            .inbox-count {
-                display: grid;
-                width: 18px;
-                height: 18px;
-                min-width: 18px;
-                padding: 0;
-                border-radius: 99px;
-                place-items: center;
-                background: #e05252;
-                color: #fff;
-                font-size: 9px;
-                line-height: 1;
-            }
 
             .friend-list-heading { display: flex; align-items: center; justify-content: space-between; padding-top: 16px; }
             .friend-list-heading h2 { margin: 0; font-size: 18px; }

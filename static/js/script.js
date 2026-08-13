@@ -324,7 +324,6 @@
         const addFriendConfirmBtn = document.querySelector("#add-friend-confirm-btn");
         const friendRequestList = document.querySelector("#friend-request-list");
         const friendInboxBtn = document.querySelector("#friend-inbox-btn");
-        const friendRequestBadge = document.querySelector("#friend-request-badge");
         const friendInboxOverlay = document.querySelector("#friend-inbox-overlay");
         const friendInboxCloseBtn = document.querySelector("#friend-inbox-close-btn");
         const friendInboxTabs = document.querySelectorAll("[data-inbox-tab]");
@@ -1324,9 +1323,6 @@
 
             incomingRequestCount.innerText = incoming.length;
             outgoingRequestCount.innerText = outgoing.length;
-            friendRequestBadge.hidden = incoming.length === 0;
-            friendRequestBadge.title = incoming.length ? `새 친구 요청 ${incoming.length}개` : "";
-            friendRequestBadge.setAttribute("aria-label", incoming.length ? `새 친구 요청 ${incoming.length}개` : "새 친구 요청 없음");
 
             outgoingFriendRequestList.innerHTML = "";
 
