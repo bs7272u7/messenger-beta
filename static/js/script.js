@@ -557,6 +557,19 @@
             modalConfirmBtn.addEventListener("click", onOk);
         }
 
+        // 저장·복사처럼 즉시 끝나는 작업은 화면을 막는 모달 대신 짧은 토스트로 알려준다.
+        function showToast(message, type = "success") {
+            const toast = document.createElement("div");
+            const icon = type === "success" ? "fa-circle-check" : "fa-circle-info";
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${escapeHTML(message)}</span>`;
+            document.querySelector("#toast-region").appendChild(toast);
+            setTimeout(function () {
+                toast.classList.add("out");
+                toast.addEventListener("animationend", function () { toast.remove(); }, { once: true });
+            }, 2600);
+        }
+
         function focusInputSafely() {
             setTimeout(function () { input.focus(); }, 50);
         }
@@ -963,7 +976,8 @@
             navigator.clipboard.writeText(selectedMessage.text);
 
             setTimeout(function () {
-                showAlert("메시지가 복사되었습니다.", function () { focusInputSafely(); });
+                showToast("메시지를 복사했습니다.");
+                focusInputSafely();
             }, 10);
         });
 
@@ -1123,6 +1137,21 @@
         function readFriends() {
             friendList.innerHTML = "";
 
+            if (friends.length === 0) {
+                friendList.innerHTML = `
+                    <div class="empty-friends">
+                        <i class="fa-solid fa-user-group"></i>
+                        <strong>아직 채팅 친구가 없어요</strong>
+                        <p>친구를 추가하면 바로 대화를 시작할 수 있어요.</p>
+                        <button type="button" class="empty-chat-cta" id="empty-friends-add-btn">
+                            <i class="fa-solid fa-user-plus"></i> 친구 추가하기
+                        </button>
+                    </div>
+                `;
+                document.querySelector("#empty-friends-add-btn").addEventListener("click", openFriendPanel);
+                return;
+            }
+
             friends.forEach(function (friend) {
                 const newFriend = document.createElement("div");
                 newFriend.className = friend.id === currentConversationID ? "friend active" : "friend";
@@ -1217,7 +1246,7 @@
                 await loadFriends();
                 renderFriendPanelList();
             } else {
-                showAlert("친구 요청을 보냈습니다.");
+                showToast("친구 요청을 보냈습니다.");
             }
         }
 
@@ -2267,7 +2296,7 @@ saveUsernameBtn.addEventListener("click", async function () {
 
         newUsernameInput.value = "";
         usernameChangePassword.value = "";
-        showAlert("아이디가 변경되었습니다.");
+        showToast("아이디가 변경되었습니다.");
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");
     }
@@ -2293,7 +2322,7 @@ sendEmailCodeBtn.addEventListener("click", async function () {
             return;
         }
 
-        showAlert("인증 코드가 이메일로 전송되었습니다.");
+        showToast("인증 코드를 이메일로 전송했습니다.");
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");
     }
@@ -2321,7 +2350,7 @@ saveEmailBtn.addEventListener("click", async function () {
         newEmailInput.value = "";
         emailCodeInput.value = "";
         emailChangePassword.value = "";
-        showAlert("이메일이 변경되었습니다.");
+        showToast("이메일이 변경되었습니다.");
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");
     }
@@ -2346,7 +2375,7 @@ savePasswordBtn.addEventListener("click", async function () {
 
         currentPasswordInput.value = "";
         newPasswordInput.value = "";
-        showAlert("비밀번호가 변경되었습니다.");
+        showToast("비밀번호가 변경되었습니다.");
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");
     }
