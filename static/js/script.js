@@ -395,7 +395,10 @@
         const chatThemeOverlay = document.querySelector("#chat-theme-overlay");
         const chatThemeCloseBtn = document.querySelector("#chat-theme-close-btn");
         const chatThemeOptions = document.querySelectorAll(".chat-theme-option");
-        const mobileProfileEditBtn = document.querySelector("#mobile-profile-edit-btn");
+        const mobileChatNavBtn = document.querySelector("#mobile-chat-nav-btn");
+        const mobileFriendsNavBtn = document.querySelector("#mobile-friends-nav-btn");
+        const mobileProfileNavBtn = document.querySelector("#mobile-profile-nav-btn");
+        const mobileSettingsNavBtn = document.querySelector("#mobile-settings-nav-btn");
         const chatHeaderAvatar = document.querySelector("#chat-header-avatar");
         const chatHeaderMemberCount = document.querySelector("#chat-header-member-count");
         const blockBanner = document.querySelector("#block-banner");
@@ -425,6 +428,13 @@
             return window.matchMedia("(max-width: 767px)").matches;
         }
 
+        function setMobileNavActive(activeButton) {
+            [mobileChatNavBtn, mobileFriendsNavBtn, mobileProfileNavBtn, mobileSettingsNavBtn]
+                .forEach(function (button) {
+                    button.classList.toggle("active", button === activeButton);
+                });
+        }
+
         function openFriendPanel() {
             friendPanel.classList.add("open");
             if (isMobileViewport()) document.body.classList.add("mobile-friends-open");
@@ -441,6 +451,21 @@
             settingsMenu.style.display = "none";
             settingsMenu.style.pointerEvents = "none";
             document.body.classList.remove("mobile-settings-open");
+        }
+
+        function openSettingsMenu(anchor) {
+            settingsMenu.style.display = "block";
+            settingsMenu.style.pointerEvents = "auto";
+            if (isMobileViewport()) {
+                document.body.classList.add("mobile-settings-open");
+                return;
+            }
+
+            const rect = anchor.getBoundingClientRect();
+            const preferredLeft = rect.right + window.scrollX + 10;
+            const maxLeft = window.scrollX + window.innerWidth - settingsMenu.offsetWidth - 10;
+            settingsMenu.style.left = Math.max(10, Math.min(preferredLeft, maxLeft)) + "px";
+            settingsMenu.style.top = (rect.top + window.scrollY) + "px";
         }
 
         const modalOverlay = document.querySelector("#modal-overlay");
@@ -1669,6 +1694,7 @@
         mobileBackBtn.addEventListener("click", function () {
             // 대화는 닫지 않고 목록만 보여준다. 다시 같은 방을 눌러도 메시지가 유지된다.
             closeMobileChat();
+            setMobileNavActive(mobileChatNavBtn);
         });
 
         window.addEventListener("resize", function () {
@@ -1685,19 +1711,40 @@
 
         sideNavSettings.addEventListener("click", function (event) {
             event.stopPropagation();
-            const rect = sideNavSettings.getBoundingClientRect();
-            settingsMenu.style.display = "block";
-            settingsMenu.style.pointerEvents = "auto";
-            if (isMobileViewport()) document.body.classList.add("mobile-settings-open");
-            // 모바일에서는 설정 버튼이 화면 오른쪽에 있으므로 메뉴가 밖으로 나가지 않게 보정한다.
-            const preferredLeft = rect.right + window.scrollX + 10;
-            const maxLeft = window.innerWidth - settingsMenu.offsetWidth - 10;
-            settingsMenu.style.left = Math.max(10, Math.min(preferredLeft, maxLeft)) + "px";
-            settingsMenu.style.top = (rect.top + window.scrollY) + "px";
+            openSettingsMenu(sideNavSettings);
+        });
+
+        // 모바일 하단 메뉴: 채팅 목록·친구 관리·프로필·설정을 각각 한 번에 연다.
+        mobileChatNavBtn.addEventListener("click", function () {
+            closeMobileChat();
+            closeFriendPanel();
+            closeSettingsMenu();
+            setMobileNavActive(mobileChatNavBtn);
+        });
+
+        mobileFriendsNavBtn.addEventListener("click", function () {
+            closeSettingsMenu();
+            if (friendPanel.classList.contains("open")) closeFriendPanel();
+            else openFriendPanel();
+            setMobileNavActive(mobileFriendsNavBtn);
+        });
+
+        mobileProfileNavBtn.addEventListener("click", function () {
+            closeSettingsMenu();
+            closeFriendPanel();
+            openProfileEditor();
+            setMobileNavActive(mobileProfileNavBtn);
+        });
+
+        mobileSettingsNavBtn.addEventListener("click", function (event) {
+            event.stopPropagation();
+            closeFriendPanel();
+            openSettingsMenu(mobileSettingsNavBtn);
+            setMobileNavActive(mobileSettingsNavBtn);
         });
 
         document.addEventListener("click", function (event) {
-            if (!settingsMenu.contains(event.target) && !sideNavSettings.contains(event.target)) {
+            if (!settingsMenu.contains(event.target) && !sideNavSettings.contains(event.target) && !mobileSettingsNavBtn.contains(event.target)) {
                 closeSettingsMenu();
             }
         });
@@ -1766,7 +1813,6 @@
         }
 
         editProfileBtn.addEventListener("click", openProfileEditor);
-        mobileProfileEditBtn.addEventListener("click", openProfileEditor);
 
         myProfileCancelBtn.addEventListener("click", function () {
             profileModalPic.innerHTML = savedProfileImageHTML;

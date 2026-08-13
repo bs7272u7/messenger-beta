@@ -2034,7 +2034,7 @@
             display: none;
         }
 
-        #mobile-profile-edit-btn {
+        #mobile-bottom-nav {
             display: none;
         }
 
@@ -2061,7 +2061,7 @@
             }
 
             .friend-list {
-                padding: 20px 16px 28px;
+                padding: 20px 16px calc(92px + env(safe-area-inset-bottom));
             }
 
             .chat {
@@ -2163,61 +2163,57 @@
                 margin-left: 0;
             }
 
-            .side-nav {
-                top: auto;
-                right: 14px;
-                bottom: calc(84px + env(safe-area-inset-bottom));
-                left: auto;
-                width: auto;
-                height: auto;
-                padding: 0;
-                transform: none;
-                border: 0;
-                background: transparent;
-                box-shadow: none;
-                z-index: 450;
-            }
-
-            .side-nav-profile,
-            .side-nav-spacer {
+            .side-nav,
+            #friend-panel-tab {
                 display: none;
             }
 
-            .side-nav-settings {
-                width: 46px;
-                height: 46px;
+            #mobile-bottom-nav {
+                position: fixed;
+                right: 0;
+                bottom: 0;
+                left: 0;
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                align-items: stretch;
+                min-height: 64px;
+                padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+                box-sizing: border-box;
+                border-top: 1px solid var(--border-color);
                 background: var(--panel-bg);
-                border: 1px solid var(--border-color);
-                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+                background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+                backdrop-filter: blur(16px);
+                box-shadow: 0 -5px 18px rgba(15, 23, 42, .08);
+                z-index: 450;
             }
 
-            #mobile-profile-edit-btn {
-                position: fixed;
-                right: 14px;
-                bottom: calc(142px + env(safe-area-inset-bottom));
-                display: inline-flex;
-                width: 46px;
-                height: 46px;
+            #mobile-bottom-nav button {
+                display: flex;
+                flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                border: 1px solid var(--border-color);
-                border-radius: 50%;
-                background: var(--panel-bg);
+                gap: 4px;
+                min-height: 52px;
+                border: 0;
+                border-radius: 13px;
+                background: transparent;
                 color: var(--text-color);
-                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
-                font-size: 17px;
-                z-index: 450;
+                cursor: pointer;
+                font: inherit;
+                opacity: .62;
             }
 
-            #friend-panel-tab {
-                top: auto;
-                right: 14px;
-                bottom: 200px;
-                width: 46px;
-                height: 46px;
-                transform: none;
-                border-radius: 50%;
-                z-index: 450;
+            #mobile-bottom-nav button i { font-size: 19px; }
+            #mobile-bottom-nav button span { font-size: 10px; font-weight: 650; }
+            #mobile-bottom-nav button.active,
+            #mobile-bottom-nav button:active {
+                background: var(--panel-tint-strong);
+                color: var(--brand-color);
+                opacity: 1;
+            }
+
+            body.mobile-chat-open #mobile-bottom-nav {
+                display: none;
             }
 
             #friend-panel {

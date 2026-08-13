@@ -57,9 +57,21 @@
     <div id="logout-btn"><i class="fa-solid fa-right-from-bracket"></i>로그아웃</div>
 </div>
 <div id="mobile-sheet-backdrop" aria-hidden="true"></div>
-<button id="mobile-profile-edit-btn" type="button" aria-label="내 프로필 편집">
-    <i class="fa-solid fa-user-pen"></i>
-</button>
+<!-- 모바일은 화면 구석의 떠 있는 버튼 대신 하단 메뉴바에서 기능을 분리한다. -->
+<nav id="mobile-bottom-nav" aria-label="모바일 메뉴">
+    <button id="mobile-chat-nav-btn" type="button" class="active" aria-label="채팅방 목록">
+        <i class="fa-solid fa-comments"></i><span>채팅</span>
+    </button>
+    <button id="mobile-friends-nav-btn" type="button" aria-label="친구 관리">
+        <i class="fa-solid fa-user-group"></i><span>친구</span>
+    </button>
+    <button id="mobile-profile-nav-btn" type="button" aria-label="프로필 편집">
+        <i class="fa-solid fa-user-pen"></i><span>프로필</span>
+    </button>
+    <button id="mobile-settings-nav-btn" type="button" aria-label="설정">
+        <i class="fa-solid fa-gear"></i><span>설정</span>
+    </button>
+</nav>
 
 <!-- # 메인 레이아웃: 친구 목록과 채팅 화면을 나란히 배치한다. -->
 <div class="container">
