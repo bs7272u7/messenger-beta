@@ -523,6 +523,13 @@
         const removeProfilePicBtn = document.querySelector("#remove-profile-pic-btn");
         const profileModalPic = document.querySelector("#profile-modal-pic");
         const sideNavProfilePic = document.querySelector("#side-nav-profile-pic");
+        const imageCropOverlay = document.querySelector("#image-crop-overlay");
+        const imageCropTitle = document.querySelector("#image-crop-title");
+        const imageCropCanvas = document.querySelector("#image-crop-canvas");
+        const imageCropZoom = document.querySelector("#image-crop-zoom");
+        const imageCropCloseBtn = document.querySelector("#image-crop-close-btn");
+        const imageCropCancelBtn = document.querySelector("#image-crop-cancel-btn");
+        const imageCropApplyBtn = document.querySelector("#image-crop-apply-btn");
         const videoBtn = document.querySelector("#video-btn");
         const videoInput = document.querySelector("#video-input");
         const newEmailInput = document.querySelector("#new-email-input");
@@ -2726,6 +2733,176 @@ deleteAccountBtn.addEventListener("click", function () {
     });
 });
 
+/* ==============================================================
+ * 원형 프로필/그룹 사진 편집기
+ * 원본을 임의로 축소하지 않고, 사용자가 고른 영역만 512px 정사각형으로 저장한다.
+ * ============================================================ */
+const CROP_VIEWPORT_SIZE = 320;
+const cropState = {
+    target: null,
+    image: null,
+    scale: 1,
+    baseScale: 1,
+    x: 0,
+    y: 0,
+    dragging: false,
+    pointerX: 0,
+    pointerY: 0,
+};
+
+function constrainCropPosition() {
+    const renderedWidth = cropState.image.naturalWidth * cropState.scale;
+    const renderedHeight = cropState.image.naturalHeight * cropState.scale;
+    cropState.x = Math.min(0, Math.max(CROP_VIEWPORT_SIZE - renderedWidth, cropState.x));
+    cropState.y = Math.min(0, Math.max(CROP_VIEWPORT_SIZE - renderedHeight, cropState.y));
+}
+
+function renderCropPreview() {
+    if (!cropState.image) return;
+    const context = imageCropCanvas.getContext("2d");
+    context.clearRect(0, 0, CROP_VIEWPORT_SIZE, CROP_VIEWPORT_SIZE);
+    context.fillStyle = "#eef2f7";
+    context.fillRect(0, 0, CROP_VIEWPORT_SIZE, CROP_VIEWPORT_SIZE);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(
+        cropState.image,
+        cropState.x,
+        cropState.y,
+        cropState.image.naturalWidth * cropState.scale,
+        cropState.image.naturalHeight * cropState.scale
+    );
+}
+
+function closeImageCropper() {
+    cropState.target = null;
+    cropState.image = null;
+    cropState.dragging = false;
+    imageCropOverlay.style.display = "none";
+}
+
+function openImageCropper(file, target) {
+    const supportedExtension = /\.(jpe?g|jfif|png|webp|gif)$/i.test(file.name || "");
+    if (!file.type.startsWith("image/") && !supportedExtension) {
+        showAlert("이미지 파일만 선택할 수 있습니다.");
+        return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = function () {
+        URL.revokeObjectURL(objectUrl);
+        cropState.target = target;
+        cropState.image = image;
+        cropState.baseScale = Math.max(CROP_VIEWPORT_SIZE / image.naturalWidth, CROP_VIEWPORT_SIZE / image.naturalHeight);
+        cropState.scale = cropState.baseScale;
+        cropState.x = (CROP_VIEWPORT_SIZE - image.naturalWidth * cropState.scale) / 2;
+        cropState.y = (CROP_VIEWPORT_SIZE - image.naturalHeight * cropState.scale) / 2;
+        imageCropZoom.value = "100";
+        imageCropTitle.textContent = target === "group" ? "그룹 사진 조절" : "프로필 사진 조절";
+        renderCropPreview();
+        imageCropOverlay.style.display = "flex";
+    };
+    image.onerror = function () {
+        URL.revokeObjectURL(objectUrl);
+        showAlert("사진을 읽지 못했습니다. 다른 이미지 파일을 선택해주세요.");
+    };
+    image.src = objectUrl;
+}
+
+async function uploadCroppedGroupPhoto(imageData) {
+    const response = await fetch(`/api/conversations/${currentConversationID}/photo`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageData })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || "그룹 사진을 저장하지 못했습니다.");
+    groupPhotoImg.src = result.profile_image;
+}
+
+imageCropZoom.addEventListener("input", function () {
+    if (!cropState.image) return;
+    const oldScale = cropState.scale;
+    const sourceCenterX = (CROP_VIEWPORT_SIZE / 2 - cropState.x) / oldScale;
+    const sourceCenterY = (CROP_VIEWPORT_SIZE / 2 - cropState.y) / oldScale;
+    cropState.scale = cropState.baseScale * (Number(imageCropZoom.value) / 100);
+    cropState.x = CROP_VIEWPORT_SIZE / 2 - sourceCenterX * cropState.scale;
+    cropState.y = CROP_VIEWPORT_SIZE / 2 - sourceCenterY * cropState.scale;
+    constrainCropPosition();
+    renderCropPreview();
+});
+
+imageCropCanvas.addEventListener("pointerdown", function (event) {
+    if (!cropState.image) return;
+    cropState.dragging = true;
+    cropState.pointerX = event.clientX;
+    cropState.pointerY = event.clientY;
+    imageCropCanvas.setPointerCapture(event.pointerId);
+});
+
+imageCropCanvas.addEventListener("pointermove", function (event) {
+    if (!cropState.dragging || !cropState.image) return;
+    const bounds = imageCropCanvas.getBoundingClientRect();
+    const displayScale = CROP_VIEWPORT_SIZE / bounds.width;
+    cropState.x += (event.clientX - cropState.pointerX) * displayScale;
+    cropState.y += (event.clientY - cropState.pointerY) * displayScale;
+    cropState.pointerX = event.clientX;
+    cropState.pointerY = event.clientY;
+    constrainCropPosition();
+    renderCropPreview();
+});
+
+function finishCropDrag(event) {
+    cropState.dragging = false;
+    if (imageCropCanvas.hasPointerCapture(event.pointerId)) imageCropCanvas.releasePointerCapture(event.pointerId);
+}
+imageCropCanvas.addEventListener("pointerup", finishCropDrag);
+imageCropCanvas.addEventListener("pointercancel", finishCropDrag);
+
+imageCropApplyBtn.addEventListener("click", async function () {
+    if (!cropState.image || !cropState.target) return;
+    const outputSize = 512;
+    const output = document.createElement("canvas");
+    output.width = outputSize;
+    output.height = outputSize;
+    const context = output.getContext("2d");
+    const ratio = outputSize / CROP_VIEWPORT_SIZE;
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.fillStyle = "#eef2f7";
+    context.fillRect(0, 0, outputSize, outputSize);
+    context.drawImage(
+        cropState.image,
+        cropState.x * ratio,
+        cropState.y * ratio,
+        cropState.image.naturalWidth * cropState.scale * ratio,
+        cropState.image.naturalHeight * cropState.scale * ratio
+    );
+    const imageData = output.toDataURL("image/jpeg", 0.94);
+    const target = cropState.target;
+    closeImageCropper();
+
+    try {
+        if (target === "profile") {
+            pendingProfileImageData = imageData;
+            pendingProfileImageRemoval = false;
+            profileModalPic.innerHTML = `<img src="${imageData}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+            return;
+        }
+        await uploadCroppedGroupPhoto(imageData);
+        showToast("그룹 사진이 변경되었습니다.");
+    } catch (error) {
+        showAlert(error.message || "사진 저장 중 문제가 발생했습니다.");
+    }
+});
+
+imageCropCloseBtn.addEventListener("click", closeImageCropper);
+imageCropCancelBtn.addEventListener("click", closeImageCropper);
+imageCropOverlay.addEventListener("click", function (event) {
+    if (event.target === imageCropOverlay) closeImageCropper();
+});
+
 changeGroupPhotoBtn.addEventListener("click", function () {
     groupPhotoInput.click();
 });
@@ -2733,29 +2910,7 @@ changeGroupPhotoBtn.addEventListener("click", function () {
 groupPhotoInput.addEventListener("change", function () {
     const file = groupPhotoInput.files[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async function () {
-        try {
-            const response = await fetch(`/api/conversations/${currentConversationID}/photo`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ image: reader.result })
-            });
-            const result = await response.json();
-
-            if (!result.success) {
-                showAlert(result.error);
-                return;
-            }
-
-            groupPhotoImg.src = result.profile_image;
-        } catch (err) {
-            showAlert("서버와 통신 중 문제가 발생했습니다.");
-        }
-    };
-    reader.readAsDataURL(file);
-
+    openImageCropper(file, "group");
     groupPhotoInput.value = "";
 });
 
@@ -2789,17 +2944,7 @@ profileModalPic.addEventListener("click", function () {
 profileImageInput.addEventListener("change", function () {
     const file = profileImageInput.files[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async function () {
-        // 프로필 편집창에서는 바로 서버에 저장하지 않는다.
-        // 재현님이 '저장' 버튼을 눌렀을 때만 실제 계정 사진이 바뀌도록 임시 상태에 보관한다.
-        pendingProfileImageData = reader.result;
-        pendingProfileImageRemoval = false;
-        profileModalPic.innerHTML = `<img src="${reader.result}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
-    };
-    reader.readAsDataURL(file);
-
+    openImageCropper(file, "profile");
     profileImageInput.value = "";
 });
 

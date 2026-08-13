@@ -374,6 +374,28 @@
         </div>
     </div>
 
+    <!-- 프로필과 그룹 사진에 공통으로 쓰는 원형 크롭 편집기 -->
+    <div class="modal-overlay" id="image-crop-overlay">
+        <div class="modal-box image-crop-modal" role="dialog" aria-modal="true" aria-labelledby="image-crop-title">
+            <div class="settings-modal-header">
+                <h3 id="image-crop-title">프로필 사진 조절</h3>
+                <button id="image-crop-close-btn" class="settings-modal-close" type="button" aria-label="사진 조절 닫기"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="image-crop-description">사진을 드래그해 위치를 옮기고, 슬라이더로 확대할 수 있어요.</p>
+            <div class="image-crop-viewport">
+                <canvas id="image-crop-canvas" width="320" height="320"></canvas>
+            </div>
+            <label class="image-crop-zoom-label" for="image-crop-zoom"><i class="fa-solid fa-magnifying-glass-minus"></i>
+                <input id="image-crop-zoom" type="range" min="100" max="300" value="100" aria-label="사진 확대">
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+            </label>
+            <div class="modal-buttons image-crop-buttons">
+                <button id="image-crop-cancel-btn" type="button">취소</button>
+                <button id="image-crop-apply-btn" type="button" class="modal-confirm">적용하기</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="new-group-overlay">
         <div class="modal-box" style="text-align: left;">
             <div class="modal-message" style="text-align: center;">새 그룹 만들기</div>
