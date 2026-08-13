@@ -1968,7 +1968,7 @@
             mobileChatActionsSheet.setAttribute("aria-hidden", String(!isOpen));
         });
 
-        mobileChatActionsSheet.addEventListener("click", function (event) {
+        mobileChatActionsSheet.addEventListener("click", async function (event) {
             const actionButton = event.target.closest("[data-chat-action]");
             if (!actionButton) return;
             const sourceButton = {
