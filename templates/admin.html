@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 페이지 - Cloud Chatting</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root { color-scheme: dark; }
+        * { box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            margin: 0;
+            color: #e9edf7;
+            font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at 12% 0%, #2c3f68 0, transparent 35%), #141820;
+        }
+        .admin-shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 42px 0 56px; }
+        .admin-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 30px; }
+        .eyebrow { margin: 0 0 8px; color: #86aaf8; font-size: 13px; font-weight: 700; letter-spacing: .05em; }
+        h1 { margin: 0; font-size: clamp(27px, 4vw, 38px); letter-spacing: -.04em; }
+        .subtitle { margin: 11px 0 0; color: #aab4c8; font-size: 15px; }
+        .back-link {
+            display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
+            padding: 11px 15px; border: 1px solid #3a465d; border-radius: 10px;
+            color: #e9edf7; text-decoration: none; font-weight: 700; background: #1c2330;
+        }
+        .back-link:hover { background: #253047; }
+        .notice { display: flex; gap: 13px; align-items: flex-start; padding: 17px 18px; margin-bottom: 22px; border: 1px solid #2d5aa4; border-radius: 12px; background: #172946; color: #cbdcff; }
+        .notice i { margin-top: 2px; color: #70a5ff; }
+        .notice strong { display: block; margin-bottom: 4px; color: #f3f7ff; }
+        .notice p { margin: 0; font-size: 14px; line-height: 1.55; }
+        .dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+        .card { min-height: 188px; padding: 23px; border: 1px solid #2d3648; border-radius: 14px; background: linear-gradient(145deg, #202838, #1a202c); box-shadow: 0 12px 28px rgba(0,0,0,.17); }
+        .card-icon { display: grid; width: 42px; height: 42px; place-items: center; margin-bottom: 20px; border-radius: 11px; background: #293b5c; color: #89b0ff; font-size: 18px; }
+        .card h2 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.02em; }
+        .card p { margin: 0; color: #aeb8ca; font-size: 14px; line-height: 1.55; }
+        .status { display: inline-block; margin-top: 18px; color: #7d95c2; font-size: 12px; font-weight: 700; }
+        .admin-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .85fr); gap: 16px; margin-top: 16px; }
+        .admin-panel { padding: 22px; border: 1px solid #2d3648; border-radius: 14px; background: #1a202c; }
+        .admin-panel h2 { margin: 0 0 16px; font-size: 18px; }
+        .admin-panel label { display: block; margin: 12px 0 6px; color: #b9c5da; font-size: 13px; font-weight: 700; }
+        .admin-panel input, .admin-panel textarea, .admin-panel select { width: 100%; padding: 11px 12px; border: 1px solid #3a465d; border-radius: 9px; color: #edf2ff; font: inherit; background: #121722; }
+        .admin-panel textarea { min-height: 120px; resize: vertical; }
+        .admin-action { margin-top: 14px; padding: 11px 14px; border: 0; border-radius: 9px; color: #fff; font: inherit; font-weight: 800; cursor: pointer; background: #397ef0; }
+        .admin-action:hover { background: #4d8afb; }
+        .admin-list { display: grid; gap: 10px; max-height: 480px; overflow-y: auto; }
+        .admin-item { padding: 13px; border: 1px solid #303b50; border-radius: 10px; background: #202838; }
+        .admin-item strong, .admin-item p { display: block; margin: 0; }
+        .admin-item p { margin-top: 6px; color: #afbad0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }
+        .admin-item small { display: block; margin-top: 9px; color: #77849c; }
+        .admin-item-actions { display: flex; gap: 8px; margin-top: 11px; }
+        .admin-item-actions button { padding: 7px 9px; border: 1px solid #3a465d; border-radius: 7px; color: #d8e4ff; background: #293348; cursor: pointer; }
+        .admin-item-actions button.danger { color: #ffb5bd; }
+        @media (max-width: 720px) {
+            .admin-shell { width: min(100% - 28px, 560px); padding-top: 25px; }
+            .admin-header { align-items: flex-start; flex-direction: column; }
+            .back-link { width: 100%; justify-content: center; }
+            .dashboard { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <main class="admin-shell">
+        <header class="admin-header">
+            <div>
+                <p class="eyebrow"><i class="fa-solid fa-shield-halved"></i> CLOUD CHATTING</p>
+                <h1>관리자 페이지</h1>
+                <p class="subtitle">서비스 운영과 사용자 요청을 관리하는 공간입니다.</p>
+            </div>
+            <a class="back-link" href="{{ url_for('home') }}"><i class="fa-solid fa-arrow-left"></i> 메신저로 돌아가기</a>
+        </header>
+
+        <section class="notice" aria-label="관리자 안내">
+            <i class="fa-solid fa-lock"></i>
+            <div>
+                <strong>관리자 권한이 확인되었습니다.</strong>
+                <p>이 페이지는 서버에서 권한을 확인한 계정만 열 수 있습니다. 다음 단계에서 각 관리 메뉴를 연결합니다.</p>
+            </div>
+        </section>
+
+        <section class="dashboard" aria-label="관리 메뉴">
+            <article class="card">
+                <div class="card-icon"><i class="fa-solid fa-bullhorn"></i></div>
+                <h2>공지사항 관리</h2>
+                <p>새 공지 작성과 게시 상태를 한곳에서 관리합니다.</p>
+                <span class="status">작성 기능 연결됨</span>
+            </article>
+            <article class="card">
+                <div class="card-icon"><i class="fa-regular fa-envelope"></i></div>
+                <h2>문의 내역</h2>
+                <p>사용자가 보낸 문의와 첨부 파일을 확인하고 처리합니다.</p>
+                <span class="status">답변·상태 처리 연결됨</span>
+            </article>
+            <article class="card">
+                <div class="card-icon"><i class="fa-solid fa-flag"></i></div>
+                <h2>신고 관리</h2>
+                <p>신고된 내용과 처리 결과를 안전하게 관리합니다.</p>
+                <span class="status">접수 내역 확인 가능</span>
+            </article>
+        </section>
+
+        <section class="admin-workspace">
+            <article class="admin-panel">
+                <h2><i class="fa-solid fa-bullhorn"></i> 공지사항 작성</h2>
+                <label for="notice-title">제목</label><input id="notice-title" maxlength="200" placeholder="사용자에게 표시할 공지 제목">
+                <label for="notice-content">내용</label><textarea id="notice-content" maxlength="5000" placeholder="공지 내용을 작성하세요."></textarea>
+                <label><input id="notice-published" type="checkbox" checked> 바로 게시하기</label>
+                <button id="notice-submit" class="admin-action"><i class="fa-solid fa-paper-plane"></i> 공지 등록</button>
+            </article>
+            <article class="admin-panel">
+                <h2><i class="fa-regular fa-rectangle-list"></i> 최근 공지</h2>
+                <div id="notice-list" class="admin-list"><p>불러오는 중...</p></div>
+            </article>
+            <article class="admin-panel">
+                <h2><i class="fa-regular fa-envelope"></i> 문의 내역</h2>
+                <div id="inquiry-list" class="admin-list"><p>불러오는 중...</p></div>
+            </article>
+            <article class="admin-panel">
+                <h2><i class="fa-solid fa-flag"></i> 신고 내역</h2>
+                <div id="report-list" class="admin-list"><p>불러오는 중...</p></div>
+            </article>
+        </section>
+    </main>
+    <script>
+        const escapeHTML = (value = "") => String(value).replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
+        const noticeList = document.querySelector("#notice-list");
+        const inquiryList = document.querySelector("#inquiry-list");
+        const reportList = document.querySelector("#report-list");
+
+        async function api(url, options) {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            if (!response.ok || data.success === false) throw new Error(data.error || "요청을 처리하지 못했습니다.");
+            return data;
+        }
+        async function loadNotices() {
+            const notices = await api("/api/admin/notices");
+            noticeList.innerHTML = notices.length ? notices.map(n => `<article class="admin-item"><strong>${escapeHTML(n.title)}</strong><p>${escapeHTML(n.content)}</p><small>${n.created_at} · ${n.is_published ? "게시 중" : "비공개"}</small><div class="admin-item-actions"><button data-delete-notice="${n.id}" class="danger">삭제</button></div></article>`).join("") : "<p>등록된 공지가 없습니다.</p>";
+        }
+        async function loadInquiries() {
+            const items = await api("/api/admin/inquiries");
+            inquiryList.innerHTML = items.length ? items.map(i => `<article class="admin-item"><strong>${escapeHTML(i.display_name || i.username)} · ${escapeHTML(i.status)}</strong><p>${escapeHTML(i.message)}</p>${i.attachment_url ? `<p><a href="${escapeHTML(i.attachment_url)}" target="_blank">첨부 파일 열기</a></p>` : ""}<small>${i.email || "이메일 없음"} · ${i.created_at}</small><div class="admin-item-actions"><button data-answer-inquiry="${i.id}">답변/처리</button></div></article>`).join("") : "<p>문의가 없습니다.</p>";
+        }
+        async function loadReports() {
+            const items = await api("/api/admin/reports");
+            reportList.innerHTML = items.length ? items.map(r => `<article class="admin-item"><strong>${escapeHTML(r.reason)} · ${escapeHTML(r.status)}</strong><p>신고자: ${escapeHTML(r.reporter_username)} / 대상: ${escapeHTML(r.sender_username)}</p><p>${escapeHTML(r.message_text || "미디어 메시지")}</p><small>${r.created_at}</small><div class="admin-item-actions"><button data-close-report="${r.id}">검토 완료</button></div></article>`).join("") : "<p>신고가 없습니다.</p>";
+        }
+        document.querySelector("#notice-submit").addEventListener("click", async () => {
+            try { await api("/api/admin/notices", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:document.querySelector("#notice-title").value, content:document.querySelector("#notice-content").value, is_published:document.querySelector("#notice-published").checked})}); document.querySelector("#notice-title").value=""; document.querySelector("#notice-content").value=""; await loadNotices(); alert("공지를 등록했습니다."); } catch (error) { alert(error.message); }
+        });
+        noticeList.addEventListener("click", async event => { const id = event.target.dataset.deleteNotice; if (!id || !confirm("이 공지를 삭제할까요?")) return; await api(`/api/admin/notices/${id}`, {method:"DELETE"}); loadNotices(); });
+        inquiryList.addEventListener("click", async event => { const id = event.target.dataset.answerInquiry; if (!id) return; const reply = prompt("답변 또는 처리 메모를 입력하세요."); if (reply === null) return; await api(`/api/admin/inquiries/${id}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"answered", admin_reply:reply})}); loadInquiries(); });
+        reportList.addEventListener("click", async event => { const id = event.target.dataset.closeReport; if (!id) return; await api(`/api/admin/reports/${id}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"reviewed"})}); loadReports(); });
+        Promise.all([loadNotices(), loadInquiries(), loadReports()]).catch(error => alert(error.message));
+    </script>
+</body>
+</html>

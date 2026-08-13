@@ -124,6 +124,9 @@
             #desktop-info-name { max-width: 100%; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
             #desktop-info-status { margin: 8px 0 20px; color: color-mix(in srgb, var(--text-color) 60%, transparent); font-size: 12px; line-height: 1.55; }
             #desktop-info-status:empty { display: none; }
+            .desktop-conversation-actions { display: grid; width: 100%; gap: 8px; margin-top: auto; }
+            .desktop-conversation-actions button { padding: 9px; border: 1px solid var(--input-border); border-radius: 9px; color: var(--text-color); font: inherit; font-size: 12px; cursor: pointer; background: var(--panel-bg); }
+            .desktop-conversation-actions button:hover { border-color: var(--brand-color); color: var(--brand-color); }
         }
 
         .friend-inbox-modal { width: 480px; max-width: 92vw; padding: 0; overflow: hidden; text-align: left; }
@@ -1067,6 +1070,25 @@
             width: fit-content;
             max-width: 400px;
         }
+
+        .chat-file-card {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            min-width: 190px;
+            max-width: 270px;
+            padding: 12px 14px;
+            border: 1px solid color-mix(in srgb, var(--brand-color) 24%, var(--input-border));
+            border-radius: 12px;
+            color: var(--text-color);
+            text-decoration: none;
+            background: color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color));
+        }
+        .chat-file-card:hover { border-color: var(--brand-color); }
+        .chat-file-card > i { color: var(--brand-color); font-size: 22px; }
+        .chat-file-card span { min-width: 0; display: grid; gap: 3px; }
+        .chat-file-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+        .chat-file-card small { color: color-mix(in srgb, var(--text-color) 55%, transparent); font-size: 11px; }
 
         .time {
             font-size: 12px;

@@ -89,6 +89,7 @@
                 applyChatTheme(null);
                 desktopInfoName.innerText = "대화를 선택하세요";
                 desktopInfoStatus.innerText = "";
+                desktopConversationActions.style.display = "none";
                 return;
             }
 
@@ -99,6 +100,9 @@
             desktopInfoStatus.innerText = friend.isGroup
                 ? `${friend.memberCount || 0}명이 참여 중인 그룹 채팅입니다.`
                 : (friend.isOnline ? "현재 온라인입니다." : "현재 오프라인입니다.");
+            desktopConversationActions.style.display = "grid";
+            desktopConversationPin.innerHTML = `<i class="fa-solid fa-thumbtack"></i> ${friend.isPinned ? "고정 해제" : "고정"}`;
+            desktopConversationMute.innerHTML = `<i class="fa-solid fa-bell${friend.isMuted ? "" : "-slash"}"></i> ${friend.isMuted ? "알림 켜기" : "알림 끄기"}`;
 
             if (friend.isGroup) {
                 // 서버에서 전달받은 그룹 프로필 이미지 변수 (groupProfileImage 또는 profileImage)
@@ -161,6 +165,7 @@
         function getPreviewText(chatList) {
             if (!chatList || chatList.length === 0) return "";
             const last = chatList[chatList.length - 1];
+            if (last.filePath) return "파일";
             return last.image ? "__CAMERA__사진" : last.text;
         }
 
@@ -178,6 +183,18 @@
             const div = document.createElement("div");
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function formatFileSize(bytes) {
+            const size = Number(bytes) || 0;
+            if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))}KB`;
+            return `${(size / (1024 * 1024)).toFixed(1)}MB`;
+        }
+
+        function buildFileMessageHTML(chat) {
+            return `<a class="chat-file-card" href="${escapeHTML(chat.filePath)}" target="_blank" rel="noopener" download>
+                <i class="fa-solid fa-file-arrow-down"></i><span><strong>${escapeHTML(chat.fileName || "첨부 파일")}</strong><small>${formatFileSize(chat.fileSize)}</small></span>
+            </a>`;
         }
 
         function highlightText(text, query) {
@@ -299,6 +316,8 @@
         const attachMenu = document.querySelector("#attach-menu");
         const imageBtn = document.querySelector("#image-btn");
         const imageInput = document.querySelector("#image-input");
+        const fileBtn = document.querySelector("#file-btn");
+        const fileInput = document.querySelector("#file-input");
         const imageModal = document.querySelector("#image-modal");
         const modalImage = document.querySelector("#modal-image");
         const closeImage = document.querySelector("#close-image");
@@ -317,6 +336,17 @@
         const replyImage = document.querySelector("#reply-image");
         const pinMessageButton = document.querySelector("#pin-message");
         const pinLabel = document.querySelector("#pin-label");
+        const forwardMessageButton = document.querySelector("#forward-message");
+        const reportMessageButton = document.querySelector("#report-message");
+        const forwardMessageOverlay = document.querySelector("#forward-message-overlay");
+        const forwardMessageClose = document.querySelector("#forward-message-close");
+        const forwardConversationSelect = document.querySelector("#forward-conversation-select");
+        const forwardMessageSubmit = document.querySelector("#forward-message-submit");
+        const reportMessageOverlay = document.querySelector("#report-message-overlay");
+        const reportMessageClose = document.querySelector("#report-message-close");
+        const reportReasonSelect = document.querySelector("#report-reason-select");
+        const reportDetail = document.querySelector("#report-detail");
+        const reportMessageSubmit = document.querySelector("#report-message-submit");
         const friendPanelTab = document.querySelector("#friend-panel-tab");
         const friendPanel = document.querySelector("#friend-panel");
         const closeFriendPanelBtn = document.querySelector("#close-friend-panel");
@@ -352,9 +382,11 @@
         const previousUpdatesList = document.querySelector("#previous-updates-list");
         const notificationSettingsOverlay = document.querySelector("#notification-settings-overlay");
         const notificationSettingsCloseBtn = document.querySelector("#notification-settings-close-btn");
+        const browserNotificationToggle = document.querySelector("#browser-notification-toggle");
         const helpItem = document.querySelector("#help-item");
         const helpOverlay = document.querySelector("#help-overlay");
         const helpCloseBtn = document.querySelector("#help-close-btn");
+        const publicNoticeList = document.querySelector("#public-notice-list");
         const helpFindUsernameEmail = document.querySelector("#help-find-username-email");
         const helpFindUsernameBtn = document.querySelector("#help-find-username-btn");
         const helpFindUsernameResult = document.querySelector("#help-find-username-result");
@@ -426,6 +458,9 @@
         const conversationSummary = document.querySelector("#conversation-summary");
         const desktopInfoName = document.querySelector("#desktop-info-name");
         const desktopInfoStatus = document.querySelector("#desktop-info-status");
+        const desktopConversationActions = document.querySelector("#desktop-conversation-actions");
+        const desktopConversationPin = document.querySelector("#desktop-conversation-pin");
+        const desktopConversationMute = document.querySelector("#desktop-conversation-mute");
 
         // 모바일은 한 화면에 목록과 대화창을 함께 두지 않는다.
         // PC에서는 이 클래스가 CSS에 영향을 주지 않아 기존 레이아웃을 그대로 유지한다.
@@ -882,7 +917,7 @@
                     selectedIndex = chat.id;
                     pinLabel.innerText = chat.pinned ? "고정 해제" : "고정";
 
-                    if (chat.image || chat.video) {
+                    if (chat.image || chat.video || chat.filePath) {
                         replyButton.style.display = "block";
                         editMessage.style.display = "none";
                         copyMessage.style.display = "none";
@@ -893,6 +928,8 @@
                         editMessage.style.display = chat.mine ? "block" : "none";
                         deleteMessage.style.display = chat.mine ? "block" : "none";
                     }
+                    forwardMessageButton.style.display = "block";
+                    reportMessageButton.style.display = chat.mine ? "none" : "block";
 
                     messageMenu.style.display = "block";
                     messageMenu.style.pointerEvents = "auto";
@@ -936,7 +973,12 @@
                 if (chat.mine) {
                     message.className = "message-right";
 
-                    if (chat.video) {
+                    if (chat.filePath) {
+                        message.innerHTML = `
+                            <div class="time">${readStatusHTML}${chat.time}</div>
+                            ${buildFileMessageHTML(chat)}
+                        `;
+                    } else if (chat.video) {
                         message.innerHTML = `
                             ${reactionsHTML}
                             <div class="time">${readStatusHTML}${chat.time}</div>
@@ -993,7 +1035,12 @@
 
                     let innerContent;
 
-                    if (chat.video) {
+                    if (chat.filePath) {
+                        innerContent = `
+                            ${buildFileMessageHTML(chat)}
+                            <div class="time">${chat.time}</div>
+                        `;
+                    } else if (chat.video) {
                         innerContent = `
                             <div class="image-bubble">
                                 <video src="${chat.video}" class="chat-image" controls style="max-width: 250px; border-radius: 12px; display: block;"></video>
@@ -1159,6 +1206,50 @@
         messageMenu.style.display = "none";
     });
 
+        forwardMessageButton.addEventListener("click", function () {
+            if (!selectedIndex) return;
+            forwardConversationSelect.innerHTML = friends
+                .filter(function (friend) { return friend.id !== currentConversationID; })
+                .map(function (friend) { return `<option value="${friend.id}">${escapeHTML(friend.name)}</option>`; })
+                .join("");
+            closeMessageMenu();
+            if (!forwardConversationSelect.options.length) {
+                showToast("전달할 다른 채팅방이 없습니다.", "error");
+                return;
+            }
+            forwardMessageOverlay.style.display = "flex";
+        });
+        forwardMessageClose.addEventListener("click", function () { forwardMessageOverlay.style.display = "none"; });
+        forwardMessageSubmit.addEventListener("click", async function () {
+            const response = await fetch(`/api/messages/${selectedIndex}/forward`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ conversation_id: Number(forwardConversationSelect.value) })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) return showToast(result.error || "전달에 실패했습니다.", "error");
+            forwardMessageOverlay.style.display = "none";
+            showToast("메시지를 전달했습니다.");
+        });
+
+        reportMessageButton.addEventListener("click", function () {
+            if (!selectedIndex) return;
+            reportReasonSelect.value = "";
+            reportDetail.value = "";
+            closeMessageMenu();
+            reportMessageOverlay.style.display = "flex";
+        });
+        reportMessageClose.addEventListener("click", function () { reportMessageOverlay.style.display = "none"; });
+        reportMessageSubmit.addEventListener("click", async function () {
+            const response = await fetch(`/api/messages/${selectedIndex}/report`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason: reportReasonSelect.value, detail: reportDetail.value.trim() })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) return showToast(result.error || "신고 접수에 실패했습니다.", "error");
+            reportMessageOverlay.style.display = "none";
+            showToast("신고가 접수되었습니다.");
+        });
+
         /* ======================================================
          * 사진 첨부 / 전송
          * ====================================================== */
@@ -1208,6 +1299,34 @@
                 setTimeout(function () { input.focus(); }, 10);
             }
         }
+
+        fileBtn.addEventListener("click", function () {
+            fileInput.click();
+            attachMenu.style.display = "none";
+        });
+
+        fileInput.addEventListener("change", async function () {
+            const file = fileInput.files[0];
+            if (!file || !currentConversationID) return;
+            setComposerBusy(true);
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("time", formatNowTime());
+                formData.append("date", todayDate());
+                const response = await fetch(`/api/conversations/${currentConversationID}/messages/file`, { method: "POST", body: formData });
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.error || "파일을 보내지 못했습니다.");
+                await readMessages();
+                updateFriendPreviewFromServer();
+                showToast("파일을 보냈습니다.");
+            } catch (error) {
+                showToast(error.message || "파일 전송에 실패했습니다.", "error");
+            } finally {
+                fileInput.value = "";
+                setComposerBusy(false);
+            }
+        });
 
         plusBtn.addEventListener("click", function (event) {
             event.stopPropagation();
@@ -1287,7 +1406,8 @@
 
                 const previewHTML = escapeHTML(friend.message)
                 .replace("__CAMERA__", '<i class="fa-regular fa-image"></i>')
-                .replace("__VIDEO__", '<i class="fa-solid fa-circle-play"></i>');
+                .replace("__VIDEO__", '<i class="fa-solid fa-circle-play"></i>')
+                .replace("__FILE__", '<i class="fa-solid fa-paperclip"></i>');
                 const timeHTML = friend.lastTime ? `<span class="friend-time">${friend.lastTime}</span>` : "";
 
                 // 안 읽은 개수는 서버가 이미 계산해서 주는 unreadCount를 그대로 사용한다.
@@ -1305,7 +1425,7 @@
                     </div>
                     <div style="flex:1; min-width:0;">
                         <div class="friend-header-row">
-                            <div class="friend-name">${escapeHTML(friend.name)}</div>
+                            <div class="friend-name">${friend.isPinned ? '<i class="fa-solid fa-thumbtack" title="고정된 채팅방"></i> ' : ''}${escapeHTML(friend.name)} ${friend.isMuted ? '<i class="fa-solid fa-bell-slash" title="알림 꺼짐"></i>' : ''}</div>
                             ${timeHTML}
                         </div>
                         <small class="friend-preview" title="${escapeHTML(friend.message || "")}">${previewHTML}</small>
@@ -1857,7 +1977,47 @@
                 members: groupMembersBtn,
             }[actionButton.dataset.chatAction];
             closeMobileChatActions();
+            if (["pin", "mute"].includes(actionButton.dataset.chatAction)) {
+                const friend = getCurrentFriend();
+                if (!friend) return;
+                const field = actionButton.dataset.chatAction === "pin" ? "is_pinned" : "is_muted";
+                const nextValue = actionButton.dataset.chatAction === "pin" ? !friend.isPinned : !friend.isMuted;
+                const response = await fetch(`/api/conversations/${friend.id}/preferences`, {
+                    method: "PATCH", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ [field]: nextValue })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) return showToast(result.error || "설정을 변경하지 못했습니다.", "error");
+                await loadFriends();
+                updateChatHeader(getCurrentFriend());
+                readFriends();
+                return showToast(nextValue ? (field === "is_pinned" ? "채팅방을 고정했습니다." : "이 채팅방 알림을 껐습니다.") : (field === "is_pinned" ? "채팅방 고정을 해제했습니다." : "이 채팅방 알림을 켰습니다."));
+            }
             if (sourceButton) sourceButton.click();
+        });
+
+        async function updateConversationPreference(field, value) {
+            const friend = getCurrentFriend();
+            if (!friend) return;
+            const response = await fetch(`/api/conversations/${friend.id}/preferences`, {
+                method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [field]: value })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || "설정을 변경하지 못했습니다.");
+            await loadFriends();
+            updateChatHeader(getCurrentFriend());
+            readFriends();
+        }
+
+        desktopConversationPin.addEventListener("click", async function () {
+            const friend = getCurrentFriend();
+            if (!friend) return;
+            try { await updateConversationPreference("is_pinned", !friend.isPinned); showToast(!friend.isPinned ? "채팅방을 고정했습니다." : "채팅방 고정을 해제했습니다."); } catch (error) { showToast(error.message, "error"); }
+        });
+        desktopConversationMute.addEventListener("click", async function () {
+            const friend = getCurrentFriend();
+            if (!friend) return;
+            try { await updateConversationPreference("is_muted", !friend.isMuted); showToast(!friend.isMuted ? "이 채팅방 알림을 껐습니다." : "이 채팅방 알림을 켰습니다."); } catch (error) { showToast(error.message, "error"); }
         });
 
         document.addEventListener("click", function (event) {
@@ -2278,6 +2438,61 @@ notificationSettingsCloseBtn.addEventListener("click", function () {
     notificationSettingsOverlay.style.display = "none";
 });
 
+browserNotificationToggle.checked = localStorage.getItem("browserNotifications") === "enabled" && "Notification" in window && Notification.permission === "granted";
+
+function urlBase64ToUint8Array(value) {
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from(rawData, character => character.charCodeAt(0));
+}
+
+async function registerPushSubscription() {
+    if (!("serviceWorker" in navigator)) return;
+    const config = await fetch("/api/push-config").then(response => response.json());
+    if (!config.enabled || !config.publicKey) return;
+    const registration = await navigator.serviceWorker.register("/static/push-sw.js");
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+        subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(config.publicKey) });
+    }
+    await fetch("/api/push-subscriptions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(subscription) });
+}
+
+browserNotificationToggle.addEventListener("change", async function () {
+    if (!("Notification" in window)) {
+        showToast("이 브라우저는 알림을 지원하지 않습니다.", "error");
+        this.checked = false;
+        return;
+    }
+    if (this.checked) {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+            this.checked = false;
+            localStorage.removeItem("browserNotifications");
+            showToast("브라우저 알림 권한이 허용되지 않았습니다.", "error");
+            return;
+        }
+        localStorage.setItem("browserNotifications", "enabled");
+        try { await registerPushSubscription(); } catch (error) { console.warn("푸시 구독 등록 실패", error); }
+        showToast("브라우저 알림을 켰습니다.");
+    } else {
+        localStorage.removeItem("browserNotifications");
+    }
+});
+
+function showBrowserNotification(conversationId) {
+    if (document.visibilityState === "visible" || localStorage.getItem("browserNotifications") !== "enabled") return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const friend = friends.find(function (item) { return item.id === conversationId; });
+    if (!friend || friend.isMuted) return;
+    new Notification(friend.name, { body: friend.message || "새 메시지가 도착했습니다.", icon: "/static/favicon-180x180.png" });
+}
+
+if (browserNotificationToggle.checked) {
+    registerPushSubscription().catch(function () {});
+}
+
 previousUpdatesBtn.addEventListener("click", openPreviousUpdates);
 previousUpdatesCloseBtn.addEventListener("click", function () {
     previousUpdatesOverlay.style.display = "none";
@@ -2534,8 +2749,21 @@ helpResetSubmitBtn.addEventListener("click", async function () {
     }
 });
 
+async function loadPublicNotices() {
+    try {
+        const response = await fetch("/api/notices");
+        const notices = await response.json();
+        publicNoticeList.innerHTML = notices.length
+            ? notices.map(function (notice) { return `<article class="update-history-item"><div><strong>${escapeHTML(notice.title)}</strong><span>${escapeHTML(notice.created_at.slice(0, 10))}</span></div><p>${escapeHTML(notice.content)}</p></article>`; }).join("")
+            : '<p style="font-size:13px;">현재 등록된 공지사항이 없습니다.</p>';
+    } catch (error) {
+        publicNoticeList.innerHTML = '<p style="font-size:13px;">공지사항을 불러오지 못했습니다.</p>';
+    }
+}
+
 helpItem.addEventListener("click", function () {
     closeSettingsMenu();
+    loadPublicNotices();
     helpOverlay.style.display = "flex";
 });
 helpCloseBtn.addEventListener("click", function () {
@@ -3131,6 +3359,7 @@ async function sendVideo(file) {
             }
             // 열려있지 않은 방이어도 미리보기/안읽음 배지는 갱신해야 하니 항상 실행
             await loadFriends();
+            showBrowserNotification(data.conversationId);
             updateChatHeader(getCurrentFriend()); 
             readFriends();
             updateBlockState();

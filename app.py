@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, abort
 from flask_socketio import SocketIO, join_room
 import json
 import os
@@ -24,6 +24,11 @@ from dotenv import load_dotenv
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
+try:
+    from pywebpush import webpush, WebPushException
+except ImportError:
+    webpush = None
+    WebPushException = Exception
 
 load_dotenv()
 resend.api_key = os.environ.get("RESEND_API_KEY")
@@ -50,8 +55,14 @@ _update_history_cache = {
     "all": {"expires_at": 0, "data": None},
 }
 SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL")
+ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
 SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
+CHAT_FILE_MAX_BYTES = 20 * 1024 * 1024
+CHAT_FILE_EXTENSIONS = {"pdf", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "mp3", "wav", "m4a"}
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY")
+VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL")
 active_socket_ids = {}
 active_socket_ids_lock = Lock()
 
@@ -404,6 +415,44 @@ def notify_user(user_id, event, payload):
     socketio.emit(event, payload, room=f"user_{user_id}")
 
 
+def send_push_notification(conn, user_id, title, body, url="/"):
+    """브라우저가 닫혀 있어도 도착하도록 Web Push 구독자에게 알림을 보낸다."""
+    if not (webpush and VAPID_PRIVATE_KEY and VAPID_CLAIMS_EMAIL):
+        return
+    subscriptions = conn.execute(
+        "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = %s",
+        (user_id,),
+    ).fetchall()
+    for subscription in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": subscription["endpoint"],
+                    "keys": {"p256dh": subscription["p256dh"], "auth": subscription["auth"]},
+                },
+                data=json.dumps({"title": title, "body": body, "url": url}),
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": f"mailto:{VAPID_CLAIMS_EMAIL}"},
+            )
+        except WebPushException as exc:
+            # 더 이상 유효하지 않은 브라우저 구독은 다음 전송부터 제외한다.
+            if getattr(exc, "response", None) and exc.response.status_code in {404, 410}:
+                conn.execute("DELETE FROM push_subscriptions WHERE endpoint = %s", (subscription["endpoint"],))
+            else:
+                app.logger.warning("푸시 알림 전송 실패: %s", exc)
+
+
+def notify_conversation_message(conn, conversation_id, sender_id, preview):
+    rows = conn.execute("""
+        SELECT cm.user_id, cm.is_muted, COALESCE(c.name, '') AS conversation_name
+        FROM conversation_members cm JOIN conversations c ON c.id = cm.conversation_id
+        WHERE cm.conversation_id = %s AND cm.user_id != %s
+    """, (conversation_id, sender_id)).fetchall()
+    for row in rows:
+        if not row["is_muted"]:
+            send_push_notification(conn, row["user_id"], row["conversation_name"] or "Cloud Chatting", preview, f"/?conversation={conversation_id}")
+
+
 def save_base64_image(data_url):
     # Render의 임시 디스크 문제를 피하기 위해 Cloudinary가 설정되면 우선 사용한다.
     # 로컬 개발 중에는 기존 static/uploads 저장 방식으로 자동 폴백된다.
@@ -453,6 +502,33 @@ def delete_image_file(image_path):
         os.remove(filepath)
 
 
+def save_uploaded_file(upload, folder="files"):
+    """채팅/문의 첨부 파일을 Cloudinary 또는 로컬 개발 폴더에 안전하게 저장한다."""
+    original_name = os.path.basename(upload.filename or "file")
+    safe_name = re.sub(r"[^\w.\-가-힣]", "_", original_name)
+    extension = os.path.splitext(safe_name)[1].lower()
+    if not safe_name or not extension:
+        return None, None
+
+    try:
+        if CLOUDINARY_ENABLED:
+            result = cloudinary.uploader.upload(
+                upload,
+                folder=f"messenger_beta/{folder}",
+                resource_type="auto",
+                use_filename=True,
+                unique_filename=True,
+            )
+            return result["secure_url"], safe_name
+
+        stored_name = f"{uuid.uuid4().hex}{extension}"
+        upload.save(os.path.join(UPLOAD_DIR, stored_name))
+        return f"/static/uploads/{stored_name}", safe_name
+    except Exception:
+        app.logger.exception("첨부 파일 저장 실패")
+        return None, None
+
+
 def init_db():
     conn = get_db()
     cur = conn.cursor()
@@ -467,7 +543,16 @@ def init_db():
 
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+
+        # ADMIN_EMAIL과 일치하는 계정만 관리자 권한을 부여한다.
+        # 권한은 화면이나 세션이 아닌 DB에서 다시 확인하므로 주소를 직접 입력해도 우회할 수 없다.
+        if ADMIN_EMAIL:
+            cur.execute(
+                "UPDATE users SET is_admin = TRUE WHERE LOWER(email) = %s",
+                (ADMIN_EMAIL,),
+            )
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS email_verification_codes (
@@ -490,6 +575,43 @@ def init_db():
         """)
 
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notices (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(200) NOT NULL,
+                content TEXT NOT NULL,
+                is_published BOOLEAN NOT NULL DEFAULT TRUE,
+                created_by INT REFERENCES users(id) ON DELETE SET NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS support_inquiries (
+                id SERIAL PRIMARY KEY,
+                user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                message TEXT NOT NULL,
+                attachment_name TEXT,
+                attachment_url TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                admin_reply TEXT,
+                created_at TEXT NOT NULL,
+                answered_at TEXT
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id SERIAL PRIMARY KEY,
+                user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                endpoint TEXT UNIQUE NOT NULL,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS conversations (
@@ -536,6 +658,21 @@ def init_db():
         """)
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                reporter_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                message_id INT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                reason VARCHAR(100) NOT NULL,
+                detail TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                handled_by INT REFERENCES users(id) ON DELETE SET NULL,
+                handled_at TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE (reporter_id, message_id)
+            )
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS friend_requests (
                 id SERIAL PRIMARY KEY,
                 requester_id INT NOT NULL,
@@ -566,7 +703,12 @@ def init_db():
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_activity_id INT NOT NULL DEFAULT 0",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS hidden_at TEXT",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS chat_theme VARCHAR(20) NOT NULL DEFAULT 'default'",
+            "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS is_muted BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS video TEXT",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_path TEXT",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size BIGINT",
         ]:
             cur.execute(stmt)
 
@@ -585,6 +727,9 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_friend_requests_addressee ON friend_requests(addressee_id, status)",
             "CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id)",
             "CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id)",
+            "CREATE INDEX IF NOT EXISTS idx_notices_published ON notices(is_published, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_inquiries_status ON support_inquiries(status, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at)",
         ]:
             cur.execute(stmt)
 
@@ -615,6 +760,39 @@ def login_required_api(view):
     def wrapped(*args, **kwargs):
         if "user_id" not in session:
             return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def is_current_user_admin():
+    """현재 로그인 계정의 관리자 권한을 DB에서 확인한다."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return False
+
+    with get_db() as conn:
+        user = conn.execute(
+            "SELECT is_admin FROM users WHERE id = %s",
+            (user_id,),
+        ).fetchone()
+    return bool(user and user["is_admin"])
+
+
+def admin_required_page(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        # 관리자 페이지 존재 자체를 일반 사용자에게 노출하지 않는다.
+        if not is_current_user_admin():
+            abort(404)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def admin_required_api(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not is_current_user_admin():
+            return jsonify({"success": False, "error": "관리자 권한이 필요합니다."}), 404
         return view(*args, **kwargs)
     return wrapped
 
@@ -653,6 +831,23 @@ def home():
     )
 
 
+@app.route("/admin")
+@admin_required_page
+def admin_page():
+    """관리자만 접근할 수 있는 운영 페이지의 시작 화면."""
+    return render_template("admin.html")
+
+
+@app.route("/terms")
+def terms_page():
+    return render_template("legal.html", document_type="terms")
+
+
+@app.route("/privacy")
+def privacy_page():
+    return render_template("legal.html", document_type="privacy")
+
+
 @app.route("/login")
 def login_page():
     if "user_id" in session:
@@ -667,6 +862,39 @@ def api_logout():
     return jsonify({"success": True})
 
 
+@app.route("/api/push-config", methods=["GET"])
+@login_required_api
+def push_config():
+    return jsonify({"enabled": bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY), "publicKey": VAPID_PUBLIC_KEY})
+
+
+@app.route("/api/push-subscriptions", methods=["POST", "DELETE"])
+@login_required_api
+def push_subscriptions():
+    if request.method == "DELETE":
+        data = request.get_json() or {}
+        endpoint = data.get("endpoint")
+        if endpoint:
+            with get_db() as conn:
+                conn.execute("DELETE FROM push_subscriptions WHERE user_id = %s AND endpoint = %s", (session["user_id"], endpoint))
+                conn.commit()
+        return jsonify({"success": True})
+
+    data = request.get_json() or {}
+    endpoint = data.get("endpoint")
+    keys = data.get("keys") or {}
+    if not endpoint or not keys.get("p256dh") or not keys.get("auth"):
+        return jsonify({"success": False, "error": "브라우저 알림 정보를 확인하지 못했습니다."}), 400
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, created_at = EXCLUDED.created_at
+        """, (session["user_id"], endpoint, keys["p256dh"], keys["auth"], now_str()))
+        conn.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/api/support-inquiries", methods=["POST"])
 @login_required_api
 def send_support_inquiry():
@@ -677,12 +905,10 @@ def send_support_inquiry():
         return jsonify({"success": False, "error": "문의 내용은 10자 이상 입력해주세요."}), 400
     if len(message) > 3000:
         return jsonify({"success": False, "error": "문의 내용은 3,000자 이하로 입력해주세요."}), 400
-    if not SUPPORT_EMAIL:
-        app.logger.error("SUPPORT_EMAIL 환경변수가 설정되지 않았습니다.")
-        return jsonify({"success": False, "error": "문의 수신 이메일이 아직 설정되지 않았습니다."}), 503
-
     attachment = request.files.get("attachment")
     attachment_data = None
+    attachment_url = None
+    attachment_name = None
     if attachment and attachment.filename:
         extension = attachment.filename.rsplit(".", 1)[-1].lower() if "." in attachment.filename else ""
         if extension not in SUPPORT_ATTACHMENT_EXTENSIONS:
@@ -697,6 +923,8 @@ def send_support_inquiry():
             "filename": safe_filename or f"attachment.{extension}",
             "content": base64.b64encode(file_content).decode("ascii"),
         }
+        attachment.seek(0)
+        attachment_url, attachment_name = save_uploaded_file(attachment, "support")
 
     user_id = session["user_id"]
     with get_db() as conn:
@@ -714,29 +942,40 @@ def send_support_inquiry():
         return jsonify({"success": False, "error": "문의는 1분에 한 번만 보낼 수 있습니다."}), 429
 
     display_name = user["display_name"] or user["username"]
-    email_params = {
-        "from": get_resend_sender(),
-        "to": [SUPPORT_EMAIL],
-        "subject": f"[클라우드 채팅 문의] {display_name}",
-        "html": (
-            "<h2>새 문의사항</h2>"
-            f"<p><strong>이름:</strong> {escape(display_name)}</p>"
-            f"<p><strong>아이디:</strong> {escape(user['username'])}</p>"
-            f"<p><strong>이메일:</strong> {escape(user['email'] or '등록된 이메일 없음')}</p>"
-            f"<hr><p>{escape(message).replace(chr(10), '<br>')}</p>"
-        ),
-    }
-    if user["email"]:
-        email_params["reply_to"] = user["email"]
-    if attachment_data:
-        email_params["attachments"] = [attachment_data]
+    if SUPPORT_EMAIL:
+        email_params = {
+            "from": get_resend_sender(),
+            "to": [SUPPORT_EMAIL],
+            "subject": f"[클라우드 채팅 문의] {display_name}",
+            "html": (
+                "<h2>새 문의사항</h2>"
+                f"<p><strong>이름:</strong> {escape(display_name)}</p>"
+                f"<p><strong>아이디:</strong> {escape(user['username'])}</p>"
+                f"<p><strong>이메일:</strong> {escape(user['email'] or '등록된 이메일 없음')}</p>"
+                f"<hr><p>{escape(message).replace(chr(10), '<br>')}</p>"
+            ),
+        }
+        if user["email"]:
+            email_params["reply_to"] = user["email"]
+        if attachment_data:
+            email_params["attachments"] = [attachment_data]
+        try:
+            resend.Emails.send(email_params)
+        except Exception:
+            # 메일 오류가 있어도 관리자 페이지에서 확인할 수 있도록 접수는 보존한다.
+            app.logger.exception("문의사항 이메일 발송 실패")
+    else:
+        app.logger.warning("SUPPORT_EMAIL 미설정: 문의는 관리자 페이지에만 저장됩니다.")
+    session["last_support_inquiry_at"] = now
 
-    try:
-        resend.Emails.send(email_params)
-        session["last_support_inquiry_at"] = now
-    except Exception:
-        app.logger.exception("문의사항 이메일 발송 실패")
-        return jsonify({"success": False, "error": "문의 전송에 실패했습니다. 잠시 후 다시 시도해주세요."}), 500
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO support_inquiries
+               (user_id, message, attachment_name, attachment_url, created_at)
+               VALUES (%s, %s, %s, %s, %s)""",
+            (user_id, message, attachment_name, attachment_url, now_str()),
+        )
+        conn.commit()
 
     return jsonify({"success": True, "message": "문의가 전송되었습니다. 확인 후 답변드리겠습니다."})
 
@@ -748,6 +987,123 @@ def get_updates():
     if update_history is None:
         return jsonify({"success": False, "error": "업데이트 내역을 불러오지 못했습니다."}), 503
     return jsonify({"success": True, **update_history})
+
+
+@app.route("/api/notices", methods=["GET"])
+@login_required_api
+def get_notices():
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, title, content, created_at FROM notices WHERE is_published = TRUE ORDER BY id DESC LIMIT 30"
+        ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/admin/notices", methods=["GET", "POST"])
+@admin_required_api
+def admin_notices():
+    if request.method == "GET":
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, title, content, is_published, created_at, updated_at FROM notices ORDER BY id DESC"
+            ).fetchall()
+        return jsonify([dict(row) for row in rows])
+
+    data = request.get_json() or {}
+    title = (data.get("title") or "").strip()
+    content = (data.get("content") or "").strip()
+    if not title or not content:
+        return jsonify({"success": False, "error": "제목과 내용을 입력해주세요."}), 400
+    if len(title) > 200 or len(content) > 5000:
+        return jsonify({"success": False, "error": "공지사항 길이를 확인해주세요."}), 400
+    timestamp = now_str()
+    with get_db() as conn:
+        row = conn.execute(
+            """INSERT INTO notices (title, content, is_published, created_by, created_at, updated_at)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+            (title, content, bool(data.get("is_published", True)), session["user_id"], timestamp, timestamp),
+        ).fetchone()
+        conn.commit()
+    return jsonify({"success": True, "id": row["id"]})
+
+
+@app.route("/api/admin/notices/<int:notice_id>", methods=["PATCH", "DELETE"])
+@admin_required_api
+def admin_notice_detail(notice_id):
+    with get_db() as conn:
+        if request.method == "DELETE":
+            conn.execute("DELETE FROM notices WHERE id = %s", (notice_id,))
+            conn.commit()
+            return jsonify({"success": True})
+
+        data = request.get_json() or {}
+        title = (data.get("title") or "").strip()
+        content = (data.get("content") or "").strip()
+        if not title or not content:
+            return jsonify({"success": False, "error": "제목과 내용을 입력해주세요."}), 400
+        conn.execute(
+            "UPDATE notices SET title = %s, content = %s, is_published = %s, updated_at = %s WHERE id = %s",
+            (title, content, bool(data.get("is_published", True)), now_str(), notice_id),
+        )
+        conn.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/inquiries", methods=["GET"])
+@admin_required_api
+def admin_inquiries():
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT i.*, u.username, u.display_name, u.email
+            FROM support_inquiries i JOIN users u ON u.id = i.user_id
+            ORDER BY CASE WHEN i.status = 'pending' THEN 0 ELSE 1 END, i.id DESC
+        """).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/admin/inquiries/<int:inquiry_id>", methods=["PATCH"])
+@admin_required_api
+def admin_inquiry_detail(inquiry_id):
+    data = request.get_json() or {}
+    status = data.get("status") if data.get("status") in {"pending", "answered", "closed"} else "answered"
+    reply = (data.get("admin_reply") or "").strip()
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE support_inquiries SET status = %s, admin_reply = %s, answered_at = %s WHERE id = %s",
+            (status, reply or None, now_str() if reply else None, inquiry_id),
+        )
+        conn.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/reports", methods=["GET"])
+@admin_required_api
+def admin_reports():
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT r.*, reporter.username AS reporter_username, sender.username AS sender_username,
+                   m.text AS message_text
+            FROM reports r
+            JOIN users reporter ON reporter.id = r.reporter_id
+            JOIN messages m ON m.id = r.message_id
+            JOIN users sender ON sender.id = m.sender_id
+            ORDER BY CASE WHEN r.status = 'pending' THEN 0 ELSE 1 END, r.id DESC
+        """).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/admin/reports/<int:report_id>", methods=["PATCH"])
+@admin_required_api
+def admin_report_detail(report_id):
+    data = request.get_json() or {}
+    status = data.get("status") if data.get("status") in {"pending", "reviewed", "closed"} else "reviewed"
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE reports SET status = %s, handled_by = %s, handled_at = %s WHERE id = %s",
+            (status, session["user_id"], now_str(), report_id),
+        )
+        conn.commit()
+    return jsonify({"success": True})
 
 
 # ----------------------------------------------------------------
@@ -793,8 +1149,8 @@ def register():
         display_name = display_name or username
 
         row = conn.execute(
-            "INSERT INTO users (username, password_hash, display_name, profile_image, email) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email)
+            "INSERT INTO users (username, password_hash, display_name, profile_image, email, is_admin) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email, bool(ADMIN_EMAIL and email == ADMIN_EMAIL))
         ).fetchone()
 
         user_id = row["id"]
@@ -1081,7 +1437,7 @@ def get_conversations():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id,
-                   cm.last_read_message_id, cm.chat_theme
+                   cm.last_read_message_id, cm.chat_theme, cm.is_muted, cm.is_pinned
             FROM conversations c
             JOIN conversation_members cm ON cm.conversation_id = c.id
             WHERE cm.user_id = %s AND cm.hidden_at IS NULL
@@ -1123,14 +1479,16 @@ def get_conversations():
                     display_name = "(알 수 없음)"
 
             last_msg = conn.execute(
-                "SELECT id, text, image, video, time FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1",
+                "SELECT id, text, image, video, file_name, time FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1",
                 (conversation_id,)
             ).fetchone()
 
             message_text, last_time = "", ""
             last_msg_id = last_msg["id"] if last_msg else 0
             if last_msg:
-                if last_msg["video"]:
+                if last_msg["file_name"]:
+                    message_text = "__FILE__파일"
+                elif last_msg["video"]:
                     message_text = "__VIDEO__동영상"
                 elif last_msg["image"]:
                     message_text = "__CAMERA__사진"
@@ -1157,6 +1515,8 @@ def get_conversations():
                 "message": message_text,
                 "lastTime": last_time,
                 "chatTheme": row["chat_theme"] or "default",
+                "isMuted": bool(row["is_muted"]),
+                "isPinned": bool(row["is_pinned"]),
                 "unreadCount": unread,
                 "peerId": peer_id,
                 "peerUsername": peer_username,
@@ -1168,7 +1528,7 @@ def get_conversations():
                 "blockedMe": blocked_me,
                 "_sortKey": row["last_activity_id"] or last_msg_id,
             })
-        result.sort(key=lambda r: r["_sortKey"], reverse=True)
+        result.sort(key=lambda r: (r["isPinned"], r["_sortKey"]), reverse=True)
         return jsonify(result)
 
 
@@ -1228,6 +1588,35 @@ def update_conversation_theme(conversation_id):
         )
         conn.commit()
     return jsonify({"success": True, "theme": theme})
+
+
+@app.route("/api/conversations/<int:conversation_id>/preferences", methods=["PATCH"])
+@login_required_api
+def update_conversation_preferences(conversation_id):
+    """채팅방 고정·알림 끄기는 사용자별 설정이므로 멤버 테이블에만 저장한다."""
+    user_id = session["user_id"]
+    data = request.get_json() or {}
+    updates = []
+    values = []
+    if "is_muted" in data:
+        updates.append("is_muted = %s")
+        values.append(bool(data["is_muted"]))
+    if "is_pinned" in data:
+        updates.append("is_pinned = %s")
+        values.append(bool(data["is_pinned"]))
+    if not updates:
+        return jsonify({"success": False, "error": "변경할 설정이 없습니다."}), 400
+
+    with get_db() as conn:
+        if not get_membership(conn, conversation_id, user_id):
+            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+        values.extend([conversation_id, user_id])
+        conn.execute(
+            f"UPDATE conversation_members SET {', '.join(updates)} WHERE conversation_id = %s AND user_id = %s",
+            values,
+        )
+        conn.commit()
+    return jsonify({"success": True})
 
 
 @app.route("/api/conversations/<int:conversation_id>/name", methods=["PATCH"])
@@ -1474,6 +1863,9 @@ def get_messages(conversation_id):
                 "text": row["text"],
                 "image": row["image"],
                 "video": row["video"],
+                "filePath": row["file_path"],
+                "fileName": row["file_name"],
+                "fileSize": row["file_size"],
                 "time": row["time"],
                 "date": row["date"],
                 "reply": json.loads(row["reply"]) if row["reply"] else None,
@@ -1526,6 +1918,7 @@ def send_message(conversation_id):
         unhide_conversation(conn, conversation_id)
 
         conn.commit()
+        notify_conversation_message(conn, conversation_id, user_id, (data.get("text") or "새 메시지")[:120])
         broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
         return jsonify({"success": True})
 
@@ -1577,6 +1970,7 @@ def send_image(conversation_id):
         unhide_conversation(conn, conversation_id)
 
         conn.commit()
+        notify_conversation_message(conn, conversation_id, user_id, "사진을 보냈습니다.")
         broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
     return jsonify({"success": True, "image": image_path})
 
@@ -1637,8 +2031,102 @@ def send_video(conversation_id):
         unhide_conversation(conn, conversation_id)
 
         conn.commit()
+        notify_conversation_message(conn, conversation_id, user_id, "동영상을 보냈습니다.")
         broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
     return jsonify({"success": True, "video": video_path})
+
+
+@app.route("/api/conversations/<int:conversation_id>/messages/file", methods=["POST"])
+@login_required_api
+def send_file(conversation_id):
+    user_id = session["user_id"]
+    upload = request.files.get("file")
+    if not upload or not upload.filename:
+        return jsonify({"success": False, "error": "파일을 선택해주세요."}), 400
+
+    extension = upload.filename.rsplit(".", 1)[-1].lower() if "." in upload.filename else ""
+    if extension not in CHAT_FILE_EXTENSIONS:
+        return jsonify({"success": False, "error": "지원하지 않는 파일 형식입니다."}), 400
+    upload.seek(0, os.SEEK_END)
+    size = upload.tell()
+    upload.seek(0)
+    if size > CHAT_FILE_MAX_BYTES:
+        return jsonify({"success": False, "error": "파일은 20MB 이하만 보낼 수 있습니다."}), 400
+
+    with get_db() as conn:
+        if not get_membership(conn, conversation_id, user_id):
+            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+        peer_id = get_peer_id(conn, conversation_id, user_id)
+        if peer_id and is_blocked_either_way(conn, user_id, peer_id):
+            return jsonify({"success": False, "error": "차단된 사용자에게는 파일을 보낼 수 없습니다."}), 403
+
+    file_path, file_name = save_uploaded_file(upload, "files")
+    if not file_path:
+        return jsonify({"success": False, "error": "파일 저장에 실패했습니다."}), 500
+
+    with get_db() as conn:
+        row = conn.execute("""
+            INSERT INTO messages (conversation_id, sender_id, text, image, video, file_path, file_name, file_size, time, date, reply, edited, pinned, reactions)
+            VALUES (%s, %s, NULL, NULL, NULL, %s, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
+        """, (conversation_id, user_id, file_path, file_name, size, request.form.get("time"), request.form.get("date"), json.dumps([]))).fetchone()
+        new_message_id = row["id"]
+        conn.execute("UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s", (new_message_id, conversation_id, user_id))
+        conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (new_message_id, conversation_id))
+        unhide_conversation(conn, conversation_id)
+        conn.commit()
+        notify_conversation_message(conn, conversation_id, user_id, f"파일: {file_name}")
+        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+    return jsonify({"success": True, "filePath": file_path, "fileName": file_name})
+
+
+@app.route("/api/messages/<int:message_id>/forward", methods=["POST"])
+@login_required_api
+def forward_message(message_id):
+    user_id = session["user_id"]
+    target_conversation_id = (request.get_json() or {}).get("conversation_id")
+    if not target_conversation_id:
+        return jsonify({"success": False, "error": "전달할 채팅방을 선택해주세요."}), 400
+
+    with get_db() as conn:
+        source = get_owned_message(conn, user_id, message_id)
+        if not source or not get_membership(conn, target_conversation_id, user_id):
+            return jsonify({"success": False, "error": "메시지 또는 채팅방을 찾을 수 없습니다."}), 404
+        row = conn.execute("""
+            INSERT INTO messages (conversation_id, sender_id, text, image, video, file_path, file_name, file_size, time, date, reply, edited, pinned, reactions)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
+        """, (target_conversation_id, user_id, source["text"], source["image"], source["video"], source["file_path"], source["file_name"], source["file_size"], now_str().split(" ")[1][:5], now_str().split(" ")[0], json.dumps([]))).fetchone()
+        conn.execute("UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s", (row["id"], target_conversation_id, user_id))
+        conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], target_conversation_id))
+        unhide_conversation(conn, target_conversation_id)
+        conn.commit()
+        broadcast_to_conversation(conn, target_conversation_id, "conversation_updated", {"conversationId": target_conversation_id})
+    return jsonify({"success": True})
+
+
+@app.route("/api/messages/<int:message_id>/report", methods=["POST"])
+@login_required_api
+def report_message(message_id):
+    user_id = session["user_id"]
+    data = request.get_json() or {}
+    reason = (data.get("reason") or "").strip()
+    detail = (data.get("detail") or "").strip()
+    if reason not in {"스팸", "욕설·괴롭힘", "부적절한 콘텐츠", "사칭", "기타"}:
+        return jsonify({"success": False, "error": "신고 사유를 선택해주세요."}), 400
+    if len(detail) > 1000:
+        return jsonify({"success": False, "error": "신고 내용은 1,000자 이하로 입력해주세요."}), 400
+    with get_db() as conn:
+        message = get_owned_message(conn, user_id, message_id)
+        if not message:
+            return jsonify({"success": False, "error": "메시지를 찾을 수 없습니다."}), 404
+        if message["sender_id"] == user_id:
+            return jsonify({"success": False, "error": "내 메시지는 신고할 수 없습니다."}), 400
+        conn.execute(
+            """INSERT INTO reports (reporter_id, message_id, reason, detail, created_at)
+               VALUES (%s, %s, %s, %s, %s) ON CONFLICT (reporter_id, message_id) DO NOTHING""",
+            (user_id, message_id, reason, detail or None, now_str()),
+        )
+        conn.commit()
+    return jsonify({"success": True, "message": "신고가 접수되었습니다."})
 
 
 @app.route("/api/messages/<int:message_id>", methods=["PATCH"])
@@ -2237,7 +2725,10 @@ def update_account_email():
         if existing:
             return jsonify({"success": False, "error": "이미 사용 중인 이메일입니다."})
 
-        conn.execute("UPDATE users SET email = %s WHERE id = %s", (new_email, user_id))
+        conn.execute(
+            "UPDATE users SET email = %s, is_admin = %s WHERE id = %s",
+            (new_email, bool(ADMIN_EMAIL and new_email == ADMIN_EMAIL), user_id),
+        )
         conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (new_email,))
         conn.commit()
 
