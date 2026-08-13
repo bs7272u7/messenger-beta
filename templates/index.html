@@ -459,11 +459,31 @@
                     </label>
 
                     <div class="settings-section update-history-section">
-                        <div class="settings-section-label">업데이트 사항</div>
+                        <div class="settings-section-label update-history-label-row">
+                            <span>업데이트 사항</span><span>최근 10개</span>
+                        </div>
                         <div id="update-history-list" class="update-history-list">
                             <p class="update-history-status">업데이트 내역을 불러오는 중입니다.</p>
                         </div>
+                        <button id="previous-updates-btn" type="button" class="previous-updates-btn">
+                            이전 업데이트 사항 <i class="fa-solid fa-clock-rotate-left"></i>
+                        </button>
                     </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="previous-updates-overlay">
+        <div class="modal-box previous-updates-modal" role="dialog" aria-modal="true" aria-labelledby="previous-updates-title">
+            <div class="settings-modal-header">
+                <div>
+                    <h3 id="previous-updates-title">이전 업데이트 사항</h3>
+                    <p>Cloud Chatting에 반영된 전체 업데이트 기록입니다.</p>
+                </div>
+                <button id="previous-updates-close-btn" class="settings-modal-close" type="button" aria-label="이전 업데이트 사항 닫기"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="previous-updates-list" class="previous-updates-list" aria-live="polite">
+                <p class="update-history-status">업데이트 내역을 불러오는 중입니다.</p>
             </div>
         </div>
     </div>

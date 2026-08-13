@@ -45,7 +45,10 @@ CLOUDINARY_ENABLED = all(os.environ.get(name) for name in (
 GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "bs7272u7/messenger-beta")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 UPDATE_HISTORY_CACHE_SECONDS = 600
-_update_history_cache = {"expires_at": 0, "data": None}
+_update_history_cache = {
+    "recent": {"expires_at": 0, "data": None},
+    "all": {"expires_at": 0, "data": None},
+}
 SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL")
 SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
@@ -156,42 +159,53 @@ def get_link_preview(url):
         return None
 
 
-def get_update_history():
-    """최근 GitHub 커밋을 사용자에게 보여줄 업데이트 내역으로 변환한다.
+def get_update_history(include_all=False):
+    """GitHub 커밋을 사용자에게 보여줄 업데이트 내역으로 변환한다.
 
     재현님이 한국어 커밋 메시지를 작성하면 그 문장이 그대로 사용자 화면에 표시된다.
-    GitHub API를 매번 호출하지 않도록 10분 동안만 메모리에 보관한다.
+    기본 목록은 최근 10개, 이전 업데이트 목록은 전체 기록을 보여준다.
+    GitHub API를 매번 호출하지 않도록 각각 10분 동안 메모리에 보관한다.
     """
-    if _update_history_cache["data"] and time.time() < _update_history_cache["expires_at"]:
-        return _update_history_cache["data"]
+    cache_key = "all" if include_all else "recent"
+    cache = _update_history_cache[cache_key]
+    if cache["data"] and time.time() < cache["expires_at"]:
+        return cache["data"]
 
     headers = {"Accept": "application/vnd.github+json"}
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
 
     try:
-        response = requests.get(
-            f"https://api.github.com/repos/{GITHUB_REPOSITORY}/commits",
-            params={"per_page": 5},
-            headers=headers,
-            timeout=5,
-        )
-        response.raise_for_status()
         updates = []
-        one_week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-        for commit in response.json():
-            committed_at = commit["commit"]["author"]["date"]
-            date = datetime.fromisoformat(committed_at.replace("Z", "+00:00"))
-            if date < one_week_ago:
-                continue
-            updates.append({
-                "version": commit["sha"][:7],
-                "date": date.astimezone(timezone(timedelta(hours=9))).strftime("%Y.%m.%d"),
-                "message": commit["commit"]["message"].splitlines()[0][:160],
-            })
+        page = 1
+        # 전체 목록도 한 번에 과도한 호출을 하지 않도록 최대 1,000개까지만 순회한다.
+        while page <= 10:
+            response = requests.get(
+                f"https://api.github.com/repos/{GITHUB_REPOSITORY}/commits",
+                params={"per_page": 100 if include_all else 10, "page": page},
+                headers=headers,
+                timeout=5,
+            )
+            response.raise_for_status()
+            commits = response.json()
+            for commit in commits:
+                committed_at = commit["commit"]["author"]["date"]
+                date = datetime.fromisoformat(committed_at.replace("Z", "+00:00"))
+                updates.append({
+                    "version": commit["sha"][:7],
+                    "date": date.astimezone(timezone(timedelta(hours=9))).strftime("%Y.%m.%d"),
+                    "message": commit["commit"]["message"].splitlines()[0][:160],
+                })
+
+            if not include_all or "next" not in response.links:
+                break
+            page += 1
 
         result = {"updates": updates, "latest_version": updates[0]["version"] if updates else ""}
-        _update_history_cache.update({"expires_at": time.time() + UPDATE_HISTORY_CACHE_SECONDS, "data": result})
+        _update_history_cache[cache_key].update({
+            "expires_at": time.time() + UPDATE_HISTORY_CACHE_SECONDS,
+            "data": result,
+        })
         return result
     except (requests.RequestException, KeyError, TypeError, ValueError):
         app.logger.warning("GitHub 업데이트 내역을 불러오지 못했습니다.")
@@ -730,7 +744,7 @@ def send_support_inquiry():
 @app.route("/api/updates", methods=["GET"])
 @login_required_api
 def get_updates():
-    update_history = get_update_history()
+    update_history = get_update_history(include_all=request.args.get("all") == "1")
     if update_history is None:
         return jsonify({"success": False, "error": "업데이트 내역을 불러오지 못했습니다."}), 503
     return jsonify({"success": True, **update_history})

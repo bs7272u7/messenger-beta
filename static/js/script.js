@@ -347,6 +347,10 @@
         const notificationSettingsItem = document.querySelector("#notification-settings-item");
         const updateNoticeBadge = document.querySelector("#update-notice-badge");
         const updateHistoryList = document.querySelector("#update-history-list");
+        const previousUpdatesBtn = document.querySelector("#previous-updates-btn");
+        const previousUpdatesOverlay = document.querySelector("#previous-updates-overlay");
+        const previousUpdatesCloseBtn = document.querySelector("#previous-updates-close-btn");
+        const previousUpdatesList = document.querySelector("#previous-updates-list");
         const notificationSettingsOverlay = document.querySelector("#notification-settings-overlay");
         const notificationSettingsCloseBtn = document.querySelector("#notification-settings-close-btn");
         const helpItem = document.querySelector("#help-item");
@@ -2162,8 +2166,8 @@ function updateUpdateNoticeBadge() {
         seenVersion === currentUpdateVersion ? "none" : "inline-block";
 }
 
-function renderUpdateHistory(updates) {
-    updateHistoryList.replaceChildren();
+function renderUpdateHistory(updates, target = updateHistoryList) {
+    target.replaceChildren();
     updates.forEach(function (update) {
         const item = document.createElement("article");
         item.className = "update-history-item";
@@ -2181,7 +2185,7 @@ function renderUpdateHistory(updates) {
         message.textContent = update.message;
         list.append(message);
         item.append(top, list);
-        updateHistoryList.append(item);
+        target.append(item);
     });
 }
 
@@ -2194,7 +2198,7 @@ async function loadUpdateHistory() {
         if (!result.updates.length) {
             currentUpdateVersion = "";
             updateNoticeBadge.style.display = "none";
-            updateHistoryList.textContent = "최근 7일 내 업데이트가 없습니다.";
+            updateHistoryList.textContent = "최근 업데이트 내역이 없습니다.";
             return;
         }
 
@@ -2203,6 +2207,25 @@ async function loadUpdateHistory() {
         updateUpdateNoticeBadge();
     } catch (error) {
         updateHistoryList.textContent = "업데이트 내역을 불러오지 못했습니다.";
+    }
+}
+
+async function openPreviousUpdates() {
+    previousUpdatesOverlay.style.display = "flex";
+    previousUpdatesList.textContent = "이전 업데이트 내역을 불러오는 중입니다.";
+
+    try {
+        const response = await fetch("/api/updates?all=1");
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error("이전 업데이트 내역 없음");
+
+        if (!result.updates.length) {
+            previousUpdatesList.textContent = "표시할 이전 업데이트 내역이 없습니다.";
+            return;
+        }
+        renderUpdateHistory(result.updates, previousUpdatesList);
+    } catch (error) {
+        previousUpdatesList.textContent = "이전 업데이트 내역을 불러오지 못했습니다.";
     }
 }
 
@@ -2218,6 +2241,14 @@ notificationSettingsItem.addEventListener("click", function () {
 
 notificationSettingsCloseBtn.addEventListener("click", function () {
     notificationSettingsOverlay.style.display = "none";
+});
+
+previousUpdatesBtn.addEventListener("click", openPreviousUpdates);
+previousUpdatesCloseBtn.addEventListener("click", function () {
+    previousUpdatesOverlay.style.display = "none";
+});
+previousUpdatesOverlay.addEventListener("click", function (event) {
+    if (event.target === previousUpdatesOverlay) previousUpdatesOverlay.style.display = "none";
 });
 
 supportAttachment.addEventListener("change", function () {

@@ -2186,6 +2186,18 @@
             border-top: 1px solid var(--input-border);
         }
 
+        .update-history-label-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .update-history-label-row span:last-child {
+            color: color-mix(in srgb, var(--text-color) 52%, transparent);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
         .update-history-item {
             border: 1px solid var(--input-border);
             border-radius: 10px;
@@ -2196,7 +2208,7 @@
         .update-history-list {
             display: grid;
             gap: 8px;
-            max-height: 280px;
+            max-height: 360px;
             overflow-y: auto;
             padding-right: 4px;
             overscroll-behavior: contain;
@@ -2206,6 +2218,45 @@
             margin: 0;
             color: gray;
             font-size: 12px;
+        }
+
+        .previous-updates-btn {
+            display: flex;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            margin-top: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            background: var(--panel-bg);
+            color: var(--brand-color);
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .previous-updates-btn:hover { background: var(--panel-tint); }
+
+        .previous-updates-modal {
+            width: 520px;
+            max-width: 92vw;
+            padding: 0;
+            overflow: hidden;
+            text-align: left;
+        }
+
+        .previous-updates-modal .settings-modal-header { padding: 20px 52px 18px 22px; }
+        .previous-updates-modal .settings-modal-header p { margin: 4px 0 0; color: color-mix(in srgb, var(--text-color) 60%, transparent); font-size: 12px; }
+        .previous-updates-list {
+            display: grid;
+            gap: 8px;
+            max-height: min(560px, 68vh);
+            padding: 14px 18px 20px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
         }
 
         .help-description {
