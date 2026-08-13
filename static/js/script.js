@@ -395,6 +395,8 @@
         const chatThemeOverlay = document.querySelector("#chat-theme-overlay");
         const chatThemeCloseBtn = document.querySelector("#chat-theme-close-btn");
         const chatThemeOptions = document.querySelectorAll(".chat-theme-option");
+        const mobileChatMoreBtn = document.querySelector("#mobile-chat-more-btn");
+        const mobileChatActionsSheet = document.querySelector("#mobile-chat-actions-sheet");
         const mobileChatNavBtn = document.querySelector("#mobile-chat-nav-btn");
         const mobileFriendsNavBtn = document.querySelector("#mobile-friends-nav-btn");
         const mobileProfileNavBtn = document.querySelector("#mobile-profile-nav-btn");
@@ -413,6 +415,7 @@
 
         function closeMobileChat() {
             document.body.classList.remove("mobile-chat-open");
+            mobileChatActionsSheet.classList.remove("open");
         }
 
         function applyChatTheme(friend) {
@@ -422,6 +425,11 @@
             chatThemeOptions.forEach(function (option) {
                 option.classList.toggle("selected", option.dataset.theme === theme);
             });
+        }
+
+        function closeMobileChatActions() {
+            mobileChatActionsSheet.classList.remove("open");
+            mobileChatActionsSheet.setAttribute("aria-hidden", "true");
         }
 
         function isMobileViewport() {
@@ -1726,10 +1734,36 @@
             setMobileNavActive(mobileChatNavBtn);
         });
 
+        mobileChatMoreBtn.addEventListener("click", function (event) {
+            event.stopPropagation();
+            const isOpen = mobileChatActionsSheet.classList.toggle("open");
+            mobileChatActionsSheet.classList.toggle("group-chat", !!(getCurrentFriend() && getCurrentFriend().isGroup));
+            mobileChatActionsSheet.setAttribute("aria-hidden", String(!isOpen));
+        });
+
+        mobileChatActionsSheet.addEventListener("click", function (event) {
+            const actionButton = event.target.closest("[data-chat-action]");
+            if (!actionButton) return;
+            const sourceButton = {
+                theme: chatThemeBtn,
+                gallery: galleryToggleBtn,
+                members: groupMembersBtn,
+            }[actionButton.dataset.chatAction];
+            closeMobileChatActions();
+            if (sourceButton) sourceButton.click();
+        });
+
+        document.addEventListener("click", function (event) {
+            if (!mobileChatActionsSheet.contains(event.target) && !mobileChatMoreBtn.contains(event.target)) {
+                closeMobileChatActions();
+            }
+        });
+
         window.addEventListener("resize", function () {
             // 휴대폰을 가로로 돌리거나 PC 폭으로 넓히면 데스크톱 2단 레이아웃으로 복귀한다.
             if (!isMobileViewport()) {
                 closeMobileChat();
+                closeMobileChatActions();
                 document.body.classList.remove("mobile-friends-open", "mobile-settings-open");
             }
         });

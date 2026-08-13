@@ -133,12 +133,18 @@
                 <h2 class="chat-header-title"></h2>
                 <span id="chat-header-member-count" style="display:none; font-size:13px; font-weight:500; color:var(--text-color); opacity:0.6;"></span>
             </div>
-            <div style="display: flex; gap: 12px;">
-                <button id="chat-theme-btn" title="채팅 테마" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-solid fa-palette"></i></button>
-                <button id="group-members-btn" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer; display: none;"><i class="fa-solid fa-users-gear"></i></button>
-                <button id="gallery-toggle-btn" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-regular fa-images"></i></button>
+            <div id="chat-header-actions" style="display: flex; gap: 12px;">
+                <button id="chat-theme-btn" class="chat-secondary-action" title="채팅 테마" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-solid fa-palette"></i></button>
+                <button id="group-members-btn" class="chat-secondary-action" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer; display: none;"><i class="fa-solid fa-users-gear"></i></button>
+                <button id="gallery-toggle-btn" class="chat-secondary-action" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-regular fa-images"></i></button>
                 <button id="search-toggle-btn" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-solid fa-magnifying-glass"></i></button>
+                <button id="mobile-chat-more-btn" type="button" aria-label="채팅방 더보기"><i class="fa-solid fa-ellipsis-vertical"></i></button>
             </div>
+        </div>
+        <div id="mobile-chat-actions-sheet" aria-hidden="true">
+            <button type="button" data-chat-action="theme"><i class="fa-solid fa-palette"></i> 채팅 테마</button>
+            <button type="button" data-chat-action="gallery"><i class="fa-regular fa-images"></i> 사진 모아보기</button>
+            <button type="button" data-chat-action="members" class="group-only-action"><i class="fa-solid fa-users-gear"></i> 그룹 관리</button>
         </div>
 
         <div id="search-bar" class="search-bar">
