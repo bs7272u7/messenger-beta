@@ -516,6 +516,9 @@
         const themeToggleItem = document.querySelector("#theme-toggle-item");
         const themeToggleIcon = document.querySelector("#theme-toggle-icon");
         const themeToggleLabel = document.querySelector("#theme-toggle-label");
+        const officeModeItem = document.querySelector("#office-mode-item");
+        const officeModeIcon = document.querySelector("#office-mode-icon");
+        const officeModeLabel = document.querySelector("#office-mode-label");
         const deleteAccountPassword = document.querySelector("#delete-account-password");
         const deleteAccountBtn = document.querySelector("#delete-account-btn");
         const profileImageInput = document.querySelector("#profile-image-input");
@@ -574,6 +577,27 @@
                 themeToggleIcon.className = "fa-solid fa-moon";
                 themeToggleLabel.innerText = "다크 모드";
             }
+        });
+
+        // 오피스 모드는 기능을 바꾸지 않고, 오래 보는 업무용 시각 밀도만 차분하게 조절한다.
+        function syncOfficeModeLabel() {
+            const enabled = document.body.classList.contains("office-mode");
+            officeModeIcon.className = enabled ? "fa-solid fa-briefcase" : "fa-solid fa-briefcase";
+            officeModeLabel.innerText = enabled ? "오피스 모드 끄기" : "오피스 모드 켜기";
+        }
+
+        if (localStorage.getItem("officeMode") === "enabled") {
+            document.body.classList.add("office-mode");
+        }
+        syncOfficeModeLabel();
+
+        officeModeItem.addEventListener("click", function (event) {
+            event.stopPropagation();
+            closeSettingsMenu();
+            const enabled = document.body.classList.toggle("office-mode");
+            localStorage.setItem("officeMode", enabled ? "enabled" : "disabled");
+            syncOfficeModeLabel();
+            showToast(enabled ? "오피스 모드를 적용했습니다." : "오피스 모드를 해제했습니다.");
         });
 
         /* ======================================================

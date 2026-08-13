@@ -2935,3 +2935,97 @@
                 flex-wrap: wrap;
             }
         }
+
+        /* ======================================================
+         * 오피스 모드
+         * 기능은 그대로 두고, 장시간 사용하는 업무용 화면 밀도와 명암만 절제한다.
+         * ====================================================== */
+        body.office-mode {
+            --bg-color: #181818;
+            --text-color: #e7e7e7;
+            --border-color: #343434;
+            --panel-bg: #202020;
+            --chat-bg: #1b1b1b;
+            --friend-hover: #2a2a2a;
+            --message-left-bg: #292929;
+            --bubble-bg: #2f4f79;
+            --bubble-text: #f3f6fb;
+            --bubble-reply-bg: rgba(255, 255, 255, .09);
+            --profile-bg: #3b3b3b;
+            --input-border: #3a3a3a;
+            --brand-color: #6f9cff;
+            --brand-hover: #87aeff;
+            --panel-tint: rgba(111, 156, 255, .055);
+            --panel-tint-strong: rgba(111, 156, 255, .10);
+            --ring-color: rgba(111, 156, 255, .30);
+            --decor-1: 111, 156, 255;
+            --decor-2: 98, 196, 184;
+            --decor-opacity: .018;
+            background:
+                radial-gradient(circle at 16% 0%, rgba(91, 122, 178, .11), transparent 30%),
+                linear-gradient(145deg, #202020 0%, #181818 56%, #161616 100%);
+        }
+
+        body.office-mode .friend-list,
+        body.office-mode .chat,
+        body.office-mode #desktop-chat-info,
+        body.office-mode .modal-box,
+        body.office-mode #settings-menu,
+        body.office-mode #mobile-bottom-nav {
+            border-color: #363636;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, .20);
+        }
+
+        body.office-mode .friend-list,
+        body.office-mode #desktop-chat-info {
+            background: linear-gradient(155deg, #262626 0%, #202020 46%, #1d1d1d 100%);
+        }
+
+        body.office-mode .chat { background: #1b1b1b; }
+        body.office-mode .chat-header {
+            background: linear-gradient(110deg, #262626 0%, #212121 58%, #1d222b 100%);
+            box-shadow: 0 1px 0 rgba(255, 255, 255, .035);
+        }
+
+        body.office-mode .messages-wrap { background: linear-gradient(145deg, #1d1d1d, #191919); }
+        body.office-mode .input-area { background: linear-gradient(180deg, #222 0%, #1d1d1d 100%); border-top-color: #383838; }
+        body.office-mode .input-area textarea,
+        body.office-mode .search-bar input,
+        body.office-mode .settings-input { background: #252525; border-color: #414141; color: #ededed; }
+        body.office-mode .message-left { background: #292929; border: 1px solid #353535; }
+        body.office-mode .bubble { background: linear-gradient(135deg, #355678, #2c4967); }
+        body.office-mode .time,
+        body.office-mode .friend-last-message,
+        body.office-mode .desktop-profile-copy span,
+        body.office-mode .empty-chat-subtitle { color: #a7a7a7; }
+
+        /* 카드 모서리와 떠다니는 장식을 줄여 업무용 인상을 만든다. */
+        body.office-mode .friend-list,
+        body.office-mode .chat,
+        body.office-mode #desktop-chat-info { border-radius: 8px; }
+        body.office-mode .chat-header { border-radius: 7px 7px 0 0; }
+        body.office-mode .modal-box { border-radius: 8px; }
+        body.office-mode button,
+        body.office-mode .settings-btn,
+        body.office-mode .settings-input,
+        body.office-mode .friend-inbox-list .friend-request-item { border-radius: 6px; }
+        body.office-mode .profile,
+        body.office-mode .chat-header-avatar,
+        body.office-mode .group-photo-circle img { border-radius: 8px; }
+        body.office-mode .chat-bg-decor { opacity: .25; }
+        body.office-mode .chat-bg-decor .deco-bubble,
+        body.office-mode .theme-heart-extra { animation: none !important; }
+
+        body.office-mode .chat-theme-heart .chat-header,
+        body.office-mode .chat-theme-teddy .chat-header,
+        body.office-mode .chat-theme-glass .chat-header { background: linear-gradient(110deg, #262626, #20242b); }
+        body.office-mode ::-webkit-scrollbar-thumb { background: #4a4a4a; }
+
+        body.office-mode #office-mode-item { background: rgba(111, 156, 255, .12); color: #b8ceff; }
+        body.office-mode #office-mode-item i { color: #8fb2ff; }
+
+        @media (max-width: 767px) {
+            body.office-mode .friend-list,
+            body.office-mode .chat { border-radius: 0; }
+            body.office-mode #mobile-bottom-nav { border-radius: 0; background: #202020; }
+        }
