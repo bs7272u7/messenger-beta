@@ -423,6 +423,23 @@
         .recovery-inline-row .submit-btn { width: auto; padding: 0 12px; white-space: nowrap; }
         #password-reset-fields label { margin-top: 12px; }
 
+        .verify-code-btn {
+            flex-shrink: 0;
+            padding: 11px 12px;
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            background: transparent;
+            color: var(--accent);
+            font: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .verify-code-btn.verified { background: var(--accent-2); border-color: var(--accent-2); color: #173a39; }
+        .verification-status { min-height: 18px; margin: 6px 0 0; font-size: 12px; color: var(--text-muted); }
+        .verification-status.success { color: var(--accent-2); font-weight: 700; }
+        .verification-status.error { color: var(--error); }
+
     </style>
 </head>
 <body>
@@ -472,8 +489,10 @@
                 <label for="code">인증번호</label>
                 <div style="display:flex; gap:6px; align-items:center;">
                     <input type="text" id="code" maxlength="6" inputmode="numeric" style="flex:1;">
+                    <button type="button" id="verify-code-btn" class="verify-code-btn">인증하기</button>
                     <span id="code-timer" style="font-size:12px; width:40px;"></span>
                 </div>
+                <p id="verification-status" class="verification-status" aria-live="polite"></p>
             </div>
 
             <div class="field" id="register-username-field" style="display: none;">
@@ -544,8 +563,11 @@
         const findUsernameEmail = document.getElementById("find-username-email");
         const findUsernameSubmitBtn = document.getElementById("find-username-submit-btn");
         const findUsernameResult = document.getElementById("find-username-result");
+        const verifyCodeBtn = document.getElementById("verify-code-btn");
+        const verificationStatus = document.getElementById("verification-status");
 
         let codeSent = false;
+        let emailVerified = false;
         let timerInterval = null;
 
         let mode = "login"; // "login" | "register"
@@ -601,8 +623,8 @@
             event.preventDefault();
             errorText.textContent = "";
 
-            if (mode === "register" && !codeSent) {
-                errorText.textContent = "이메일 인증을 먼저 진행해주세요.";
+            if (mode === "register" && !emailVerified) {
+                errorText.textContent = "인증번호를 입력한 뒤 이메일 인증을 완료해주세요.";
                 return;
             }
 
@@ -666,7 +688,14 @@
 
                 if (result.success) {
                     codeSent = true;
+                    emailVerified = false;
                     codeField.style.display = "block";
+                    codeInput.value = "";
+                    verificationStatus.textContent = "";
+                    verificationStatus.className = "verification-status";
+                    verifyCodeBtn.classList.remove("verified");
+                    verifyCodeBtn.textContent = "인증하기";
+                    verifyCodeBtn.disabled = false;
                     errorText.textContent = "";
                     startCodeTimer(180); // 3분 = 180초, 백엔드 만료 시간과 맞춤
                 } else {
@@ -677,6 +706,62 @@
             } finally {
                 sendCodeBtn.disabled = false;
                 sendCodeBtn.textContent = "재전송";
+            }
+        });
+
+        codeInput.addEventListener("input", function () {
+            if (!emailVerified) return;
+            emailVerified = false;
+            verificationStatus.textContent = "인증번호가 변경되어 다시 인증이 필요합니다.";
+            verificationStatus.className = "verification-status";
+            verifyCodeBtn.classList.remove("verified");
+            verifyCodeBtn.textContent = "인증하기";
+            verifyCodeBtn.disabled = false;
+        });
+
+        emailInput.addEventListener("input", function () {
+            if (!codeSent) return;
+            codeSent = false;
+            emailVerified = false;
+            codeField.style.display = "none";
+            verificationStatus.textContent = "이메일이 변경되어 인증번호를 다시 받아야 합니다.";
+            verificationStatus.className = "verification-status";
+            verifyCodeBtn.classList.remove("verified");
+            verifyCodeBtn.textContent = "인증하기";
+            verifyCodeBtn.disabled = false;
+        });
+
+        verifyCodeBtn.addEventListener("click", async function () {
+            const email = emailInput.value.trim();
+            const code = codeInput.value.trim();
+            if (!codeSent || !email || !code) {
+                verificationStatus.textContent = "이메일과 인증번호를 먼저 입력해주세요.";
+                verificationStatus.className = "verification-status error";
+                return;
+            }
+
+            verifyCodeBtn.disabled = true;
+            verifyCodeBtn.textContent = "확인 중...";
+            try {
+                const response = await fetch("/api/verify-email-code", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, code })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.error || "인증에 실패했습니다.");
+                emailVerified = true;
+                verificationStatus.textContent = "✓ 이메일 인증이 완료되었습니다.";
+                verificationStatus.className = "verification-status success";
+                verifyCodeBtn.classList.add("verified");
+                verifyCodeBtn.textContent = "인증 완료";
+            } catch (error) {
+                emailVerified = false;
+                verificationStatus.textContent = error.message || "인증에 실패했습니다.";
+                verificationStatus.className = "verification-status error";
+                verifyCodeBtn.textContent = "인증하기";
+            } finally {
+                verifyCodeBtn.disabled = emailVerified;
             }
         });
 

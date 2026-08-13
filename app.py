@@ -551,6 +551,7 @@ def init_db():
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS profile_image TEXT",
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_activity_id INT NOT NULL DEFAULT 0",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS hidden_at TEXT",
+            "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS chat_theme VARCHAR(20) NOT NULL DEFAULT 'default'",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS video TEXT",
         ]:
             cur.execute(stmt)
@@ -1065,7 +1066,8 @@ def get_conversations():
     user_id = session["user_id"]
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id, cm.last_read_message_id
+            SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id,
+                   cm.last_read_message_id, cm.chat_theme
             FROM conversations c
             JOIN conversation_members cm ON cm.conversation_id = c.id
             WHERE cm.user_id = %s AND cm.hidden_at IS NULL
@@ -1140,6 +1142,7 @@ def get_conversations():
                 "name": display_name,
                 "message": message_text,
                 "lastTime": last_time,
+                "chatTheme": row["chat_theme"] or "default",
                 "unreadCount": unread,
                 "peerId": peer_id,
                 "peerUsername": peer_username,
@@ -1190,6 +1193,27 @@ def create_group_conversation():
             )
         conn.commit()
     return jsonify({"success": True, "conversationId": conversation_id})
+
+
+@app.route("/api/conversations/<int:conversation_id>/theme", methods=["PATCH"])
+@login_required_api
+def update_conversation_theme(conversation_id):
+    """채팅 테마는 같은 대화방이라도 사용자별로 저장한다."""
+    theme = (request.get_json() or {}).get("theme", "default")
+    if theme not in {"default", "heart", "teddy"}:
+        return jsonify({"success": False, "error": "지원하지 않는 채팅 테마입니다."}), 400
+
+    user_id = session["user_id"]
+    with get_db() as conn:
+        membership = get_membership(conn, conversation_id, user_id)
+        if not membership:
+            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+        conn.execute(
+            "UPDATE conversation_members SET chat_theme = %s WHERE conversation_id = %s AND user_id = %s",
+            (theme, conversation_id, user_id),
+        )
+        conn.commit()
+    return jsonify({"success": True, "theme": theme})
 
 
 @app.route("/api/conversations/<int:conversation_id>/name", methods=["PATCH"])
@@ -2085,6 +2109,27 @@ def send_verification_code():
         return jsonify({"success": False, "error": "이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요."}), 500
 
     return jsonify({"success": True, "message": "인증 코드가 이메일로 전송되었습니다."})
+
+
+@app.route("/api/verify-email-code", methods=["POST"])
+def verify_email_code():
+    """회원가입 전 인증번호를 미리 확인해 사용자에게 완료 상태를 보여준다."""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    code = (data.get("code") or "").strip()
+    if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email) or not re.fullmatch(r"\d{6}", code):
+        return jsonify({"success": False, "error": "이메일과 인증번호 6자리를 확인해주세요."}), 400
+
+    with get_db() as conn:
+        verification = conn.execute(
+            "SELECT expires_at FROM email_verification_codes WHERE email = %s AND code = %s",
+            (email, code),
+        ).fetchone()
+    if not verification:
+        return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."}), 400
+    if verification["expires_at"] < now_str():
+        return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."}), 400
+    return jsonify({"success": True, "message": "이메일 인증이 완료되었습니다."})
 
 @app.route("/api/account/email/send-code", methods=["POST"])
 @login_required_api

@@ -57,6 +57,9 @@
     <div id="logout-btn"><i class="fa-solid fa-right-from-bracket"></i>로그아웃</div>
 </div>
 <div id="mobile-sheet-backdrop" aria-hidden="true"></div>
+<button id="mobile-profile-edit-btn" type="button" aria-label="내 프로필 편집">
+    <i class="fa-solid fa-user-pen"></i>
+</button>
 
 <!-- # 메인 레이아웃: 친구 목록과 채팅 화면을 나란히 배치한다. -->
 <div class="container">
@@ -70,7 +73,7 @@
 
         <div id="friend-list"></div>
 
-        <button id="friend-panel-tab">
+        <button id="friend-panel-tab" type="button" aria-label="친구 관리" title="친구 관리">
             <i class="fa-solid fa-user-group"></i>
         </button>
 
@@ -118,6 +121,7 @@
                 <span id="chat-header-member-count" style="display:none; font-size:13px; font-weight:500; color:var(--text-color); opacity:0.6;"></span>
             </div>
             <div style="display: flex; gap: 12px;">
+                <button id="chat-theme-btn" title="채팅 테마" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-solid fa-palette"></i></button>
                 <button id="group-members-btn" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer; display: none;"><i class="fa-solid fa-users-gear"></i></button>
                 <button id="gallery-toggle-btn" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-regular fa-images"></i></button>
                 <button id="search-toggle-btn" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-solid fa-magnifying-glass"></i></button>
@@ -236,6 +240,29 @@
             <button id="send-btn">
                 <i class="fa-solid fa-paper-plane"></i>
             </button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="chat-theme-overlay">
+        <div class="modal-box chat-theme-modal">
+            <div class="settings-modal-header">
+                <h3>채팅방 테마</h3>
+                <button id="chat-theme-close-btn" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="chat-theme-options">
+                <button type="button" class="chat-theme-option" data-theme="default">
+                    <span class="chat-theme-preview theme-preview-default"></span>
+                    <strong>기본</strong><small>깔끔한 블루</small>
+                </button>
+                <button type="button" class="chat-theme-option" data-theme="heart">
+                    <span class="chat-theme-preview theme-preview-heart">♥</span>
+                    <strong>하트</strong><small>인스타 감성 핑크</small>
+                </button>
+                <button type="button" class="chat-theme-option" data-theme="teddy">
+                    <span class="chat-theme-preview theme-preview-teddy">🧸</span>
+                    <strong>테디베어</strong><small>포근한 베이지</small>
+                </button>
+            </div>
         </div>
     </div>
 

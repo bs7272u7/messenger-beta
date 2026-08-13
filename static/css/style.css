@@ -478,6 +478,44 @@
             background-color: var(--chat-bg);
         }
 
+        /* 채팅 테마는 대화창 변수만 바꿔 전체 라이트/다크 모드와 독립적으로 동작한다. */
+        .chat-theme-heart {
+            --chat-bg: #fff0f5;
+            --message-left-bg: #fff;
+            --bubble-bg: linear-gradient(135deg, #ff5f8f, #ff8a78);
+            --bubble-text: #fff;
+        }
+        .chat-theme-heart .messages-wrap {
+            background: radial-gradient(circle at 12% 16%, rgba(255, 113, 158, .18) 0 2px, transparent 3px) 0 0 / 34px 34px,
+                        linear-gradient(135deg, #fff5f8, #ffe8ef);
+        }
+        .chat-theme-heart .bubble { background: var(--bubble-bg); }
+        .chat.chat-theme-heart .chat-header { background: linear-gradient(135deg, #fff7fa, #ffe2ec); }
+
+        .chat-theme-teddy {
+            --chat-bg: #f5eadb;
+            --message-left-bg: #fffaf3;
+            --bubble-bg: #b97951;
+            --bubble-text: #fffaf3;
+        }
+        .chat-theme-teddy .messages-wrap {
+            background: radial-gradient(circle at 16% 18%, rgba(152, 96, 57, .11) 0 3px, transparent 4px) 0 0 / 36px 36px,
+                        linear-gradient(135deg, #f9f0e4, #edd9c2);
+        }
+        .chat.chat-theme-teddy .chat-header { background: linear-gradient(135deg, #fff8ed, #f2debf); }
+
+        .chat-theme-modal { width: 430px; max-width: 90vw; padding: 0; overflow: hidden; }
+        .chat-theme-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 18px; }
+        .chat-theme-option { min-height: 135px; padding: 12px 8px; border: 1px solid var(--input-border); border-radius: 14px; background: var(--panel-bg); color: var(--text-color); cursor: pointer; font: inherit; }
+        .chat-theme-option.selected { border: 2px solid var(--brand-color); box-shadow: 0 0 0 3px rgba(74, 144, 226, .12); }
+        .chat-theme-option strong, .chat-theme-option small { display: block; }
+        .chat-theme-option strong { margin-top: 9px; font-size: 13px; }
+        .chat-theme-option small { margin-top: 3px; color: gray; font-size: 11px; }
+        .chat-theme-preview { display: grid; place-items: center; height: 52px; border-radius: 12px; font-size: 26px; }
+        .theme-preview-default { background: linear-gradient(135deg, #e5ebf2, #c9d7f7); }
+        .theme-preview-heart { background: linear-gradient(135deg, #ff5f8f, #ff9476); color: #fff; }
+        .theme-preview-teddy { background: linear-gradient(135deg, #f5eadb, #d49a68); }
+
         .chat-bg-decor {
             position: absolute;
             inset: 0;
@@ -1855,6 +1893,10 @@
             display: none;
         }
 
+        #mobile-profile-edit-btn {
+            display: none;
+        }
+
         @media (max-width: 767px) {
             body {
                 display: block;
@@ -1937,6 +1979,16 @@
                 height: 34px;
             }
 
+            /* 작은 화면에서도 테마·앨범·검색 버튼이 제목을 밀어내지 않게 간격을 줄인다. */
+            .chat-header > div:last-child {
+                gap: 8px !important;
+                flex-shrink: 0;
+            }
+
+            .chat-header > div:last-child button {
+                font-size: 18px !important;
+            }
+
             .messages {
                 padding: 16px 12px;
                 gap: 7px;
@@ -1998,10 +2050,28 @@
                 box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
             }
 
+            #mobile-profile-edit-btn {
+                position: fixed;
+                right: 14px;
+                bottom: calc(142px + env(safe-area-inset-bottom));
+                display: inline-flex;
+                width: 46px;
+                height: 46px;
+                align-items: center;
+                justify-content: center;
+                border: 1px solid var(--border-color);
+                border-radius: 50%;
+                background: var(--panel-bg);
+                color: var(--text-color);
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+                font-size: 17px;
+                z-index: 450;
+            }
+
             #friend-panel-tab {
                 top: auto;
                 right: 14px;
-                bottom: 146px;
+                bottom: 200px;
                 width: 46px;
                 height: 46px;
                 transform: none;
@@ -2086,6 +2156,28 @@
 
             #settings-menu #logout-btn {
                 color: #e05252;
+            }
+
+            /* 버전 표시는 입력창 근처가 아닌 목록 화면 상단에 두어 버튼과 겹치지 않게 한다. */
+            .version-label {
+                position: fixed;
+                top: 18px;
+                right: 16px;
+                bottom: auto;
+                z-index: 300;
+            }
+
+            body.mobile-chat-open .version-label {
+                display: none;
+            }
+
+            .chat-theme-options {
+                gap: 8px;
+                padding: 14px;
+            }
+
+            .chat-theme-option {
+                min-height: 120px;
             }
 
             .modal-overlay {

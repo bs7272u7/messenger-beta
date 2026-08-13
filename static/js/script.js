@@ -86,10 +86,12 @@
                 chatHeaderAvatar.onclick = null;
                 chatHeaderMemberCount.style.display = "none";
                 if (chatPanel) chatPanel.classList.add("no-conversation");
+                applyChatTheme(null);
                 return;
             }
 
             if (chatPanel) chatPanel.classList.remove("no-conversation");
+            applyChatTheme(friend);
             chatHeader.innerText = friend.name;
 
             if (friend.isGroup) {
@@ -389,6 +391,11 @@
         const chatPanel = document.querySelector(".chat");
         const chatHeader = document.querySelector(".chat-header h2");
         const mobileBackBtn = document.querySelector("#mobile-back-btn");
+        const chatThemeBtn = document.querySelector("#chat-theme-btn");
+        const chatThemeOverlay = document.querySelector("#chat-theme-overlay");
+        const chatThemeCloseBtn = document.querySelector("#chat-theme-close-btn");
+        const chatThemeOptions = document.querySelectorAll(".chat-theme-option");
+        const mobileProfileEditBtn = document.querySelector("#mobile-profile-edit-btn");
         const chatHeaderAvatar = document.querySelector("#chat-header-avatar");
         const chatHeaderMemberCount = document.querySelector("#chat-header-member-count");
         const blockBanner = document.querySelector("#block-banner");
@@ -403,6 +410,15 @@
 
         function closeMobileChat() {
             document.body.classList.remove("mobile-chat-open");
+        }
+
+        function applyChatTheme(friend) {
+            chatPanel.classList.remove("chat-theme-heart", "chat-theme-teddy");
+            const theme = friend && friend.chatTheme ? friend.chatTheme : "default";
+            if (theme !== "default") chatPanel.classList.add(`chat-theme-${theme}`);
+            chatThemeOptions.forEach(function (option) {
+                option.classList.toggle("selected", option.dataset.theme === theme);
+            });
         }
 
         function isMobileViewport() {
@@ -1691,6 +1707,45 @@
             closeFriendPanel();
         });
 
+        chatThemeBtn.addEventListener("click", function () {
+            if (!currentConversationID) {
+                showAlert("먼저 채팅방을 선택해주세요.");
+                return;
+            }
+            applyChatTheme(getCurrentFriend());
+            chatThemeOverlay.style.display = "flex";
+        });
+
+        chatThemeCloseBtn.addEventListener("click", function () {
+            chatThemeOverlay.style.display = "none";
+        });
+
+        chatThemeOverlay.addEventListener("click", function (event) {
+            if (event.target === chatThemeOverlay) chatThemeOverlay.style.display = "none";
+        });
+
+        chatThemeOptions.forEach(function (option) {
+            option.addEventListener("click", async function () {
+                const friend = getCurrentFriend();
+                if (!friend) return;
+                const theme = option.dataset.theme;
+                try {
+                    const response = await fetch(`/api/conversations/${friend.id}/theme`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ theme })
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) throw new Error(result.error || "테마 변경에 실패했습니다.");
+                    friend.chatTheme = result.theme;
+                    applyChatTheme(friend);
+                    chatThemeOverlay.style.display = "none";
+                } catch (error) {
+                    showAlert(error.message || "테마 변경에 실패했습니다.");
+                }
+            });
+        });
+
         logoutBtn.addEventListener("click", function () {
             closeSettingsMenu();
 
@@ -1701,14 +1756,17 @@
             });
         });
 
-        editProfileBtn.addEventListener("click", function () {
+        function openProfileEditor() {
             pendingProfileImageData = null;
             pendingProfileImageRemoval = false;
             savedProfileImageHTML = sideNavProfilePic.innerHTML;
             profileModalPic.innerHTML = savedProfileImageHTML;
             document.querySelector("#my-profile-name").value = document.querySelector("#current-username").innerText;
             myProfileOverlay.style.display = "flex";
-        });
+        }
+
+        editProfileBtn.addEventListener("click", openProfileEditor);
+        mobileProfileEditBtn.addEventListener("click", openProfileEditor);
 
         myProfileCancelBtn.addEventListener("click", function () {
             profileModalPic.innerHTML = savedProfileImageHTML;
