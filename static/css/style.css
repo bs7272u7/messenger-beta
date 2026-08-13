@@ -2499,11 +2499,11 @@
             display: none;
         }
 
-        /* 우측 보조 패널을 비우고, PC에서는 대화에 집중할 수 있는 넓은 2단 레이아웃을 쓴다. */
+        /* PC에서는 목록·대화·대화 정보를 한 화면에 정리한다. */
         @media (min-width: 768px) {
             .container {
                 display: grid;
-                grid-template-columns: 290px minmax(0, 1fr);
+                grid-template-columns: 290px minmax(0, 1fr) 170px;
                 gap: 14px;
                 width: min(1680px, calc(100vw - 48px));
                 height: min(860px, calc(100vh - 48px));
@@ -2515,7 +2515,7 @@
             }
 
             .chat { min-width: 0; }
-            #desktop-chat-info { display: none; }
+            #desktop-chat-info { display: flex; min-width: 0; }
         }
 
         @media (max-width: 767px) {
