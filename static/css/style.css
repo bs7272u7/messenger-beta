@@ -13,7 +13,8 @@
         @media (min-width: 768px) {
             .container {
                 display: grid;
-                grid-template-columns: 330px minmax(0, 1fr) 238px;
+                /* 주변 정보는 유지하되, 대화에 가장 넓은 시선을 배분한다. */
+                grid-template-columns: 300px minmax(0, 1fr) 200px;
                 gap: 12px;
                 /* 바깥 여백은 줄이고, 남는 폭은 중앙 채팅 영역에 우선 배분한다. */
                 width: min(1520px, calc(100vw - 24px));
