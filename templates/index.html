@@ -46,6 +46,7 @@
     <div class="settings-menu-divider"></div>
     <div class="settings-menu-section-title">지원</div>
     <div id="help-item"><i class="fa-solid fa-circle-question"></i>공지사항 · 도움말</div>
+    <div id="reviews-item"><i class="fa-solid fa-star"></i>사용자 리뷰</div>
     <div class="settings-menu-divider"></div>
     <div id="logout-btn"><i class="fa-solid fa-right-from-bracket"></i>로그아웃</div>
 </div>
@@ -668,19 +669,32 @@
                         <p>답변을 확인하고, 답변 전 문의는 수정하거나 삭제할 수 있습니다.</p>
                         <div id="support-inquiry-history" class="support-inquiry-history"><p class="support-history-empty">문의 내역을 불러오는 중입니다.</p></div>
                     </div>
-                    <div class="support-card">
-                        <div class="support-card-title"><i class="fa-solid fa-star"></i><span>서비스 리뷰</span></div>
-                        <p>Cloud Chatting을 사용하며 느낀 점을 남겨주세요.</p>
-                        <select id="review-rating" class="settings-input"><option value="">별점 선택</option><option value="5">★★★★★ 아주 좋아요</option><option value="4">★★★★ 좋아요</option><option value="3">★★★ 보통이에요</option><option value="2">★★ 아쉬워요</option><option value="1">★ 불편해요</option></select>
-                        <textarea id="review-content" class="settings-input" maxlength="1000" placeholder="후기 5자 이상"></textarea>
-                        <button id="review-submit-btn" type="button" class="settings-btn">리뷰 등록</button>
-                        <div id="review-list" class="update-history-list"></div>
-                    </div>
                     <p class="icon-attribution">
                         테디베어 아이콘: <a href="https://icons8.com/icon/buXB36D4XW2N/teddy-bear" target="_blank" rel="noopener noreferrer">Icons8</a>
                     </p>
                     <p class="icon-attribution"><a href="/terms" target="_blank" rel="noopener">이용약관</a> · <a href="/privacy" target="_blank" rel="noopener">개인정보처리방침</a></p>
                 </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="reviews-overlay">
+        <div class="modal-box settings-modal reviews-modal">
+            <div class="settings-modal-header">
+                <div><h3>사용자 리뷰</h3><p>Cloud Chatting을 사용하며 느낀 점을 남겨주세요.</p></div>
+                <button id="reviews-close-btn" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="settings-modal-body">
+                <section class="review-compose-card">
+                    <div class="review-compose-title"><i class="fa-solid fa-pen-to-square"></i><strong>리뷰 작성</strong></div>
+                    <select id="review-rating" class="settings-input"><option value="">별점 선택</option><option value="5">★★★★★ 아주 좋아요</option><option value="4">★★★★ 좋아요</option><option value="3">★★★ 보통이에요</option><option value="2">★★ 아쉬워요</option><option value="1">★ 불편해요</option></select>
+                    <textarea id="review-content" class="settings-input" maxlength="1000" placeholder="후기 5자 이상"></textarea>
+                    <button id="review-submit-btn" type="button" class="settings-btn">리뷰 등록</button>
+                </section>
+                <section class="review-feed-section">
+                    <div class="review-feed-title"><strong>모든 리뷰</strong><span>관리자 답변을 확인할 수 있어요.</span></div>
+                    <div id="review-list" class="review-list"></div>
+                </section>
+            </div>
         </div>
     </div>
 

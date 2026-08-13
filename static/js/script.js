@@ -398,6 +398,9 @@
         const helpItem = document.querySelector("#help-item");
         const helpOverlay = document.querySelector("#help-overlay");
         const helpCloseBtn = document.querySelector("#help-close-btn");
+        const reviewsItem = document.querySelector("#reviews-item");
+        const reviewsOverlay = document.querySelector("#reviews-overlay");
+        const reviewsCloseBtn = document.querySelector("#reviews-close-btn");
         const publicNoticeList = document.querySelector("#public-notice-list");
         const helpFindUsernameEmail = document.querySelector("#help-find-username-email");
         const helpFindUsernameBtn = document.querySelector("#help-find-username-btn");
@@ -2982,13 +2985,20 @@ reviewSubmitBtn.addEventListener("click", async function () {
         helpItem.addEventListener("click", function () {
             closeSettingsMenu();
             loadPublicNotices();
-            loadReviews();
             loadSupportInquiryHistory();
             helpOverlay.style.display = "flex";
         });
-helpCloseBtn.addEventListener("click", function () {
-    helpOverlay.style.display = "none";
-});
+        helpCloseBtn.addEventListener("click", function () {
+            helpOverlay.style.display = "none";
+        });
+
+        reviewsItem.addEventListener("click", function () {
+            closeSettingsMenu();
+            loadReviews();
+            reviewsOverlay.style.display = "flex";
+        });
+        reviewsCloseBtn.addEventListener("click", function () { reviewsOverlay.style.display = "none"; });
+        reviewsOverlay.addEventListener("click", function (event) { if (event.target === reviewsOverlay) reviewsOverlay.style.display = "none"; });
 
 accountSettingsCloseBtn.addEventListener("click", function () {
     accountSettingsOverlay.style.display = "none";
