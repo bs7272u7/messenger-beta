@@ -568,7 +568,7 @@
         // 저장·복사처럼 즉시 끝나는 작업은 화면을 막는 모달 대신 짧은 토스트로 알려준다.
         function showToast(message, type = "success") {
             const toast = document.createElement("div");
-            const icon = type === "success" ? "fa-circle-check" : "fa-circle-info";
+            const icon = type === "success" ? "fa-circle-check" : type === "error" ? "fa-circle-exclamation" : "fa-circle-info";
             toast.className = `toast ${type}`;
             toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${escapeHTML(message)}</span>`;
             document.querySelector("#toast-region").appendChild(toast);
@@ -576,6 +576,19 @@
                 toast.classList.add("out");
                 toast.addEventListener("animationend", function () { toast.remove(); }, { once: true });
             }, 2600);
+        }
+
+        let composerBusyCount = 0;
+
+        // 전송 중 입력값이 지워지거나 같은 파일이 중복 전송되는 일을 막는다.
+        function setComposerBusy(isBusy) {
+            composerBusyCount = Math.max(0, composerBusyCount + (isBusy ? 1 : -1));
+            const busy = composerBusyCount > 0;
+            button.disabled = busy;
+            plusBtn.disabled = busy;
+            input.disabled = busy;
+            button.classList.toggle("is-busy", busy);
+            button.setAttribute("aria-busy", String(busy));
         }
 
         function focusInputSafely() {
@@ -622,6 +635,7 @@
          * ====================================================== */
 
         async function sendMessage() {
+            if (composerBusyCount > 0) return;
             const planeIcon = document.querySelector(".input-area button i.fa-paper-plane");
             if (planeIcon) {
                 planeIcon.classList.remove("launch");
@@ -632,52 +646,64 @@
             const text = input.value.trim();
             if (text === "") return;
 
-            if (editingIndex !== null) {
-                await fetch(`/api/messages/${editingIndex}`, {
-                    method: "PATCH",
-                    headers: {"Content-Type": "application/json" },
-                    body: JSON.stringify({ text:text })
+            if (!currentConversationID) {
+                showAlert("먼저 채팅방을 선택해주세요.");
+                return;
+            }
+
+            setComposerBusy(true);
+            try {
+                if (editingIndex !== null) {
+                    const response = await fetch(`/api/messages/${editingIndex}`, {
+                        method: "PATCH",
+                        headers: {"Content-Type": "application/json" },
+                        body: JSON.stringify({ text:text })
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) throw new Error(result.error || "메시지를 수정하지 못했습니다.");
+
+                    await readMessages();
+                    updateFriendPreviewFromServer();
+
+                    editingIndex = null;
+                    input.value = "";
+                    replyMessage = null;
+                    replyPreview.style.display = "none";
+                    editPreview.style.display = "none";
+                    button.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+                    showToast("메시지를 수정했습니다.");
+                    return;
+                }
+
+                const time = formatNowTime();
+                const today = todayDate();
+
+                const response = await fetch(`/api/conversations/${currentConversationID}/messages`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        text: text,
+                        time: time,
+                        date: today,
+                        mine: true,
+                        reply: replyMessage,
+                        read: false
+                    })
                 });
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.error || "메시지를 보내지 못했습니다.");
 
                 await readMessages();
                 updateFriendPreviewFromServer();
 
-                editingIndex = null;
                 input.value = "";
                 replyMessage = null;
                 replyPreview.style.display = "none";
-                editPreview.style.display = "none";
-                button.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
-                return;
+            } catch (error) {
+                showToast(error.message || "서버와 통신 중 문제가 발생했습니다.", "error");
+            } finally {
+                setComposerBusy(false);
             }
-
-            const time = formatNowTime();
-            const today = todayDate();
-
-            const response = await fetch(`/api/conversations/${currentConversationID}/messages`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json"},
-                body: JSON.stringify({
-                    text: text,
-                    time: time,
-                    date: today,
-                    mine: true,
-                    reply: replyMessage,
-                    read: false
-                })
-            });
-            const result = await response.json();
-            if (!result.success) {
-                showAlert(result.error);
-                return;
-            }
-
-            await readMessages();
-            updateFriendPreviewFromServer();
-
-            input.value = "";
-            replyMessage = null;
-            replyPreview.style.display = "none";
 
             setTimeout(function () { input.focus(); }, 10);
         }
@@ -1079,45 +1105,45 @@
             attachMenu.style.display = "none";
         });
 
-        imageInput.addEventListener("change", function () {
+        imageInput.addEventListener("change", async function () {
             const files = imageInput.files;
             if (!files || files.length === 0) return;
-            for (const file of files) sendImage(file);
+            for (const file of files) await sendImage(file);
         });
 
-        function sendImage(file) {
-            const reader = new FileReader();
-
-            reader.onload = async function () {
-                const time = formatNowTime();
-                const today = todayDate();
-
+        async function sendImage(file) {
+            if (!currentConversationID) {
+                showAlert("먼저 채팅방을 선택해주세요.");
+                return;
+            }
+            setComposerBusy(true);
+            try {
+                const imageData = await new Promise(function (resolve, reject) {
+                    const reader = new FileReader();
+                    reader.onload = function () { resolve(reader.result); };
+                    reader.onerror = function () { reject(new Error("사진 파일을 읽지 못했습니다.")); };
+                    reader.readAsDataURL(file);
+                });
                 const response = await fetch(`/api/conversations/${currentConversationID}/messages/image`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        image: reader.result,
-                        time: time,
-                        date: today
-                    })
+                    body: JSON.stringify({ image: imageData, time: formatNowTime(), date: todayDate() })
                 });
                 const result = await response.json();
-                if (!result.success) {
-                    showAlert(result.error);
-                    return;
-                }
+                if (!response.ok || !result.success) throw new Error(result.error || "사진을 보내지 못했습니다.");
 
                 await readMessages();
                 updateFriendPreviewFromServer();
-
-                imageInput.value = "";
                 replyMessage = null;
                 replyPreview.style.display = "none";
-
+                showToast("사진을 보냈습니다.");
+            } catch (error) {
+                showToast(error.message || "사진 전송 중 문제가 발생했습니다.", "error");
+            } finally {
+                imageInput.value = "";
+                setComposerBusy(false);
                 setTimeout(function () { input.focus(); }, 10);
-            };
-            
-            reader.readAsDataURL(file);
+            }
         }
 
         plusBtn.addEventListener("click", function (event) {
@@ -2540,6 +2566,11 @@ videoInput.addEventListener("change", function () {
 });
 
 async function sendVideo(file) {
+    if (!currentConversationID) {
+        showAlert("먼저 채팅방을 선택해주세요.");
+        return;
+    }
+    setComposerBusy(true);
     const time = formatNowTime();
     const today = todayDate();
 
@@ -2555,15 +2586,16 @@ async function sendVideo(file) {
         });
         const result = await response.json();
 
-        if (!result.success) {
-            showAlert(result.error);
-            return;
-        }
+        if (!response.ok || !result.success) throw new Error(result.error || "동영상을 보내지 못했습니다.");
 
         await readMessages();
         updateFriendPreviewFromServer();
+        showToast("동영상을 보냈습니다.");
     } catch (err) {
-        showAlert("서버와 통신 중 문제가 발생했습니다.");
+        showToast(err.message || "동영상 전송 중 문제가 발생했습니다.", "error");
+    } finally {
+        setComposerBusy(false);
+        setTimeout(function () { input.focus(); }, 10);
     }
 }
 

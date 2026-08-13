@@ -100,6 +100,7 @@
         }
         .toast.success i { color: #2ea765; }
         .toast.info i { color: var(--brand-color); }
+        .toast.error i { color: #e05252; }
         .toast.out { animation: toast-out .18s ease-in forwards; }
         @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes toast-out { to { opacity: 0; transform: translateY(6px); } }
@@ -512,6 +513,26 @@
         .input-area button:hover {
             background: #357abd;
         }
+
+        .input-area #send-btn.is-busy {
+            position: relative;
+            pointer-events: none;
+        }
+        .input-area #send-btn.is-busy i { visibility: hidden; }
+        .input-area #send-btn.is-busy::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            margin: -8px;
+            border: 2px solid rgba(255, 255, 255, .45);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: composer-spin .7s linear infinite;
+        }
+        @keyframes composer-spin { to { transform: rotate(360deg); } }
 
         /* ── 채팅창 배경: 메시지 영역(스크롤)과 은은한 애니메이션 장식을 분리한 래퍼 ──
            장식은 래퍼 안에 고정되어 메시지가 위로 쌓여도 함께 흘러가지 않고,
