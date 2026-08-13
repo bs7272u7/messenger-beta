@@ -1193,6 +1193,7 @@
 
         function readFriends() {
             friendList.innerHTML = "";
+            friendList.classList.toggle("is-empty", friends.length === 0);
             conversationSummary.innerText = friends.length > 0
                 ? `${friends.length}개의 채팅방`
                 : "대화를 선택해 시작하세요";
@@ -1202,12 +1203,8 @@
                     <div class="empty-friends">
                         <i class="fa-solid fa-user-group"></i>
                         <strong>아직 채팅방 없어요</strong>
-                        <button type="button" class="empty-chat-cta" id="empty-friends-add-btn">
-                            <i class="fa-solid fa-user-plus"></i> 친구 추가하기
-                        </button>
                     </div>
                 `;
-                document.querySelector("#empty-friends-add-btn").addEventListener("click", openFriendPanel);
                 return;
             }
 
@@ -1317,8 +1314,9 @@
 
             incomingRequestCount.innerText = incoming.length;
             outgoingRequestCount.innerText = outgoing.length;
-            friendRequestBadge.innerText = incoming.length;
             friendRequestBadge.hidden = incoming.length === 0;
+            friendRequestBadge.title = incoming.length ? `새 친구 요청 ${incoming.length}개` : "";
+            friendRequestBadge.setAttribute("aria-label", incoming.length ? `새 친구 요청 ${incoming.length}개` : "새 친구 요청 없음");
 
             outgoingFriendRequestList.innerHTML = "";
 
