@@ -164,7 +164,7 @@
                 const moderation = r.is_suspended
                     ? `<button data-lift-user="${r.target_user_id}">정지 해제</button>`
                     : `<button data-suspend-user="${r.target_user_id}" data-duration="24h">24시간 정지</button><button data-suspend-user="${r.target_user_id}" data-duration="7d">7일 정지</button><button data-suspend-user="${r.target_user_id}" data-duration="permanent" class="danger">영구 정지</button>`;
-                return `<article class="admin-item"><strong>${escapeHTML(r.reason)} · ${escapeHTML(r.status)}</strong><p>신고자: ${escapeHTML(r.reporter_username)} / 대상: ${escapeHTML(r.sender_username)}</p><p>${escapeHTML(r.message_text || "미디어 메시지")}</p><small>${r.created_at}</small><div class="admin-item-actions"><button data-close-report="${r.id}">검토 완료</button>${moderation}</div></article>`;
+                return `<article class="admin-item"><strong>${escapeHTML(r.reason)} · ${escapeHTML(r.status)}</strong><p>신고자: ${escapeHTML(r.reporter_username)} / 대상: ${escapeHTML(r.sender_username)}</p><p>${escapeHTML(r.message_text || "미디어 메시지")}</p><small>${r.created_at}</small><div class="admin-item-actions"><button data-close-report="${r.id}">검토 완료</button>${moderation}<button data-delete-report="${r.id}" class="danger">신고 삭제</button></div></article>`;
             }).join("") : "<p>신고가 없습니다.</p>";
         }
         async function loadReviews() {
@@ -180,6 +180,12 @@
             const suspendUser = event.target.dataset.suspendUser;
             const liftUser = event.target.dataset.liftUser;
             const reportId = event.target.dataset.closeReport;
+            const deleteReport = event.target.dataset.deleteReport;
+            if (deleteReport) {
+                if (!confirm("이 신고 내역을 삭제할까요? 삭제한 신고는 복구할 수 없습니다.")) return;
+                await api(`/api/admin/reports/${deleteReport}`, {method:"DELETE"});
+                return loadReports();
+            }
             if (suspendUser || liftUser) {
                 const action = liftUser ? "lift" : event.target.dataset.duration;
                 const reason = action === "lift" ? "관리자 정지 해제" : prompt("정지 처리 사유를 입력하세요.", "운영 정책 위반");

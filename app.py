@@ -1401,9 +1401,17 @@ def admin_reports():
     return jsonify([dict(row) for row in rows])
 
 
-@app.route("/api/admin/reports/<int:report_id>", methods=["PATCH"])
+@app.route("/api/admin/reports/<int:report_id>", methods=["PATCH", "DELETE"])
 @admin_required_api
 def admin_report_detail(report_id):
+    if request.method == "DELETE":
+        with get_db() as conn:
+            deleted = conn.execute("DELETE FROM reports WHERE id = %s RETURNING id", (report_id,)).fetchone()
+            conn.commit()
+        if not deleted:
+            return jsonify({"success": False, "error": "신고 내역을 찾을 수 없습니다."}), 404
+        return jsonify({"success": True})
+
     data = request.get_json() or {}
     status = data.get("status") if data.get("status") in {"pending", "reviewed", "closed"} else "reviewed"
     with get_db() as conn:
