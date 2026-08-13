@@ -490,7 +490,7 @@
                 <div style="display:flex; gap:6px; align-items:center;">
                     <input type="text" id="code" maxlength="6" inputmode="numeric" style="flex:1;">
                     <button type="button" id="verify-code-btn" class="verify-code-btn">인증하기</button>
-                    <span id="code-timer" style="font-size:12px; width:40px;"></span>
+                    <span id="code-timer" style="font-size:12px; width:40px;" hidden></span>
                 </div>
                 <p id="verification-status" class="verification-status" aria-live="polite"></p>
             </div>
@@ -691,6 +691,7 @@
                     emailVerified = false;
                     codeField.style.display = "block";
                     codeInput.value = "";
+                    codeTimer.hidden = false;
                     verificationStatus.textContent = "";
                     verificationStatus.className = "verification-status";
                     verifyCodeBtn.classList.remove("verified");
@@ -723,6 +724,10 @@
             if (!codeSent) return;
             codeSent = false;
             emailVerified = false;
+            clearInterval(timerInterval);
+            timerInterval = null;
+            codeTimer.textContent = "";
+            codeTimer.hidden = true;
             codeField.style.display = "none";
             verificationStatus.textContent = "이메일이 변경되어 인증번호를 다시 받아야 합니다.";
             verificationStatus.className = "verification-status";
@@ -751,6 +756,11 @@
                 const result = await response.json();
                 if (!response.ok || !result.success) throw new Error(result.error || "인증에 실패했습니다.");
                 emailVerified = true;
+                // 인증을 마친 코드는 더 이상 만료될 일이 없으므로 타이머를 바로 정리한다.
+                clearInterval(timerInterval);
+                timerInterval = null;
+                codeTimer.textContent = "";
+                codeTimer.hidden = true;
                 verificationStatus.textContent = "✓ 이메일 인증이 완료되었습니다.";
                 verificationStatus.className = "verification-status success";
                 verifyCodeBtn.classList.add("verified");
@@ -767,6 +777,7 @@
 
         function startCodeTimer(seconds) {
             clearInterval(timerInterval);
+            codeTimer.hidden = false;
             let remaining = seconds;
 
             function tick() {
