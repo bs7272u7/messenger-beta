@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 보안 확인 - Cloud Chatting</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root { color-scheme: dark; }
+        * { box-sizing: border-box; }
+        body { min-height:100vh; margin:0; display:grid; place-items:center; padding:24px; color:#eaf0ff; font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:radial-gradient(circle at 20% 0%,#294778 0,transparent 34%),radial-gradient(circle at 82% 92%,#21365d 0,transparent 31%),#10151f; }
+        .verify-card { width:min(100%,430px); padding:34px; border:1px solid #34445f; border-radius:18px; background:linear-gradient(145deg,rgba(31,41,59,.98),rgba(19,26,38,.98)); box-shadow:0 28px 80px rgba(0,0,0,.42); }
+        .verify-icon { width:54px; height:54px; display:grid; place-items:center; margin-bottom:20px; border-radius:15px; background:linear-gradient(135deg,#3f83f8,#667eea); box-shadow:0 10px 25px rgba(63,131,248,.28); font-size:23px; }
+        .eyebrow { margin:0 0 8px; color:#8db8ff; font-size:12px; font-weight:800; letter-spacing:.1em; }
+        h1 { margin:0; font-size:26px; letter-spacing:-.04em; }
+        p { margin:10px 0 24px; color:#afbdd3; line-height:1.6; font-size:14px; }
+        label { display:block; margin-bottom:8px; color:#d7e2f4; font-size:13px; font-weight:700; }
+        .input-wrap { position:relative; }
+        input { width:100%; height:48px; padding:0 44px 0 14px; border:1px solid #40516c; border-radius:10px; outline:none; background:#121925; color:#f6f9ff; font:inherit; }
+        input:focus { border-color:#6aa0ff; box-shadow:0 0 0 4px rgba(82,139,244,.16); }
+        .input-wrap i { position:absolute; top:16px; right:16px; color:#8aa0c4; }
+        button { width:100%; height:47px; margin-top:14px; border:0; border-radius:10px; background:linear-gradient(135deg,#397ef0,#5e8ff4); color:white; font:inherit; font-weight:800; cursor:pointer; }
+        button:disabled { opacity:.62; cursor:wait; }
+        .result { min-height:20px; margin:13px 0 0; color:#ffb5bd; font-size:12px; line-height:1.45; }
+        .back { display:inline-flex; align-items:center; gap:7px; margin-top:24px; color:#aebfd9; text-decoration:none; font-size:13px; }
+        .back:hover { color:#fff; }
+        .configuration-warning { padding:11px 12px; border:1px solid #895f2d; border-radius:9px; background:#342717; color:#ffd59b; font-size:13px; line-height:1.5; }
+    </style>
+</head>
+<body>
+    <main class="verify-card">
+        <div class="verify-icon"><i class="fa-solid fa-shield-halved"></i></div>
+        <p class="eyebrow">CLOUD CHATTING · ADMIN SECURITY</p>
+        <h1>관리자 보안 확인</h1>
+        <p>운영 콘솔에 들어가기 전, 재현님이 지정한 관리자 접근 키를 확인합니다. 인증은 30분 동안만 유지됩니다.</p>
+        {% if access_key_configured %}
+        <form id="access-key-form">
+            <label for="access-key">관리자 접근 키</label>
+            <div class="input-wrap"><input id="access-key" type="password" autocomplete="off" required autofocus><i class="fa-solid fa-key"></i></div>
+            <button id="access-key-submit" type="submit">보안 확인 후 계속</button>
+            <div id="access-key-result" class="result" aria-live="polite"></div>
+        </form>
+        {% else %}
+        <div class="configuration-warning"><strong>접근 키 설정이 필요합니다.</strong><br>Render 환경변수에 <code>ADMIN_ACCESS_KEY_HASH</code>를 추가한 뒤 다시 시도해주세요.</div>
+        {% endif %}
+        <a class="back" href="{{ url_for('home') }}"><i class="fa-solid fa-arrow-left"></i> 메신저로 돌아가기</a>
+    </main>
+    {% if access_key_configured %}
+    <script>
+        const form = document.querySelector("#access-key-form");
+        const input = document.querySelector("#access-key");
+        const submit = document.querySelector("#access-key-submit");
+        const result = document.querySelector("#access-key-result");
+        form.addEventListener("submit", async event => {
+            event.preventDefault(); submit.disabled = true; result.textContent = "";
+            try {
+                const response = await fetch("/api/admin/access-key", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({access_key:input.value}) });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.error || "보안 확인에 실패했습니다.");
+                location.href = "/admin";
+            } catch (error) { result.textContent = error.message; input.value = ""; input.focus(); }
+            finally { submit.disabled = false; }
+        });
+    </script>
+    {% endif %}
+</body>
+</html>

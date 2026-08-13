@@ -56,6 +56,10 @@ _update_history_cache = {
 }
 SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL")
 ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
+ADMIN_ACCESS_KEY_HASH = os.environ.get("ADMIN_ACCESS_KEY_HASH")
+ADMIN_ACCESS_SESSION_SECONDS = 30 * 60
+ADMIN_ACCESS_MAX_FAILURES = 5
+ADMIN_ACCESS_LOCK_SECONDS = 15 * 60
 SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
 CHAT_FILE_MAX_BYTES = 20 * 1024 * 1024
@@ -546,6 +550,14 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS admin_access_attempts (
+                user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                failed_count INT NOT NULL DEFAULT 0,
+                locked_until DOUBLE PRECISION NOT NULL DEFAULT 0
+            )
+        """)
+
         # ADMIN_EMAIL과 일치하는 계정만 관리자 권한을 부여한다.
         # 권한은 화면이나 세션이 아닌 DB에서 다시 확인하므로 주소를 직접 입력해도 우회할 수 없다.
         if ADMIN_EMAIL:
@@ -803,12 +815,40 @@ def is_current_user_admin():
     return bool(user and user["is_admin"])
 
 
+def is_admin_access_verified():
+    verified_until = session.get("admin_verified_until", 0)
+    if verified_until and float(verified_until) > time.time():
+        return True
+    session.pop("admin_verified_until", None)
+    return False
+
+
+def admin_account_required_page(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not is_current_user_admin():
+            abort(404)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def admin_account_required_api(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not is_current_user_admin():
+            return jsonify({"success": False, "error": "관리자 권한이 필요합니다."}), 404
+        return view(*args, **kwargs)
+    return wrapped
+
+
 def admin_required_page(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         # 관리자 페이지 존재 자체를 일반 사용자에게 노출하지 않는다.
         if not is_current_user_admin():
             abort(404)
+        if not is_admin_access_verified():
+            return redirect(url_for("admin_access_verify"))
         return view(*args, **kwargs)
     return wrapped
 
@@ -818,6 +858,8 @@ def admin_required_api(view):
     def wrapped(*args, **kwargs):
         if not is_current_user_admin():
             return jsonify({"success": False, "error": "관리자 권한이 필요합니다."}), 404
+        if not is_admin_access_verified():
+            return jsonify({"success": False, "error": "관리자 접근 키를 다시 확인해주세요."}), 403
         return view(*args, **kwargs)
     return wrapped
 
@@ -896,6 +938,53 @@ def notify_profile_updated(recipient_ids, user_id):
 def admin_page():
     """관리자만 접근할 수 있는 운영 페이지의 시작 화면."""
     return render_template("admin.html")
+
+
+@app.route("/admin/verify")
+@admin_account_required_page
+def admin_access_verify():
+    if is_admin_access_verified():
+        return redirect(url_for("admin_page"))
+    return render_template("admin_verify.html", access_key_configured=bool(ADMIN_ACCESS_KEY_HASH))
+
+
+@app.route("/api/admin/access-key", methods=["POST"])
+@admin_account_required_api
+def verify_admin_access_key():
+    if not ADMIN_ACCESS_KEY_HASH:
+        return jsonify({"success": False, "error": "서버에 관리자 접근 키가 설정되지 않았습니다."}), 503
+
+    user_id = session["user_id"]
+    now = time.time()
+    access_key = (request.get_json() or {}).get("access_key") or ""
+    with get_db() as conn:
+        attempt = conn.execute(
+            "SELECT failed_count, locked_until FROM admin_access_attempts WHERE user_id = %s",
+            (user_id,),
+        ).fetchone()
+        if attempt and attempt["locked_until"] > now:
+            retry_after = max(1, int(attempt["locked_until"] - now))
+            return jsonify({"success": False, "error": f"보안을 위해 잠시 잠겼습니다. {retry_after // 60 + 1}분 후 다시 시도해주세요."}), 429
+
+        if check_password_hash(ADMIN_ACCESS_KEY_HASH, access_key):
+            conn.execute("DELETE FROM admin_access_attempts WHERE user_id = %s", (user_id,))
+            conn.commit()
+            session["admin_verified_until"] = now + ADMIN_ACCESS_SESSION_SECONDS
+            return jsonify({"success": True, "expires_in": ADMIN_ACCESS_SESSION_SECONDS})
+
+        failures = (attempt["failed_count"] if attempt and attempt["locked_until"] <= now else 0) + 1
+        locked_until = now + ADMIN_ACCESS_LOCK_SECONDS if failures >= ADMIN_ACCESS_MAX_FAILURES else 0
+        conn.execute("""
+            INSERT INTO admin_access_attempts (user_id, failed_count, locked_until)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET failed_count = EXCLUDED.failed_count, locked_until = EXCLUDED.locked_until
+        """, (user_id, failures, locked_until))
+        conn.commit()
+
+    remaining = ADMIN_ACCESS_MAX_FAILURES - failures
+    if remaining <= 0:
+        return jsonify({"success": False, "error": "접근 키 입력을 5회 실패해 15분 동안 잠겼습니다."}), 429
+    return jsonify({"success": False, "error": f"접근 키가 올바르지 않습니다. {remaining}회 남았습니다."}), 401
 
 
 @app.route("/terms")
@@ -1292,6 +1381,7 @@ def login():
     if not user or not check_password_hash(user["password_hash"], password):
         return jsonify({"success": False, "error": "아이디/이메일 또는 비밀번호가 올바르지 않습니다."})
 
+    session.pop("admin_verified_until", None)
     session["user_id"] = user["id"]
     session["username"] = user["username"]
     session["display_name"] = user["display_name"] or user["username"]
