@@ -553,8 +553,6 @@
         .theme-preview-default { background: linear-gradient(135deg, #e5ebf2, #c9d7f7); }
         .theme-preview-heart { background: linear-gradient(135deg, #ff5f8f, #ff9476); color: #fff; }
         .theme-preview-teddy { background: linear-gradient(135deg, #f5eadb, #d49a68); }
-        .theme-icon-credit { display: block; padding: 0 18px 16px; color: var(--brand-color); font-size: 11px; text-align: right; text-decoration: none; }
-        .theme-icon-credit:hover { text-decoration: underline; }
 
         .chat-bg-decor {
             position: absolute;
@@ -1915,6 +1913,15 @@
             font-size: 12px;
             line-height: 1.55;
         }
+
+        /* 무료 Icons8 아이콘의 출처는 테마 선택을 방해하지 않도록 도움말 최하단에만 표시한다. */
+        .icon-attribution {
+            margin: 12px 2px 0;
+            color: gray;
+            font-size: 10px;
+            text-align: right;
+        }
+        .icon-attribution a { color: inherit; }
 
         #support-message {
             width: 100%;
