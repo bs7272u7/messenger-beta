@@ -134,11 +134,6 @@
             #desktop-info-name { max-width: 100%; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
             #desktop-info-status { margin: 8px 0 20px; color: color-mix(in srgb, var(--text-color) 60%, transparent); font-size: 12px; line-height: 1.55; }
             #desktop-info-status:empty { display: none; }
-            .desktop-info-actions { display: grid; width: 100%; grid-template-columns: repeat(2, 1fr); gap: 7px; }
-            .desktop-info-actions button { min-height: 36px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--panel-bg); color: var(--text-color); cursor: pointer; font: inherit; font-size: 12px; }
-            .desktop-info-actions button:hover { border-color: var(--brand-color); color: var(--brand-color); }
-            .desktop-info-note { margin-top: auto; padding: 12px; border-radius: 12px; background: var(--panel-tint); color: color-mix(in srgb, var(--text-color) 66%, transparent); font-size: 11px; line-height: 1.55; text-align: left; }
-            .desktop-info-note i { color: var(--brand-color); }
         }
 
         .friend-inbox-modal { width: 480px; max-width: 92vw; padding: 0; overflow: hidden; text-align: left; }
@@ -1706,24 +1701,6 @@
         }
 
         .empty-friends .empty-chat-cta i { display: none; }
-
-        .empty-chat-features {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 7px;
-            max-width: 330px;
-            margin: 6px 0 4px;
-        }
-        .empty-chat-features span {
-            padding: 6px 9px;
-            border: 1px solid var(--border-color);
-            border-radius: 99px;
-            background: var(--panel-bg);
-            color: color-mix(in srgb, var(--text-color) 64%, transparent);
-            font-size: 11px;
-        }
-        .empty-chat-features i { color: var(--brand-color); }
 
         .empty-friends {
             display: grid;

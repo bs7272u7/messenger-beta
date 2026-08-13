@@ -420,8 +420,6 @@
         const conversationSummary = document.querySelector("#conversation-summary");
         const desktopInfoName = document.querySelector("#desktop-info-name");
         const desktopInfoStatus = document.querySelector("#desktop-info-status");
-        const desktopThemeBtn = document.querySelector("#desktop-theme-btn");
-        const desktopGalleryBtn = document.querySelector("#desktop-gallery-btn");
 
         // 모바일은 한 화면에 목록과 대화창을 함께 두지 않는다.
         // PC에서는 이 클래스가 CSS에 영향을 주지 않아 기존 레이아웃을 그대로 유지한다.
@@ -762,20 +760,8 @@
                         <div class="empty-chat-icon"><i class="fa-solid fa-paper-plane"></i></div>
                         <div class="empty-chat-title">아직 열린 대화가 없어요</div>
                         <div class="empty-chat-subtitle">친구를 추가하고 대화를 시작해보세요!</div>
-                        <div class="empty-chat-features">
-                            <span><i class="fa-solid fa-palette"></i> 채팅 테마</span>
-                            <span><i class="fa-regular fa-images"></i> 사진 공유</span>
-                            <span><i class="fa-solid fa-reply"></i> 답장</span>
-                        </div>
-                        <button id="empty-chat-add-friend-btn" class="empty-chat-cta"><i class="fa-solid fa-user-plus"></i> 친구 추가하기</button>
                     </div>
                 `;
-                    const emptyChatAddFriendBtn = document.querySelector("#empty-chat-add-friend-btn");
-                    if (emptyChatAddFriendBtn) {
-                        emptyChatAddFriendBtn.addEventListener("click", function () {
-                        openFriendPanel();
-                        });
-                    }
                 return;
             }
 
@@ -1808,15 +1794,6 @@
                 friendRequestList.hidden = !incomingTab;
                 outgoingFriendRequestList.hidden = incomingTab;
             });
-        });
-
-        desktopThemeBtn.addEventListener("click", function () { chatThemeBtn.click(); });
-        desktopGalleryBtn.addEventListener("click", function () {
-            if (!currentConversationID) {
-                showAlert("먼저 채팅방을 선택해주세요.");
-                return;
-            }
-            galleryToggleBtn.click();
         });
 
         mobileBackBtn.addEventListener("click", function () {
