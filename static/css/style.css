@@ -2054,6 +2054,15 @@
             color: var(--text-color);
         }
 
+        /* 친구 추가와 친구 찾기는 같은 입력 기능이므로, 패널 안에서는 같은 보조 라벨 위계를 사용한다. */
+        #friend-panel .friend-panel-header h3 {
+            color: color-mix(in srgb, var(--text-color) 74%, transparent);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        #friend-panel .friend-panel-header { margin-bottom: 7px; }
+
         #close-friend-panel {
             cursor: pointer;
             color: var(--text-color);
