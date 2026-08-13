@@ -141,7 +141,10 @@
         }
 
         .friend-inbox-modal { width: 480px; max-width: 92vw; padding: 0; overflow: hidden; text-align: left; }
-        .friend-inbox-modal .settings-modal-header p { margin: 4px 0 0; color: color-mix(in srgb, var(--text-color) 60%, transparent); font-size: 12px; }
+        .friend-inbox-modal .settings-modal-header { position: relative; justify-content: center; padding: 20px 58px 18px; text-align: center; }
+        .friend-inbox-modal .settings-modal-header > div { display: grid; justify-items: center; gap: 4px; }
+        .friend-inbox-modal .settings-modal-header p { margin: 0; color: color-mix(in srgb, var(--text-color) 60%, transparent); font-size: 12px; }
+        .friend-inbox-modal .settings-modal-close { position: absolute; top: 50%; right: 18px; transform: translateY(-50%); }
         .friend-inbox-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 12px 18px 0; border-bottom: 1px solid var(--border-color); }
         .friend-inbox-tabs button { padding: 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: color-mix(in srgb, var(--text-color) 60%, transparent); cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; }
         .friend-inbox-tabs button.active { border-bottom-color: var(--brand-color); color: var(--brand-color); }
@@ -166,6 +169,8 @@
             .friend-list-heading p { margin: 3px 0 0; color: gray; font-size: 11px; }
             .friend-list-heading #friend-panel-tab { display: none; }
             .friend-inbox-modal { width: 100%; max-width: 100%; border-radius: 20px; }
+            .friend-inbox-modal .settings-modal-header { padding-right: 52px; padding-left: 52px; }
+            .friend-inbox-modal .settings-modal-close { right: 16px; }
         }
 
         :root {
@@ -1686,6 +1691,20 @@
         .empty-chat-cta:hover {
             opacity: 0.9;
         }
+
+        /* 친구 목록의 첫 행동 버튼은 짧고 명확하게, 문구가 정확히 중앙에 보이게 한다. */
+        .empty-friends .empty-chat-cta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 136px;
+            height: 42px;
+            padding: 0 17px;
+            border-radius: 15px;
+            font-size: 13px;
+        }
+
+        .empty-friends .empty-chat-cta i { display: none; }
 
         .empty-chat-features {
             display: flex;
