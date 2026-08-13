@@ -1195,7 +1195,8 @@
         }
 
         .message-menu {
-            position: absolute;
+            /* 메시지 영역의 스크롤·첨부 미디어 크기와 무관하게 화면 좌표에서 표시한다. */
+            position: fixed;
             display: none;
             background: white;
             border: 1px solid #ccc;

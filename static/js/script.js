@@ -279,23 +279,22 @@
             return `<div class="reply-quote">${escapeHTML(reply.text)}</div>`;
         }
 
-        /* # 기준 요소(rect) 옆에 메뉴를 띄우고, 화면 밖으로 나가지 않게 좌표를 보정한다. */
+        /* # 기준 요소(rect) 옆에 메뉴를 띄우고, 화면 밖으로 나가지 않게 좌표를 보정한다.
+         * 파일 카드와 음성 컨트롤도 같은 화면 좌표계에서 계산해야 메뉴가 입력창 쪽으로 밀리지 않는다. */
         function positionMenuNear(menuEl, rect, preferLeft) {
             const menuWidth = menuEl.offsetWidth;
             const menuHeight = menuEl.offsetHeight;
-            const scrollX = window.scrollX;
-            const scrollY = window.scrollY;
 
             let left = preferLeft
-                ? rect.left + scrollX - menuWidth - 10
-                : rect.right + scrollX + 10;
-            let top = rect.top + scrollY;
+                ? rect.left - menuWidth - 10
+                : rect.right + 10;
+            let top = rect.top;
 
-            if (left < 10) left = rect.right + scrollX + 10;
-            if (left + menuWidth > window.innerWidth) left = rect.left + scrollX - menuWidth - 10;
+            if (left < 10) left = rect.right + 10;
+            if (left + menuWidth > window.innerWidth) left = rect.left - menuWidth - 10;
             if (left < 10) left = 10;
 
-            if (top + menuHeight > window.innerHeight + scrollY) top = rect.bottom + scrollY - menuHeight;
+            if (top + menuHeight > window.innerHeight) top = rect.bottom - menuHeight;
             if (top < 10) top = 10;
 
             menuEl.style.left = left + "px";
@@ -973,9 +972,9 @@
                     messageMenu.style.display = "block";
                     messageMenu.style.pointerEvents = "auto";
 
-                    let target = (chat.image || chat.video)
-                        ? message.querySelector(".chat-image")
-                        : message.querySelector(".bubble, .message-left");
+                    let target = message.querySelector(
+                        ".chat-image, .chat-file-card, .chat-audio, .bubble, .message-left"
+                    );
                     if (!target) target = message;
 
                     positionMenuNear(messageMenu, target.getBoundingClientRect(), chat.mine);
