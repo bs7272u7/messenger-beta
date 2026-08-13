@@ -575,6 +575,9 @@ def init_db():
         """)
 
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS cover_image TEXT")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio VARCHAR(300) NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status_message VARCHAR(100) NOT NULL DEFAULT ''")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS notices (
@@ -614,12 +617,27 @@ def init_db():
         """)
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS reviews (
+                id SERIAL PRIMARY KEY,
+                user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+                content VARCHAR(1000) NOT NULL,
+                admin_reply VARCHAR(1000),
+                created_at TEXT NOT NULL,
+                replied_at TEXT
+            )
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS conversations (
                 id SERIAL PRIMARY KEY,
                 is_group BOOLEAN NOT NULL DEFAULT FALSE,
                 name TEXT,
                 owner_id INT,
                 profile_image TEXT,
+                chat_theme VARCHAR(20) NOT NULL DEFAULT 'default',
+                is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+                disabled_by INT,
                 last_activity_id INT NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             )
@@ -652,6 +670,8 @@ def init_db():
                 edited BOOLEAN DEFAULT FALSE,
                 pinned BOOLEAN DEFAULT FALSE,
                 reactions TEXT,
+                audio TEXT,
+                message_type VARCHAR(20) NOT NULL DEFAULT 'user',
                 FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
                 FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE
             )
@@ -700,6 +720,9 @@ def init_db():
         for stmt in [
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS owner_id INT",
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS profile_image TEXT",
+            "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS chat_theme VARCHAR(20) NOT NULL DEFAULT 'default'",
+            "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS disabled_by INT",
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_activity_id INT NOT NULL DEFAULT 0",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS hidden_at TEXT",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS chat_theme VARCHAR(20) NOT NULL DEFAULT 'default'",
@@ -709,6 +732,8 @@ def init_db():
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_path TEXT",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size BIGINT",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS audio TEXT",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) NOT NULL DEFAULT 'user'",
         ]:
             cur.execute(stmt)
 
@@ -829,6 +854,41 @@ def home():
         user_email=user["email"],  
 
     )
+
+
+def conversation_is_disabled(conn, conversation_id):
+    row = conn.execute("SELECT is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+    return bool(row and row["is_disabled"])
+
+
+def create_system_message(conn, conversation_id, text, actor_id=None):
+    """그룹 공지·테마 변경처럼 누구의 일반 메시지도 아닌 기록을 남긴다."""
+    row = conn.execute("""
+        INSERT INTO messages (conversation_id, sender_id, text, time, date, edited, pinned, reactions, message_type)
+        SELECT %s, COALESCE(%s, owner_id), %s, %s, %s, FALSE, FALSE, %s, 'system'
+        FROM conversations WHERE id = %s
+        RETURNING id
+    """, (conversation_id, actor_id, text, datetime.now().strftime("%H:%M"), datetime.now().strftime("%Y-%m-%d"), json.dumps([]), conversation_id)).fetchone()
+    if row:
+        conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], conversation_id))
+    return row["id"] if row else None
+
+
+def profile_update_recipient_ids(conn, user_id):
+    """커밋 뒤에 프로필 갱신을 알릴 대화 상대의 ID를 모은다."""
+    rows = conn.execute(
+        """SELECT DISTINCT members.user_id
+           FROM conversation_members mine
+           JOIN conversation_members members ON members.conversation_id = mine.conversation_id
+           WHERE mine.user_id = %s""",
+        (user_id,),
+    ).fetchall()
+    return [row["user_id"] for row in rows]
+
+
+def notify_profile_updated(recipient_ids, user_id):
+    for recipient_id in recipient_ids:
+        notify_user(recipient_id, "friend_updated", {"userId": user_id})
 
 
 @app.route("/admin")
@@ -997,6 +1057,52 @@ def get_notices():
             "SELECT id, title, content, created_at FROM notices WHERE is_published = TRUE ORDER BY id DESC LIMIT 30"
         ).fetchall()
     return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/reviews", methods=["GET", "POST"])
+@login_required_api
+def reviews():
+    if request.method == "GET":
+        with get_db() as conn:
+            rows = conn.execute("""
+                SELECT r.*, u.display_name, u.username, u.profile_image FROM reviews r
+                JOIN users u ON u.id = r.user_id ORDER BY r.id DESC LIMIT 100
+            """).fetchall()
+        return jsonify([dict(row) for row in rows])
+    data = request.get_json() or {}
+    rating = data.get("rating")
+    content = (data.get("content") or "").strip()
+    if not isinstance(rating, int) or rating not in range(1, 6) or len(content) < 5 or len(content) > 1000:
+        return jsonify({"success": False, "error": "별점(1~5점)과 5자 이상 후기를 입력해주세요."}), 400
+    with get_db() as conn:
+        conn.execute("INSERT INTO reviews (user_id, rating, content, created_at) VALUES (%s, %s, %s, %s)", (session["user_id"], rating, content, now_str()))
+        conn.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/reviews", methods=["GET"])
+@admin_required_api
+def admin_reviews():
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT r.*, u.display_name, u.username FROM reviews r JOIN users u ON u.id = r.user_id ORDER BY r.id DESC
+        """).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/admin/reviews/<int:review_id>", methods=["PATCH", "DELETE"])
+@admin_required_api
+def admin_review_detail(review_id):
+    with get_db() as conn:
+        if request.method == "DELETE":
+            conn.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
+        else:
+            reply = ((request.get_json() or {}).get("admin_reply") or "").strip()
+            if not reply or len(reply) > 1000:
+                return jsonify({"success": False, "error": "답변은 1~1,000자로 입력해주세요."}), 400
+            conn.execute("UPDATE reviews SET admin_reply = %s, replied_at = %s WHERE id = %s", (reply, now_str(), review_id))
+        conn.commit()
+    return jsonify({"success": True})
 
 
 @app.route("/api/admin/notices", methods=["GET", "POST"])
@@ -1297,7 +1403,8 @@ def list_friend_requests():
     user_id = session["user_id"]
     with get_db() as conn:
         incoming = conn.execute("""
-            SELECT friend_requests.id, users.display_name, friend_requests.created_at
+            SELECT friend_requests.id, users.id AS user_id, users.username, users.display_name,
+                   users.profile_image, users.status_message, friend_requests.created_at
             FROM friend_requests
             JOIN users ON users.id = friend_requests.requester_id
             WHERE friend_requests.addressee_id = %s AND friend_requests.status = 'pending'
@@ -1305,7 +1412,8 @@ def list_friend_requests():
         """, (user_id,)).fetchall()
 
         outgoing = conn.execute("""
-            SELECT friend_requests.id, users.display_name, friend_requests.created_at
+            SELECT friend_requests.id, users.id AS user_id, users.username, users.display_name,
+                   users.profile_image, users.status_message, friend_requests.created_at
             FROM friend_requests
             JOIN users ON users.id = friend_requests.addressee_id
             WHERE friend_requests.requester_id = %s AND friend_requests.status = 'pending'
@@ -1436,8 +1544,8 @@ def get_conversations():
     user_id = session["user_id"]
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id,
-                   cm.last_read_message_id, cm.chat_theme, cm.is_muted, cm.is_pinned
+            SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id, c.chat_theme, c.is_disabled,
+                   cm.last_read_message_id, cm.is_muted, cm.is_pinned
             FROM conversations c
             JOIN conversation_members cm ON cm.conversation_id = c.id
             WHERE cm.user_id = %s AND cm.hidden_at IS NULL
@@ -1459,7 +1567,7 @@ def get_conversations():
             else:
                 group_profile_image = None
                 peer = conn.execute("""
-                    SELECT users.id, users.display_name, users.username, users.profile_image FROM conversation_members
+                    SELECT users.id, users.display_name, users.username, users.profile_image, users.status_message, users.cover_image, users.bio FROM conversation_members
                     JOIN users ON users.id = conversation_members.user_id
                     WHERE conversation_members.conversation_id = %s AND conversation_members.user_id != %s
                 """, (conversation_id, user_id)).fetchone()
@@ -1479,14 +1587,16 @@ def get_conversations():
                     display_name = "(알 수 없음)"
 
             last_msg = conn.execute(
-                "SELECT id, text, image, video, file_name, time FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1",
+                "SELECT id, text, image, video, audio, file_name, time FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1",
                 (conversation_id,)
             ).fetchone()
 
             message_text, last_time = "", ""
             last_msg_id = last_msg["id"] if last_msg else 0
             if last_msg:
-                if last_msg["file_name"]:
+                if last_msg["audio"]:
+                    message_text = "__AUDIO__음성 메시지"
+                elif last_msg["file_name"]:
                     message_text = "__FILE__파일"
                 elif last_msg["video"]:
                     message_text = "__VIDEO__동영상"
@@ -1515,12 +1625,17 @@ def get_conversations():
                 "message": message_text,
                 "lastTime": last_time,
                 "chatTheme": row["chat_theme"] or "default",
+                "isDisabled": bool(row["is_disabled"]),
                 "isMuted": bool(row["is_muted"]),
                 "isPinned": bool(row["is_pinned"]),
                 "unreadCount": unread,
                 "peerId": peer_id,
                 "peerUsername": peer_username,
                 "peerProfileImage": peer_profile_image,
+                "peerStatusMessage": peer["status_message"] if not row["is_group"] and peer else "",
+                "peerCoverImage": peer["cover_image"] if not row["is_group"] and peer else None,
+                "peerBio": peer["bio"] if not row["is_group"] and peer else "",
+                "statusMessage": peer["status_message"] if not row["is_group"] and peer else "",
                 "isOnline": bool(peer_id and is_user_online(peer_id)),
                 "groupProfileImage": group_profile_image,
                 "memberCount": member_count,
@@ -1572,7 +1687,7 @@ def create_group_conversation():
 @app.route("/api/conversations/<int:conversation_id>/theme", methods=["PATCH"])
 @login_required_api
 def update_conversation_theme(conversation_id):
-    """채팅 테마는 같은 대화방이라도 사용자별로 저장한다."""
+    """채팅 테마는 대화방 공용 설정으로 저장하고 모든 멤버에게 알린다."""
     theme = (request.get_json() or {}).get("theme", "default")
     if theme not in {"default", "heart", "teddy", "glass"}:
         return jsonify({"success": False, "error": "지원하지 않는 채팅 테마입니다."}), 400
@@ -1582,11 +1697,15 @@ def update_conversation_theme(conversation_id):
         membership = get_membership(conn, conversation_id, user_id)
         if not membership:
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-        conn.execute(
-            "UPDATE conversation_members SET chat_theme = %s WHERE conversation_id = %s AND user_id = %s",
-            (theme, conversation_id, user_id),
-        )
+        if conversation_is_disabled(conn, conversation_id):
+            return jsonify({"success": False, "error": "종료된 채팅방에서는 테마를 바꿀 수 없습니다."}), 403
+        conn.execute("UPDATE conversations SET chat_theme = %s WHERE id = %s", (theme, conversation_id))
+        actor = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
+        actor_name = actor["display_name"] or actor["username"]
+        theme_name = {"default": "기본", "heart": "하트", "teddy": "테디베어", "glass": "글라스"}.get(theme, theme)
+        create_system_message(conn, conversation_id, f"{actor_name}님이 {theme_name} 테마로 변경했습니다.", user_id)
         conn.commit()
+        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
     return jsonify({"success": True, "theme": theme})
 
 
@@ -1633,12 +1752,14 @@ def rename_group_conversation(conversation_id):
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
-        conv = conn.execute("SELECT is_group, owner_id FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+        conv = conn.execute("SELECT is_group, owner_id, is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
         if not conv or not conv["is_group"]:
             return jsonify({"success": False, "error": "그룹 채팅만 이름을 바꿀 수 있습니다."}), 400
 
         if conv["owner_id"] != user_id:
             return jsonify({"success": False, "error": "방장만 그룹 이름을 바꿀 수 있습니다."}), 403
+        if conv["is_disabled"]:
+            return jsonify({"success": False, "error": "종료된 그룹 채팅방은 정보를 변경할 수 없습니다."}), 403
 
         conn.execute("UPDATE conversations SET name = %s WHERE id = %s", (new_name, conversation_id))
         conn.commit()
@@ -1656,12 +1777,17 @@ def leave_conversation(conversation_id):
         if not membership:
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
+        conv = conn.execute("SELECT owner_id, is_group FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+        leaving_user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
+        leaving_name = leaving_user["display_name"] or leaving_user["username"]
+        if conv and conv["is_group"]:
+            create_system_message(conn, conversation_id, f"{leaving_name}님이 나갔습니다.", user_id)
+
         conn.execute(
             "DELETE FROM conversation_members WHERE conversation_id = %s AND user_id = %s",
             (conversation_id, user_id)
         )
 
-        conv = conn.execute("SELECT owner_id, is_group FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
         if conv and conv["is_group"] and conv["owner_id"] == user_id:
             new_owner = conn.execute(
                 "SELECT user_id FROM conversation_members WHERE conversation_id = %s ORDER BY joined_at ASC LIMIT 1",
@@ -1686,6 +1812,28 @@ def leave_conversation(conversation_id):
             return jsonify({"success": True})
 
         conn.commit()
+        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+    return jsonify({"success": True})
+
+
+@app.route("/api/conversations/<int:conversation_id>/disable", methods=["POST"])
+@login_required_api
+def disable_group_conversation(conversation_id):
+    user_id = session["user_id"]
+    with get_db() as conn:
+        conv = conn.execute("SELECT is_group, owner_id, is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+        if not conv or not get_membership(conn, conversation_id, user_id):
+            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+        if not conv["is_group"] or conv["owner_id"] != user_id:
+            return jsonify({"success": False, "error": "그룹 방장만 채팅방을 종료할 수 있습니다."}), 403
+        if conv["is_disabled"]:
+            return jsonify({"success": False, "error": "이미 종료된 채팅방입니다."}), 400
+        actor = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
+        actor_name = actor["display_name"] or actor["username"]
+        conn.execute("UPDATE conversations SET is_disabled = TRUE, disabled_by = %s WHERE id = %s", (user_id, conversation_id))
+        create_system_message(conn, conversation_id, f"{actor_name}님이 그룹 채팅을 종료했습니다. 이전 대화는 계속 볼 수 있습니다.", user_id)
+        conn.commit()
+        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
     return jsonify({"success": True})
 
 
@@ -1750,9 +1898,11 @@ def invite_conversation_members(conversation_id):
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
-        conv = conn.execute("SELECT is_group FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+        conv = conn.execute("SELECT is_group, is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
         if not conv or not conv["is_group"]:
             return jsonify({"success": False, "error": "그룹 채팅에서만 멤버를 초대할 수 있습니다."}), 400
+        if conv["is_disabled"]:
+            return jsonify({"success": False, "error": "종료된 그룹 채팅방에는 멤버를 초대할 수 없습니다."}), 403
 
         for uname in usernames:
             row = conn.execute("SELECT id FROM users WHERE username = %s", (uname,)).fetchone()
@@ -1781,12 +1931,14 @@ def remove_conversation_member(conversation_id, member_user_id):
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
-        conv = conn.execute("SELECT is_group, owner_id FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+        conv = conn.execute("SELECT is_group, owner_id, is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
         if not conv or not conv["is_group"]:
             return jsonify({"success": False, "error": "그룹 채팅에서만 멤버를 내보낼 수 있습니다."}), 400
 
         if conv["owner_id"] != user_id:
             return jsonify({"success": False, "error": "방장만 멤버를 내보낼 수 있습니다."}), 403
+        if conv["is_disabled"]:
+            return jsonify({"success": False, "error": "종료된 그룹 채팅방은 멤버를 변경할 수 없습니다."}), 403
 
         if member_user_id == user_id:
             return jsonify({"success": False, "error": "본인은 내보낼 수 없습니다. 나가기 기능을 이용해주세요."}), 400
@@ -1863,6 +2015,8 @@ def get_messages(conversation_id):
                 "text": row["text"],
                 "image": row["image"],
                 "video": row["video"],
+                "audio": row["audio"],
+                "messageType": row["message_type"] or "user",
                 "filePath": row["file_path"],
                 "fileName": row["file_name"],
                 "fileSize": row["file_size"],
@@ -1887,6 +2041,9 @@ def send_message(conversation_id):
     with get_db() as conn:
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+
+        if conversation_is_disabled(conn, conversation_id):
+            return jsonify({"success": False, "error": "종료된 채팅방에서는 새 메시지를 보낼 수 없습니다."}), 403
 
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
@@ -1940,6 +2097,9 @@ def send_image(conversation_id):
     with get_db() as conn:
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+
+        if conversation_is_disabled(conn, conversation_id):
+            return jsonify({"success": False, "error": "종료된 채팅방에서는 사진을 보낼 수 없습니다."}), 403
 
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
@@ -1996,6 +2156,9 @@ def send_video(conversation_id):
     with get_db() as conn:
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+
+        if conversation_is_disabled(conn, conversation_id):
+            return jsonify({"success": False, "error": "종료된 채팅방에서는 동영상을 보낼 수 없습니다."}), 403
 
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
@@ -2056,6 +2219,8 @@ def send_file(conversation_id):
     with get_db() as conn:
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+        if conversation_is_disabled(conn, conversation_id):
+            return jsonify({"success": False, "error": "종료된 채팅방에서는 파일을 보낼 수 없습니다."}), 403
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
             return jsonify({"success": False, "error": "차단된 사용자에게는 파일을 보낼 수 없습니다."}), 403
@@ -2077,6 +2242,43 @@ def send_file(conversation_id):
         notify_conversation_message(conn, conversation_id, user_id, f"파일: {file_name}")
         broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
     return jsonify({"success": True, "filePath": file_path, "fileName": file_name})
+
+
+@app.route("/api/conversations/<int:conversation_id>/messages/audio", methods=["POST"])
+@login_required_api
+def send_audio(conversation_id):
+    user_id = session["user_id"]
+    audio_file = request.files.get("audio")
+    if not audio_file or not audio_file.filename:
+        return jsonify({"success": False, "error": "음성 파일을 찾을 수 없습니다."}), 400
+    if os.path.splitext(audio_file.filename)[1].lower() not in {".webm", ".ogg", ".mp4", ".m4a"}:
+        return jsonify({"success": False, "error": "지원하지 않는 음성 형식입니다."}), 400
+    try:
+        duration = float(request.form.get("duration", "0"))
+    except ValueError:
+        duration = 0
+    if duration <= 0 or duration > 30:
+        return jsonify({"success": False, "error": "음성 메시지는 최대 30초까지 보낼 수 있습니다."}), 400
+    with get_db() as conn:
+        if not get_membership(conn, conversation_id, user_id) or conversation_is_disabled(conn, conversation_id):
+            return jsonify({"success": False, "error": "이 채팅방에는 음성 메시지를 보낼 수 없습니다."}), 403
+        peer_id = get_peer_id(conn, conversation_id, user_id)
+        if peer_id and is_blocked_either_way(conn, user_id, peer_id):
+            return jsonify({"success": False, "error": "차단된 사용자에게는 음성 메시지를 보낼 수 없습니다."}), 403
+    audio_path, _ = save_uploaded_file(audio_file, "audio")
+    if not audio_path:
+        return jsonify({"success": False, "error": "음성 메시지 저장에 실패했습니다."}), 500
+    with get_db() as conn:
+        row = conn.execute("""
+            INSERT INTO messages (conversation_id, sender_id, audio, time, date, edited, pinned, reactions)
+            VALUES (%s, %s, %s, %s, %s, FALSE, FALSE, %s) RETURNING id
+        """, (conversation_id, user_id, audio_path, request.form.get("time"), request.form.get("date"), json.dumps([]))).fetchone()
+        conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], conversation_id))
+        unhide_conversation(conn, conversation_id)
+        conn.commit()
+        notify_conversation_message(conn, conversation_id, user_id, "음성 메시지를 보냈습니다.")
+        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+    return jsonify({"success": True, "audio": audio_path})
 
 
 @app.route("/api/messages/<int:message_id>/forward", methods=["POST"])
@@ -2171,6 +2373,32 @@ def delete_message(message_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/conversations/<int:conversation_id>/messages/bulk-delete", methods=["POST"])
+@login_required_api
+def bulk_delete_messages(conversation_id):
+    user_id = session["user_id"]
+    data = request.get_json() or {}
+    ids = data.get("message_ids") or []
+    delete_all = bool(data.get("all"))
+    with get_db() as conn:
+        if not get_membership(conn, conversation_id, user_id):
+            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+        if delete_all:
+            rows = conn.execute("SELECT id, image FROM messages WHERE conversation_id = %s AND sender_id = %s AND message_type = 'user'", (conversation_id, user_id)).fetchall()
+        else:
+            safe_ids = [int(item) for item in ids if str(item).isdigit()]
+            if not safe_ids:
+                return jsonify({"success": False, "error": "삭제할 메시지를 선택해주세요."}), 400
+            rows = conn.execute("SELECT id, image FROM messages WHERE conversation_id = %s AND sender_id = %s AND id = ANY(%s)", (conversation_id, user_id, safe_ids)).fetchall()
+        if rows:
+            conn.execute("DELETE FROM messages WHERE id = ANY(%s)", ([row["id"] for row in rows],))
+            conn.commit()
+            broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+    for row in rows:
+        delete_image_file(row["image"])
+    return jsonify({"success": True, "deleted": len(rows)})
+
+
 @app.route("/api/messages/<int:message_id>/pin", methods=["POST"])
 @login_required_api
 def pin_message(message_id):
@@ -2227,10 +2455,70 @@ def update_display_name():
 
     with get_db() as conn:
         conn.execute("UPDATE users SET display_name = %s WHERE id = %s", (display_name, user_id))
+        recipient_ids = profile_update_recipient_ids(conn, user_id)
         conn.commit()
 
+    notify_profile_updated(recipient_ids, user_id)
     session["display_name"] = display_name
     return jsonify({"success": True, "display_name": display_name})
+
+
+@app.route("/api/account/profile", methods=["GET", "PATCH"])
+@login_required_api
+def account_profile():
+    user_id = session["user_id"]
+    if request.method == "GET":
+        with get_db() as conn:
+            user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio, status_message FROM users WHERE id = %s", (user_id,)).fetchone()
+        return jsonify(dict(user))
+
+    data = request.get_json() or {}
+    bio = (data.get("bio") or "").strip()
+    status_message = (data.get("status_message") or "").strip()
+    if len(bio) > 300 or len(status_message) > 100:
+        return jsonify({"success": False, "error": "소개글 또는 상태메시지가 너무 깁니다."}), 400
+    with get_db() as conn:
+        conn.execute("UPDATE users SET bio = %s, status_message = %s WHERE id = %s", (bio, status_message, user_id))
+        recipient_ids = profile_update_recipient_ids(conn, user_id)
+        conn.commit()
+    notify_profile_updated(recipient_ids, user_id)
+    return jsonify({"success": True, "bio": bio, "status_message": status_message})
+
+
+@app.route("/api/account/cover-image", methods=["PATCH", "DELETE"])
+@login_required_api
+def account_cover_image():
+    user_id = session["user_id"]
+    with get_db() as conn:
+        current = conn.execute("SELECT cover_image FROM users WHERE id = %s", (user_id,)).fetchone()
+        old_image = current["cover_image"] if current else None
+        if request.method == "DELETE":
+            conn.execute("UPDATE users SET cover_image = NULL WHERE id = %s", (user_id,))
+            new_path = None
+        else:
+            image_data = (request.get_json() or {}).get("image")
+            if not image_data or not image_data.startswith("data:image"):
+                return jsonify({"success": False, "error": "올바른 이미지 데이터가 아닙니다."}), 400
+            new_path = save_base64_image(image_data)
+            if not new_path:
+                return jsonify({"success": False, "error": "배경사진 저장에 실패했습니다."}), 500
+            conn.execute("UPDATE users SET cover_image = %s WHERE id = %s", (new_path, user_id))
+        recipient_ids = profile_update_recipient_ids(conn, user_id)
+        conn.commit()
+    notify_profile_updated(recipient_ids, user_id)
+    if old_image and old_image != new_path:
+        delete_image_file(old_image)
+    return jsonify({"success": True, "cover_image": new_path})
+
+
+@app.route("/api/users/<int:user_id>/profile", methods=["GET"])
+@login_required_api
+def public_profile(user_id):
+    with get_db() as conn:
+        user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio, status_message FROM users WHERE id = %s", (user_id,)).fetchone()
+    if not user:
+        return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
+    return jsonify({"success": True, **dict(user), "is_online": is_user_online(user_id)})
 
 
 @app.route("/api/account/username", methods=["PATCH"])
@@ -2328,7 +2616,9 @@ def update_profile_image():
     with get_db() as conn:
         old = conn.execute("SELECT profile_image FROM users WHERE id = %s", (user_id,)).fetchone()
         conn.execute("UPDATE users SET profile_image = %s WHERE id = %s", (new_path, user_id))
+        recipient_ids = profile_update_recipient_ids(conn, user_id)
         conn.commit()
+    notify_profile_updated(recipient_ids, user_id)
 
     if old and old["profile_image"] and old["profile_image"] != DEFAULT_PROFILE_IMAGE:
         delete_image_file(old["profile_image"])
@@ -2345,7 +2635,9 @@ def delete_profile_image():
     with get_db() as conn:
         user = conn.execute("SELECT profile_image FROM users WHERE id = %s", (user_id,)).fetchone()
         conn.execute("UPDATE users SET profile_image = %s WHERE id = %s", (DEFAULT_PROFILE_IMAGE, user_id))
+        recipient_ids = profile_update_recipient_ids(conn, user_id)
         conn.commit()
+    notify_profile_updated(recipient_ids, user_id)
 
     if user and user["profile_image"] and user["profile_image"] != DEFAULT_PROFILE_IMAGE:
         delete_image_file(user["profile_image"])
@@ -2370,12 +2662,14 @@ def update_group_photo(conversation_id):
 
     with get_db() as conn:
         conv = conn.execute(
-            "SELECT is_group, owner_id, profile_image FROM conversations WHERE id = %s", (conversation_id,)
+            "SELECT is_group, owner_id, profile_image, is_disabled FROM conversations WHERE id = %s", (conversation_id,)
         ).fetchone()
         if not conv or not conv["is_group"]:
             return jsonify({"success": False, "error": "그룹 채팅만 사진을 바꿀 수 있습니다."}), 400
         if conv["owner_id"] != user_id:
             return jsonify({"success": False, "error": "방장만 그룹 사진을 바꿀 수 있습니다."}), 403
+        if conv["is_disabled"]:
+            return jsonify({"success": False, "error": "종료된 그룹 채팅방은 정보를 변경할 수 없습니다."}), 403
 
         old_image = conv["profile_image"]
         conn.execute("UPDATE conversations SET profile_image = %s WHERE id = %s", (new_path, conversation_id))
@@ -2395,12 +2689,14 @@ def delete_group_photo(conversation_id):
 
     with get_db() as conn:
         conv = conn.execute(
-            "SELECT is_group, owner_id, profile_image FROM conversations WHERE id = %s", (conversation_id,)
+            "SELECT is_group, owner_id, profile_image, is_disabled FROM conversations WHERE id = %s", (conversation_id,)
         ).fetchone()
         if not conv or not conv["is_group"]:
             return jsonify({"success": False, "error": "그룹 채팅만 사진을 삭제할 수 있습니다."}), 400
         if conv["owner_id"] != user_id:
             return jsonify({"success": False, "error": "방장만 그룹 사진을 삭제할 수 있습니다."}), 403
+        if conv["is_disabled"]:
+            return jsonify({"success": False, "error": "종료된 그룹 채팅방은 정보를 변경할 수 없습니다."}), 403
 
         old_image = conv["profile_image"]
         conn.execute("UPDATE conversations SET profile_image = %s WHERE id = %s", (DEFAULT_PROFILE_IMAGE, conversation_id))

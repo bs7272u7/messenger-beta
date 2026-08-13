@@ -121,6 +121,10 @@
                 <h2><i class="fa-solid fa-flag"></i> 신고 내역</h2>
                 <div id="report-list" class="admin-list"><p>불러오는 중...</p></div>
             </article>
+            <article class="admin-panel">
+                <h2><i class="fa-solid fa-star"></i> 사용자 리뷰</h2>
+                <div id="review-list" class="admin-list"><p>불러오는 중...</p></div>
+            </article>
         </section>
     </main>
     <script>
@@ -128,6 +132,7 @@
         const noticeList = document.querySelector("#notice-list");
         const inquiryList = document.querySelector("#inquiry-list");
         const reportList = document.querySelector("#report-list");
+        const reviewList = document.querySelector("#review-list");
 
         async function api(url, options) {
             const response = await fetch(url, options);
@@ -147,13 +152,18 @@
             const items = await api("/api/admin/reports");
             reportList.innerHTML = items.length ? items.map(r => `<article class="admin-item"><strong>${escapeHTML(r.reason)} · ${escapeHTML(r.status)}</strong><p>신고자: ${escapeHTML(r.reporter_username)} / 대상: ${escapeHTML(r.sender_username)}</p><p>${escapeHTML(r.message_text || "미디어 메시지")}</p><small>${r.created_at}</small><div class="admin-item-actions"><button data-close-report="${r.id}">검토 완료</button></div></article>`).join("") : "<p>신고가 없습니다.</p>";
         }
+        async function loadReviews() {
+            const items = await api("/api/admin/reviews");
+            reviewList.innerHTML = items.length ? items.map(r => `<article class="admin-item"><strong>${"★".repeat(r.rating)} · ${escapeHTML(r.display_name || r.username)}</strong><p>${escapeHTML(r.content)}</p>${r.admin_reply ? `<p><strong>답장:</strong> ${escapeHTML(r.admin_reply)}</p>` : ""}<div class="admin-item-actions"><button data-reply-review="${r.id}">답장</button><button data-delete-review="${r.id}" class="danger">삭제</button></div></article>`).join("") : "<p>리뷰가 없습니다.</p>";
+        }
         document.querySelector("#notice-submit").addEventListener("click", async () => {
             try { await api("/api/admin/notices", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:document.querySelector("#notice-title").value, content:document.querySelector("#notice-content").value, is_published:document.querySelector("#notice-published").checked})}); document.querySelector("#notice-title").value=""; document.querySelector("#notice-content").value=""; await loadNotices(); alert("공지를 등록했습니다."); } catch (error) { alert(error.message); }
         });
         noticeList.addEventListener("click", async event => { const id = event.target.dataset.deleteNotice; if (!id || !confirm("이 공지를 삭제할까요?")) return; await api(`/api/admin/notices/${id}`, {method:"DELETE"}); loadNotices(); });
         inquiryList.addEventListener("click", async event => { const id = event.target.dataset.answerInquiry; if (!id) return; const reply = prompt("답변 또는 처리 메모를 입력하세요."); if (reply === null) return; await api(`/api/admin/inquiries/${id}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"answered", admin_reply:reply})}); loadInquiries(); });
         reportList.addEventListener("click", async event => { const id = event.target.dataset.closeReport; if (!id) return; await api(`/api/admin/reports/${id}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"reviewed"})}); loadReports(); });
-        Promise.all([loadNotices(), loadInquiries(), loadReports()]).catch(error => alert(error.message));
+        reviewList.addEventListener("click", async event => { const id = event.target.dataset.replyReview || event.target.dataset.deleteReview; if (!id) return; if (event.target.dataset.deleteReview) { if (!confirm("리뷰를 삭제할까요?")) return; await api(`/api/admin/reviews/${id}`, {method:"DELETE"}); } else { const reply=prompt("관리자 답장을 입력하세요."); if(reply===null)return; await api(`/api/admin/reviews/${id}`, {method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({admin_reply:reply})}); } loadReviews(); });
+        Promise.all([loadNotices(), loadInquiries(), loadReports(), loadReviews()]).catch(error => alert(error.message));
     </script>
 </body>
 </html>

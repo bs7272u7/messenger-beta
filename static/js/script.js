@@ -79,6 +79,17 @@
             return `<span class="status-dot ${state}" title="${label}" aria-label="${label}"></span>`;
         }
 
+        function openProfileCard(friend) {
+            if (!friend || friend.isGroup || !friend.peerId) return;
+            profileCardAvatar.src = friend.peerProfileImage || "/static/default_profile.png";
+            profileCardCover.style.backgroundImage = friend.peerCoverImage ? `url("${friend.peerCoverImage}")` : "";
+            profileCardName.textContent = friend.name;
+            profileCardStatus.textContent = friend.peerStatusMessage || "상태메시지가 없습니다.";
+            profileCardBio.textContent = friend.peerBio || "소개글이 없습니다.";
+            profileCardPresence.textContent = friend.isOnline ? "● 온라인" : "● 오프라인";
+            profileCardOverlay.style.display = "flex";
+        }
+
         function updateChatHeader(friend) {
             if (!friend) {
                 chatHeader.innerText = "";
@@ -127,12 +138,7 @@
                 ? `<img src="${friend.peerProfileImage}">`
                 : `<i class="fa-solid fa-circle-user"></i>`;
                 // 사진이 있을 때만 클릭 시 확대 (수정은 안 되고 보기만)
-                chatHeaderAvatar.onclick = friend.peerProfileImage
-                    ? function () {
-                        modalImage.src = friend.peerProfileImage;
-                        imageModal.style.display = "flex";
-                      }
-                    : null;
+                chatHeaderAvatar.onclick = function () { openProfileCard(friend); };
                 chatHeaderMemberCount.style.display = "none";
             }
         }
@@ -141,13 +147,13 @@
          * 입력창/전송/첨부 버튼을 잠그고 안내 배너를 띄운다. */
         function updateBlockState() {
             const friend = getCurrentFriend();
-            const blocked = !!(friend && !friend.isGroup && (friend.blockedByMe || friend.blockedMe));
+            const blocked = !!(friend && (!friend.isGroup && (friend.blockedByMe || friend.blockedMe) || friend.isDisabled));
 
             blockBanner.style.display = blocked ? "flex" : "none";
             input.disabled = blocked;
             button.disabled = blocked;
             plusBtn.disabled = blocked;
-            input.placeholder = blocked ? "차단된 사용자입니다" : "메시지를 입력하세요";
+            input.placeholder = friend && friend.isDisabled ? "종료된 그룹 채팅입니다. 이전 대화만 볼 수 있습니다." : (blocked ? "차단된 사용자입니다" : "메시지를 입력하세요");
         }
 
         // 메시지 전송 직후에는 서버 재조회 전에도 목록 미리보기를 즉시 갱신한다.
@@ -165,6 +171,7 @@
         function getPreviewText(chatList) {
             if (!chatList || chatList.length === 0) return "";
             const last = chatList[chatList.length - 1];
+            if (last.audio) return "음성 메시지";
             if (last.filePath) return "파일";
             return last.image ? "__CAMERA__사진" : last.text;
         }
@@ -318,6 +325,8 @@
         const imageInput = document.querySelector("#image-input");
         const fileBtn = document.querySelector("#file-btn");
         const fileInput = document.querySelector("#file-input");
+        const audioBtn = document.querySelector("#audio-btn");
+        const audioInput = document.querySelector("#audio-input");
         const imageModal = document.querySelector("#image-modal");
         const modalImage = document.querySelector("#modal-image");
         const closeImage = document.querySelector("#close-image");
@@ -347,6 +356,7 @@
         const reportReasonSelect = document.querySelector("#report-reason-select");
         const reportDetail = document.querySelector("#report-detail");
         const reportMessageSubmit = document.querySelector("#report-message-submit");
+        const bulkDeleteMode = document.querySelector("#bulk-delete-mode");
         const friendPanelTab = document.querySelector("#friend-panel-tab");
         const friendPanel = document.querySelector("#friend-panel");
         const closeFriendPanelBtn = document.querySelector("#close-friend-panel");
@@ -359,6 +369,7 @@
         const friendInboxTabs = document.querySelectorAll("[data-inbox-tab]");
         const incomingRequestCount = document.querySelector("#incoming-request-count");
         const outgoingRequestCount = document.querySelector("#outgoing-request-count");
+        const friendInboxBadge = document.querySelector("#friend-inbox-badge");
         const friendPanelList = document.querySelector("#friend-panel-list");
         const openNewGroupBtn = document.querySelector("#open-new-group-btn");
         const newGroupOverlay = document.querySelector("#new-group-overlay");
@@ -406,6 +417,10 @@
         const supportAttachmentName = document.querySelector("#support-attachment-name");
         const supportInquiryResult = document.querySelector("#support-inquiry-result");
         const supportInquirySubmitBtn = document.querySelector("#support-inquiry-submit-btn");
+        const reviewRating = document.querySelector("#review-rating");
+        const reviewContent = document.querySelector("#review-content");
+        const reviewSubmitBtn = document.querySelector("#review-submit-btn");
+        const reviewList = document.querySelector("#review-list");
         const accountSettingsOverlay = document.querySelector("#account-settings-overlay");
         const accountSettingsCloseBtn = document.querySelector("#account-settings-close-btn");
         const newUsernameInput = document.querySelector("#new-username-input");
@@ -425,6 +440,7 @@
         const groupMembersList = document.querySelector("#group-members-list");
         const closeGroupMembersBtn = document.querySelector("#close-group-members-btn");
         const leaveGroupBtn = document.querySelector("#leave-group-btn");
+        const disableGroupBtn = document.querySelector("#disable-group-btn");
         const groupNameText = document.querySelector("#group-name-text");
         const renameGroupBtn = document.querySelector("#rename-group-btn");
         const groupPhotoImg = document.querySelector("#group-photo-img");
@@ -461,6 +477,24 @@
         const desktopConversationActions = document.querySelector("#desktop-conversation-actions");
         const desktopConversationPin = document.querySelector("#desktop-conversation-pin");
         const desktopConversationMute = document.querySelector("#desktop-conversation-mute");
+        const bulkMessageToolbar = document.querySelector("#bulk-message-toolbar");
+        const bulkMessageCount = document.querySelector("#bulk-message-count");
+        const bulkSelectAllBtn = document.querySelector("#bulk-select-all-btn");
+        const bulkDeleteBtn = document.querySelector("#bulk-delete-btn");
+        const bulkCancelBtn = document.querySelector("#bulk-cancel-btn");
+        const profileCardOverlay = document.querySelector("#profile-card-overlay");
+        const profileCardClose = document.querySelector("#profile-card-close");
+        const profileCardCover = document.querySelector("#profile-card-cover");
+        const profileCardAvatar = document.querySelector("#profile-card-avatar");
+        const profileCardName = document.querySelector("#profile-card-name");
+        const profileCardStatus = document.querySelector("#profile-card-status");
+        const profileCardBio = document.querySelector("#profile-card-bio");
+        const profileCardPresence = document.querySelector("#profile-card-presence");
+        const myProfileStatus = document.querySelector("#my-profile-status");
+        const myProfileBio = document.querySelector("#my-profile-bio");
+        const coverImageInput = document.querySelector("#cover-image-input");
+        const removeCoverImageBtn = document.querySelector("#remove-cover-image-btn");
+        let selectedMessageIds = new Set();
 
         // 모바일은 한 화면에 목록과 대화창을 함께 두지 않는다.
         // PC에서는 이 클래스가 CSS에 영향을 주지 않아 기존 레이아웃을 그대로 유지한다.
@@ -910,6 +944,13 @@
                 const message = document.createElement("div");
                 message.dataset.msgIndex = index;
 
+                if (chat.messageType === "system") {
+                    message.className = "message-system";
+                    message.textContent = chat.text || "채팅방 안내";
+                    renderTarget.appendChild(message);
+                    return;
+                }
+
                 message.addEventListener("contextmenu", function (event) {
                     event.preventDefault();
 
@@ -917,7 +958,7 @@
                     selectedIndex = chat.id;
                     pinLabel.innerText = chat.pinned ? "고정 해제" : "고정";
 
-                    if (chat.image || chat.video || chat.filePath) {
+                    if (chat.image || chat.video || chat.filePath || chat.audio) {
                         replyButton.style.display = "block";
                         editMessage.style.display = "none";
                         copyMessage.style.display = "none";
@@ -930,6 +971,7 @@
                     }
                     forwardMessageButton.style.display = "block";
                     reportMessageButton.style.display = chat.mine ? "none" : "block";
+                    bulkDeleteMode.style.display = chat.mine ? "block" : "none";
 
                     messageMenu.style.display = "block";
                     messageMenu.style.pointerEvents = "auto";
@@ -973,7 +1015,9 @@
                 if (chat.mine) {
                     message.className = "message-right";
 
-                    if (chat.filePath) {
+                    if (chat.audio) {
+                        message.innerHTML = `<div class="time">${readStatusHTML}${chat.time}</div><audio class="chat-audio" controls src="${chat.audio}"></audio>`;
+                    } else if (chat.filePath) {
                         message.innerHTML = `
                             <div class="time">${readStatusHTML}${chat.time}</div>
                             ${buildFileMessageHTML(chat)}
@@ -1035,7 +1079,9 @@
 
                     let innerContent;
 
-                    if (chat.filePath) {
+                    if (chat.audio) {
+                        innerContent = `<audio class="chat-audio" controls src="${chat.audio}"></audio><div class="time">${chat.time}</div>`;
+                    } else if (chat.filePath) {
                         innerContent = `
                             ${buildFileMessageHTML(chat)}
                             <div class="time">${chat.time}</div>
@@ -1085,6 +1131,19 @@
                 }
 
                 if (chat.text && !chat.image && !chat.video) appendLinkPreview(message, chat);
+
+                if (chat.mine) {
+                    const selectCheck = document.createElement("input");
+                    selectCheck.type = "checkbox";
+                    selectCheck.className = "message-select-check";
+                    selectCheck.checked = selectedMessageIds.has(chat.id);
+                    selectCheck.hidden = bulkMessageToolbar.hidden;
+                    selectCheck.addEventListener("change", function () {
+                        if (this.checked) selectedMessageIds.add(chat.id); else selectedMessageIds.delete(chat.id);
+                        updateBulkToolbar();
+                    });
+                    message.appendChild(selectCheck);
+                }
 
                 const swipeIcon = document.createElement("i");
                 swipeIcon.className = "fa-solid fa-reply swipe-reply-icon";
@@ -1250,6 +1309,34 @@
             showToast("신고가 접수되었습니다.");
         });
 
+        function updateBulkToolbar() {
+            bulkMessageCount.textContent = `${selectedMessageIds.size}개 선택`;
+            bulkDeleteBtn.disabled = selectedMessageIds.size === 0;
+        }
+        bulkDeleteMode.addEventListener("click", function () {
+            selectedMessageIds = new Set(selectedIndex ? [selectedIndex] : []);
+            bulkMessageToolbar.hidden = false;
+            closeMessageMenu();
+            updateBulkToolbar();
+            readMessages();
+        });
+        bulkCancelBtn.addEventListener("click", function () { selectedMessageIds.clear(); bulkMessageToolbar.hidden = true; readMessages(); });
+        bulkSelectAllBtn.addEventListener("click", function () {
+            const mine = (chats[currentConversationID] || []).filter(function (chat) { return chat.mine && chat.messageType !== "system"; });
+            selectedMessageIds = new Set(mine.map(function (chat) { return chat.id; }));
+            updateBulkToolbar(); readMessages();
+        });
+        bulkDeleteBtn.addEventListener("click", function () {
+            if (!selectedMessageIds.size) return;
+            showConfirm(`${selectedMessageIds.size}개 메시지를 삭제할까요?`, async function (ok) {
+                if (!ok) return;
+                const response = await fetch(`/api/conversations/${currentConversationID}/messages/bulk-delete`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({message_ids:[...selectedMessageIds]}) });
+                const result = await response.json();
+                if (!response.ok || !result.success) return showToast(result.error || "삭제에 실패했습니다.", "error");
+                selectedMessageIds.clear(); bulkMessageToolbar.hidden = true; await readMessages(); updateFriendPreviewFromServer();
+            });
+        });
+
         /* ======================================================
          * 사진 첨부 / 전송
          * ====================================================== */
@@ -1328,6 +1415,33 @@
             }
         });
 
+        let audioRecorder = null;
+        let audioChunks = [];
+        let audioTimer = null;
+        let audioStartedAt = 0;
+        audioBtn.addEventListener("click", async function () {
+            if (!currentConversationID) return showToast("먼저 채팅방을 선택해주세요.", "error");
+            if (!navigator.mediaDevices || !window.MediaRecorder) return showToast("이 브라우저에서는 음성 메시지를 지원하지 않습니다.", "error");
+            try {
+                if (audioRecorder && audioRecorder.state === "recording") { audioRecorder.stop(); return; }
+                const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+                audioChunks = [];
+                audioRecorder = new MediaRecorder(stream);
+                audioRecorder.ondataavailable = event => { if (event.data.size) audioChunks.push(event.data); };
+                audioRecorder.onstop = async function () {
+                    clearTimeout(audioTimer); stream.getTracks().forEach(track => track.stop()); audioBtn.classList.remove("recording");
+                    const blob = new Blob(audioChunks, {type:audioRecorder.mimeType || "audio/webm"});
+                    if (!blob.size) return;
+                    const form = new FormData(); form.append("audio", new File([blob], "voice.webm", {type:blob.type})); form.append("time", formatNowTime()); form.append("date", todayDate()); form.append("duration", String(Math.min(30, (Date.now() - audioStartedAt) / 1000)));
+                    const response = await fetch(`/api/conversations/${currentConversationID}/messages/audio`, {method:"POST", body:form}); const result = await response.json();
+                    if (!response.ok || !result.success) return showToast(result.error || "음성 전송에 실패했습니다.", "error");
+                    await readMessages(); updateFriendPreviewFromServer();
+                };
+                audioStartedAt = Date.now(); audioRecorder.start(); audioBtn.classList.add("recording"); showToast("녹음 중입니다. 다시 누르면 전송합니다. (최대 30초)");
+                audioTimer = setTimeout(() => { if (audioRecorder && audioRecorder.state === "recording") audioRecorder.stop(); }, 30000);
+            } catch (error) { showToast("마이크 권한을 허용해주세요.", "error"); }
+        });
+
         plusBtn.addEventListener("click", function (event) {
             event.stopPropagation();
             attachMenu.style.display = (attachMenu.style.display === "block") ? "none" : "block";
@@ -1404,10 +1518,11 @@
                     });
                 
 
-                const previewHTML = escapeHTML(friend.message)
+                const previewHTML = escapeHTML(friend.message || friend.statusMessage || "상태메시지가 없습니다.")
                 .replace("__CAMERA__", '<i class="fa-regular fa-image"></i>')
                 .replace("__VIDEO__", '<i class="fa-solid fa-circle-play"></i>')
-                .replace("__FILE__", '<i class="fa-solid fa-paperclip"></i>');
+                .replace("__FILE__", '<i class="fa-solid fa-paperclip"></i>')
+                .replace("__AUDIO__", '<i class="fa-solid fa-microphone"></i>');
                 const timeHTML = friend.lastTime ? `<span class="friend-time">${friend.lastTime}</span>` : "";
 
                 // 안 읽은 개수는 서버가 이미 계산해서 주는 unreadCount를 그대로 사용한다.
@@ -1474,6 +1589,8 @@
 
             incomingRequestCount.innerText = incoming.length;
             outgoingRequestCount.innerText = outgoing.length;
+            friendInboxBadge.hidden = incoming.length === 0;
+            friendInboxBadge.textContent = incoming.length > 99 ? "99+" : incoming.length;
 
             outgoingFriendRequestList.innerHTML = "";
 
@@ -1486,7 +1603,7 @@
                     item.className = "friend-request-item";
 
                     item.innerHTML = `
-                        <span>${escapeHTML(request.display_name)}</span>
+                        <img class="request-profile-image" src="${escapeHTML(request.profile_image || "/static/default_profile.png")}"><span><strong>${escapeHTML(request.display_name || request.username)}</strong><small>${escapeHTML(request.status_message || "친구 요청을 보냈습니다.")}</small></span>
                         <button class="cancel-friend-request-btn">요청 취소</button>
                     `;
 
@@ -1528,7 +1645,7 @@
                 const item = document.createElement("div");
                 item.className = "friend-request-item";
                 item.innerHTML = `
-                    <span>${escapeHTML(req.display_name)}</span>
+                    <img class="request-profile-image" src="${escapeHTML(req.profile_image || "/static/default_profile.png")}"><span><strong>${escapeHTML(req.display_name || req.username)}</strong><small>${escapeHTML(req.status_message || "친구 요청을 보냈습니다.")}</small></span>
                     <span class="accept-request-icon"><i class="fa-solid fa-check"></i></span>
                     <span class="decline-request-icon"><i class="fa-solid fa-xmark"></i></span>
                 `;
@@ -1573,11 +1690,14 @@
                 currentGroupOwnerId = result.ownerId;
 
                 const currentGroup = getCurrentFriend();
+                const groupEditable = currentGroupOwnerId === MY_USER_ID && currentGroup && !currentGroup.isDisabled;
                 groupNameText.innerText = currentGroup ? currentGroup.name : "";
-                renameGroupBtn.style.display = (currentGroupOwnerId === MY_USER_ID) ? "inline-block" : "none";
+                renameGroupBtn.style.display = groupEditable ? "inline-block" : "none";
+                disableGroupBtn.style.display = groupEditable ? "inline-block" : "none";
                 groupPhotoImg.src = result.groupProfileImage || "/static/default_profile.png";
-                changeGroupPhotoBtn.style.display = (currentGroupOwnerId === MY_USER_ID) ? "flex" : "none";
-                removeGroupPhotoBtn.style.display = (currentGroupOwnerId === MY_USER_ID) ? "block" : "none";
+                changeGroupPhotoBtn.style.display = groupEditable ? "flex" : "none";
+                removeGroupPhotoBtn.style.display = groupEditable ? "block" : "none";
+                openInviteMemberBtn.style.display = groupEditable ? "inline-flex" : "none";
 
                 currentGroupMembers.forEach(function (member) {
                     const row = document.createElement("div");
@@ -1594,7 +1714,7 @@
                     let actionHTML;
                     if (member.id === MY_USER_ID) {
                         actionHTML = `<span style="margin-left:auto; font-size:12px; color:gray;">나</span>`;
-                    } else if (currentGroupOwnerId === MY_USER_ID) {
+                    } else if (groupEditable) {
                         // 나(로그인한 사람)가 방장일 때만 다른 사람 추방 버튼을 보여준다.
                         actionHTML = `<span class="remove-member-icon" style="margin-left:auto; cursor:pointer; color:#e05252;"><i class="fa-solid fa-user-xmark"></i></span>`;
                     } else {
@@ -1691,6 +1811,16 @@
                 } catch (err) {
                     showAlert("서버와 통신 중 문제가 발생했습니다.");
                 }
+            });
+        });
+
+        disableGroupBtn.addEventListener("click", function () {
+            showConfirm("그룹 채팅을 종료할까요? 이전 대화는 남지만 새 메시지는 보낼 수 없습니다.", async function (ok) {
+                if (!ok) return;
+                const response = await fetch(`/api/conversations/${currentConversationID}/disable`, {method:"POST"});
+                const result = await response.json();
+                if (!response.ok || !result.success) return showToast(result.error || "종료하지 못했습니다.", "error");
+                groupMembersOverlay.style.display="none"; await loadFriends(); await readMessages(); updateBlockState(); showToast("그룹 채팅을 종료했습니다.");
             });
         });
 
@@ -2133,12 +2263,17 @@
             });
         });
 
-        function openProfileEditor() {
+        async function openProfileEditor() {
             pendingProfileImageData = null;
             pendingProfileImageRemoval = false;
             savedProfileImageHTML = sideNavProfilePic.innerHTML;
             profileModalPic.innerHTML = savedProfileImageHTML;
             document.querySelector("#my-profile-name").value = document.querySelector("#current-username").innerText;
+            try {
+                const profile = await fetch("/api/account/profile").then(response => response.json());
+                myProfileStatus.value = profile.status_message || "";
+                myProfileBio.value = profile.bio || "";
+            } catch (error) { /* 기본 편집은 계속 가능 */ }
             myProfileOverlay.style.display = "flex";
         }
 
@@ -2199,6 +2334,9 @@
                 }
 
                 document.querySelector("#current-username").innerText = result.display_name;
+                const profileResponse = await fetch("/api/account/profile", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({bio:myProfileBio.value.trim(), status_message:myProfileStatus.value.trim()}) });
+                const profileResult = await profileResponse.json();
+                if (!profileResponse.ok || !profileResult.success) throw new Error(profileResult.error || "프로필 정보를 저장하지 못했습니다.");
                 pendingProfileImageData = null;
                 pendingProfileImageRemoval = false;
                 myProfileOverlay.style.display = "none";
@@ -2206,6 +2344,18 @@
                 showAlert("서버와 통신 중 문제가 발생했습니다.");
             }
         });
+
+        coverImageInput.addEventListener("change", function () {
+            const file = coverImageInput.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function () {
+                const response = await fetch("/api/account/cover-image", {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({image:reader.result})});
+                const result = await response.json(); showToast(result.success ? "배경사진을 변경했습니다." : result.error, result.success ? undefined : "error");
+            }; reader.readAsDataURL(file);
+        });
+        removeCoverImageBtn.addEventListener("click", async function () { const response = await fetch("/api/account/cover-image", {method:"DELETE"}); const result=await response.json(); showToast(result.success ? "배경사진을 제거했습니다." : result.error, result.success ? undefined : "error"); });
+        profileCardClose.addEventListener("click", function () { profileCardOverlay.style.display="none"; });
+        profileCardOverlay.addEventListener("click", function(event){ if(event.target===profileCardOverlay) profileCardOverlay.style.display="none"; });
 
         /* ======================================================
          * 전송 버튼 / 엔터 입력
@@ -2761,9 +2911,23 @@ async function loadPublicNotices() {
     }
 }
 
+async function loadReviews() {
+    try {
+        const reviews = await fetch("/api/reviews").then(response => response.json());
+        reviewList.innerHTML = reviews.length ? reviews.map(review => `<article class="update-history-item"><div><strong>${"★".repeat(review.rating)}${"☆".repeat(5-review.rating)} · ${escapeHTML(review.display_name || review.username)}</strong><span>${escapeHTML(review.created_at.slice(0,10))}</span></div><p>${escapeHTML(review.content)}</p>${review.admin_reply ? `<p><strong>관리자 답장</strong><br>${escapeHTML(review.admin_reply)}</p>` : ""}</article>`).join("") : "<p>첫 번째 리뷰를 남겨주세요.</p>";
+    } catch (error) { reviewList.innerHTML=""; }
+}
+reviewSubmitBtn.addEventListener("click", async function () {
+    const response = await fetch("/api/reviews", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({rating:Number(reviewRating.value), content:reviewContent.value.trim()})});
+    const result = await response.json();
+    if (!response.ok || !result.success) return showToast(result.error || "리뷰 등록에 실패했습니다.", "error");
+    reviewRating.value=""; reviewContent.value=""; loadReviews(); showToast("리뷰를 등록했습니다.");
+});
+
 helpItem.addEventListener("click", function () {
     closeSettingsMenu();
     loadPublicNotices();
+    loadReviews();
     helpOverlay.style.display = "flex";
 });
 helpCloseBtn.addEventListener("click", function () {

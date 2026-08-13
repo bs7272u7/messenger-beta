@@ -88,7 +88,7 @@
             <button id="edit-profile-btn" type="button" title="프로필 편집" aria-label="프로필 편집"><i class="fa-solid fa-pen"></i></button>
         </div>
         <div class="desktop-quick-actions">
-            <button id="friend-inbox-btn" type="button"><i class="fa-regular fa-envelope"></i> 메시지함</button>
+            <button id="friend-inbox-btn" type="button"><i class="fa-regular fa-envelope"></i> 메시지함 <span id="friend-inbox-badge" class="friend-inbox-badge" hidden>0</span></button>
             <button class="side-nav-settings" type="button" aria-label="설정"><i class="fa-solid fa-gear"></i></button>
         </div>
         <div class="friend-list-heading">
@@ -144,6 +144,12 @@
                 <button id="search-toggle-btn" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-solid fa-magnifying-glass"></i></button>
                 <button id="mobile-chat-more-btn" type="button" aria-label="채팅방 더보기"><i class="fa-solid fa-ellipsis-vertical"></i></button>
             </div>
+        </div>
+        <div id="bulk-message-toolbar" class="bulk-message-toolbar" hidden>
+            <span id="bulk-message-count">0개 선택</span>
+            <button id="bulk-select-all-btn" type="button">전체 선택</button>
+            <button id="bulk-delete-btn" type="button" class="danger">선택 삭제</button>
+            <button id="bulk-cancel-btn" type="button">취소</button>
         </div>
         <div id="mobile-chat-actions-sheet" aria-hidden="true">
             <button type="button" data-chat-action="theme"><i class="fa-solid fa-palette"></i> 채팅 테마</button>
@@ -204,6 +210,7 @@
             <div id="pin-message"><i class="fa-solid fa-thumbtack"></i><span id="pin-label">고정</span></div>
             <div id="forward-message"><i class="fa-solid fa-share"></i>전달</div>
             <div id="report-message"><i class="fa-solid fa-flag"></i>신고</div>
+            <div id="bulk-delete-mode"><i class="fa-solid fa-check-double"></i>여러 개 삭제</div>
             <div id="delete-message"><i class="fa-solid fa-trash"></i> 삭제</div>
         </div>
 
@@ -255,6 +262,7 @@
                     id="file-input"
                     accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.mp3,.wav,.m4a"
                     style="display: none;">
+            <input type="file" id="audio-input" accept="audio/webm,audio/ogg,audio/mp4,audio/x-m4a" style="display:none;">
 
             <button id="plus-btn">
                 <i class="fa-solid fa-plus"></i>
@@ -273,6 +281,7 @@
                     <i class="fa-solid fa-paperclip"></i>
                     파일
                 </div>
+                <div id="audio-btn"><i class="fa-solid fa-microphone"></i> 음성</div>
             </div>
 
             <textarea id="message" rows="1" placeholder="메시지를 입력하세요"></textarea>
@@ -407,12 +416,26 @@
             </div>
 
             <input type="text" id="my-profile-name" placeholder="이름" style="width: 100%; height: 40px; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--input-border); padding: 0 12px; margin-bottom: 20px; background-color: var(--panel-bg); color: var(--text-color);">
+            <input type="text" id="my-profile-status" placeholder="상태메시지 (최대 100자)" maxlength="100" class="settings-input">
+            <textarea id="my-profile-bio" placeholder="소개글 (최대 300자)" maxlength="300" class="settings-input" style="min-height:76px;"></textarea>
+            <label class="support-attachment-btn" for="cover-image-input"><i class="fa-solid fa-image"></i> 프로필 배경사진 변경</label>
+            <input type="file" id="cover-image-input" accept="image/*" style="display:none;">
+            <button type="button" id="remove-cover-image-btn" class="settings-btn" style="margin-top:8px;">배경사진 제거</button>
 
             <div class="modal-buttons">
                 <button id="my-profile-cancel-btn">취소</button>
                 <button class="modal-confirm" id="my-profile-save-btn">저장</button>
             </div>
         </div>
+    </div>
+
+    <div class="modal-overlay" id="profile-card-overlay">
+        <article class="profile-card" role="dialog" aria-modal="true">
+            <button id="profile-card-close" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button>
+            <div id="profile-card-cover" class="profile-card-cover"></div>
+            <img id="profile-card-avatar" class="profile-card-avatar" src="/static/default_profile.png">
+            <div class="profile-card-body"><h3 id="profile-card-name"></h3><p id="profile-card-status"></p><p id="profile-card-bio"></p><span id="profile-card-presence"></span></div>
+        </article>
     </div>
 
     <!-- 프로필과 그룹 사진에 공통으로 쓰는 원형 크롭 편집기 -->
@@ -482,6 +505,7 @@
                 </button>
 
                 <div class="settings-modal-footer">
+                    <button id="disable-group-btn" class="leave-btn" style="display:none;">그룹 채팅 종료</button>
                     <button id="leave-group-btn" class="leave-btn">그룹 나가기</button>
                 </div>
             </div>
@@ -623,6 +647,14 @@
                                 문의 전송하기
                             </button>
                         </form>
+                    </div>
+                    <div class="support-card">
+                        <div class="support-card-title"><i class="fa-solid fa-star"></i><span>서비스 리뷰</span></div>
+                        <p>Cloud Chatting을 사용하며 느낀 점을 남겨주세요.</p>
+                        <select id="review-rating" class="settings-input"><option value="">별점 선택</option><option value="5">★★★★★ 아주 좋아요</option><option value="4">★★★★ 좋아요</option><option value="3">★★★ 보통이에요</option><option value="2">★★ 아쉬워요</option><option value="1">★ 불편해요</option></select>
+                        <textarea id="review-content" class="settings-input" maxlength="1000" placeholder="후기 5자 이상"></textarea>
+                        <button id="review-submit-btn" type="button" class="settings-btn">리뷰 등록</button>
+                        <div id="review-list" class="update-history-list"></div>
                     </div>
                     <p class="icon-attribution">
                         테디베어 아이콘: <a href="https://icons8.com/icon/buXB36D4XW2N/teddy-bear" target="_blank" rel="noopener noreferrer">Icons8</a>
