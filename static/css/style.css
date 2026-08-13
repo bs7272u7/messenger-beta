@@ -2503,7 +2503,8 @@
         @media (min-width: 768px) {
             .container {
                 display: grid;
-                grid-template-columns: 290px minmax(0, 1fr) 170px;
+                /* 대화 정보는 읽기 편하게 넓히고, 중앙 대화 영역과 명확히 구분한다. */
+                grid-template-columns: 290px minmax(0, 1fr) 250px;
                 gap: 14px;
                 width: min(1680px, calc(100vw - 48px));
                 height: min(860px, calc(100vh - 48px));
