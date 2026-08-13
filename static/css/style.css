@@ -609,8 +609,63 @@
             border-top-color: rgba(255, 218, 183, .16);
         }
 
+        /* 글라스: 유리층은 CSS로, 물방울 굴절은 작은 SVG 장식에만 제한한다. */
+        .glass-filter-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+        .chat-theme-glass {
+            --chat-bg: #dff4fa;
+            --message-left-bg: rgba(255, 255, 255, .62);
+            --bubble-bg: rgba(89, 174, 222, .72);
+            --bubble-text: #f8fdff;
+            --bubble-reply-bg: rgba(255, 255, 255, .20);
+        }
+        .chat-theme-glass .messages-wrap {
+            background:
+                radial-gradient(circle at 12% 14%, rgba(255, 255, 255, .75) 0 2px, transparent 3px) 0 0 / 40px 40px,
+                radial-gradient(circle at 86% 78%, rgba(112, 222, 219, .26), transparent 32%),
+                linear-gradient(145deg, #e9f9fc, #c7e8f5 52%, #d7f4f0);
+        }
+        .chat-theme-glass .bubble,
+        .chat-theme-glass .message-left {
+            border: 1px solid rgba(255, 255, 255, .58);
+            box-shadow: 0 8px 20px rgba(57, 125, 158, .12), inset 0 1px 0 rgba(255, 255, 255, .45);
+            backdrop-filter: blur(12px) saturate(135%);
+        }
+        .chat-theme-glass .bubble { background: linear-gradient(135deg, rgba(92, 183, 229, .78), rgba(77, 151, 213, .68)); }
+        .chat-theme-glass .message-left { background: rgba(255, 255, 255, .58); }
+        .chat.chat-theme-glass .chat-header {
+            background: linear-gradient(135deg, rgba(247, 254, 255, .88), rgba(208, 242, 248, .76));
+            backdrop-filter: blur(18px) saturate(140%);
+        }
+        .chat-theme-glass .input-area {
+            background: rgba(226, 247, 250, .72);
+            border-top-color: rgba(86, 160, 191, .18);
+            backdrop-filter: blur(18px) saturate(130%);
+        }
+        .chat-theme-glass .input-area textarea {
+            background: rgba(255, 255, 255, .60);
+            border-color: rgba(255, 255, 255, .72);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72);
+        }
+
+        body.dark-mode .chat-theme-glass {
+            --chat-bg: #183943;
+            --message-left-bg: rgba(56, 100, 113, .73);
+            --bubble-bg: rgba(61, 155, 188, .76);
+            --bubble-text: #f0fcff;
+            --bubble-reply-bg: rgba(232, 255, 255, .14);
+        }
+        body.dark-mode .chat-theme-glass .messages-wrap {
+            background:
+                radial-gradient(circle at 14% 16%, rgba(170, 243, 255, .16) 0 2px, transparent 3px) 0 0 / 40px 40px,
+                radial-gradient(circle at 82% 76%, rgba(62, 191, 184, .18), transparent 30%),
+                linear-gradient(145deg, #214956, #193743 52%, #234c4e);
+        }
+        body.dark-mode .chat.chat-theme-glass .chat-header { background: linear-gradient(135deg, rgba(46, 91, 104, .92), rgba(31, 68, 80, .88)); }
+        body.dark-mode .chat-theme-glass .input-area { background: rgba(29, 66, 76, .88); border-top-color: rgba(161, 235, 244, .16); }
+        body.dark-mode .chat-theme-glass .input-area textarea { background: rgba(55, 103, 115, .70); border-color: rgba(176, 237, 243, .20); }
+
         .chat-theme-modal { width: 430px; max-width: 90vw; padding: 0; overflow: hidden; }
-        .chat-theme-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 18px; }
+        .chat-theme-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 18px; }
         .chat-theme-option { min-height: 135px; padding: 12px 8px; border: 1px solid var(--input-border); border-radius: 14px; background: var(--panel-bg); color: var(--text-color); cursor: pointer; font: inherit; }
         .chat-theme-option.selected { border: 2px solid var(--brand-color); box-shadow: 0 0 0 3px rgba(74, 144, 226, .12); }
         .chat-theme-option strong, .chat-theme-option small { display: block; }
@@ -620,6 +675,7 @@
         .theme-preview-default { background: linear-gradient(135deg, #e5ebf2, #c9d7f7); }
         .theme-preview-heart { background: linear-gradient(135deg, #ff5f8f, #ff9476); color: #fff; }
         .theme-preview-teddy { background: linear-gradient(135deg, #f5eadb, #d49a68); }
+        .theme-preview-glass { background: linear-gradient(135deg, rgba(250, 255, 255, .95), #9ee2f1 54%, #77bddd); color: rgba(40, 115, 151, .9); border: 1px solid rgba(255, 255, 255, .8); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9); }
 
         .chat-bg-decor {
             position: absolute;
@@ -709,6 +765,24 @@
         .chat-theme-teddy .chat-bg-decor .deco-5 { display: none; }
         body.dark-mode .chat-theme-teddy .chat-bg-decor .deco-bubble { opacity: .42; }
 
+        /* 물방울 5개는 SVG 필터로 미세하게 굴절되고, 배경의 움직임은 느리게 유지한다. */
+        .chat-theme-glass .chat-bg-decor .deco-bubble {
+            aspect-ratio: 1 / 1;
+            border: 1px solid rgba(255, 255, 255, .72);
+            border-radius: 48% 52% 50% 46%;
+            background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, .92) 0 5%, rgba(255, 255, 255, .28) 18%, rgba(125, 215, 237, .10) 58%, rgba(70, 150, 185, .18) 100%);
+            box-shadow: inset 8px 9px 14px rgba(255, 255, 255, .34), inset -8px -10px 16px rgba(43, 132, 168, .14), 0 12px 20px rgba(48, 128, 159, .12);
+            filter: url("#glass-water-filter") drop-shadow(0 8px 11px rgba(48, 128, 159, .10));
+            opacity: .56;
+        }
+        .chat-theme-glass .chat-bg-decor .deco-bubble svg { display: none; }
+        .chat-theme-glass .chat-bg-decor .deco-1 { width: 104px; animation: glass-float-a 15s ease-in-out infinite; }
+        .chat-theme-glass .chat-bg-decor .deco-2 { width: 70px; animation: glass-float-b 12s ease-in-out infinite; }
+        .chat-theme-glass .chat-bg-decor .deco-3 { display: block; width: 84px; animation: glass-float-c 14s ease-in-out infinite; }
+        .chat-theme-glass .chat-bg-decor .deco-4 { width: 122px; animation: glass-float-b 17s ease-in-out infinite; }
+        .chat-theme-glass .chat-bg-decor .deco-5 { display: block; width: 54px; animation: glass-float-a 11s ease-in-out infinite; }
+        body.dark-mode .chat-theme-glass .chat-bg-decor .deco-bubble { border-color: rgba(183, 239, 246, .34); box-shadow: inset 8px 9px 14px rgba(205, 251, 255, .14), inset -8px -10px 16px rgba(9, 31, 39, .22), 0 12px 20px rgba(0, 0, 0, .16); opacity: .54; }
+
         .chat-bg-decor .deco-1 { top: 6%;  left: 8%;  width: 130px; animation: chat-float-a 13s ease-in-out infinite; }
         .chat-bg-decor .deco-2 { top: 58%; left: -3%; width: 90px;  animation: chat-float-b 10.5s ease-in-out infinite; }
         .chat-bg-decor .deco-3 { top: 14%; right: 6%; width: 100px; animation: chat-float-b 11.5s ease-in-out infinite; }
@@ -743,6 +817,18 @@
             0%, 100% { transform: translate3d(0, 0, 0) rotate(3deg); }
             50% { transform: translate3d(-9px, 12px, 0) rotate(-3deg); }
         }
+        @keyframes glass-float-a {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(-4deg) scale(1); }
+            50% { transform: translate3d(12px, -20px, 0) rotate(4deg) scale(1.04); }
+        }
+        @keyframes glass-float-b {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(4deg) scale(1); }
+            50% { transform: translate3d(-13px, 15px, 0) rotate(-4deg) scale(.96); }
+        }
+        @keyframes glass-float-c {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(2deg); }
+            50% { transform: translate3d(9px, 17px, 0) rotate(-3deg); }
+        }
         @media (prefers-reduced-motion: reduce) {
             .chat-bg-decor .deco-bubble,
             .theme-heart-extra { animation: none !important; }
@@ -750,6 +836,10 @@
         @media (max-width: 480px) {
             .chat-bg-decor .deco-3,
             .chat-bg-decor .deco-5 { display: none; }
+
+            /* 글라스 테마는 모바일에서도 물방울 장식 수를 유지한다. */
+            .chat-theme-glass .chat-bg-decor .deco-3,
+            .chat-theme-glass .chat-bg-decor .deco-5 { display: block; }
         }
 
         .messages {

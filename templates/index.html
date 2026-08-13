@@ -19,6 +19,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <!-- 글라스 테마의 물방울에만 쓰는 SVG 굴절 필터: 전체 화면 필터보다 가볍다. -->
+    <svg class="glass-filter-defs" aria-hidden="true" focusable="false">
+        <defs>
+            <filter id="glass-water-filter" x="-25%" y="-25%" width="150%" height="150%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="8" result="noise"/>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+        </defs>
+    </svg>
     <!-- # 스타일 영역: 친구 목록, 채팅창, 모달 UI의 모양을 정의한다. -->
     
 
@@ -289,6 +298,10 @@
                 <button type="button" class="chat-theme-option" data-theme="teddy">
                     <span class="chat-theme-preview theme-preview-teddy">🧸</span>
                     <strong>테디베어</strong><small>포근한 베이지</small>
+                </button>
+                <button type="button" class="chat-theme-option" data-theme="glass">
+                    <span class="chat-theme-preview theme-preview-glass"><i class="fa-solid fa-droplet"></i></span>
+                    <strong>글라스</strong><small>맑은 블루 유리</small>
                 </button>
             </div>
         </div>

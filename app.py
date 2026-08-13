@@ -1200,7 +1200,7 @@ def create_group_conversation():
 def update_conversation_theme(conversation_id):
     """채팅 테마는 같은 대화방이라도 사용자별로 저장한다."""
     theme = (request.get_json() or {}).get("theme", "default")
-    if theme not in {"default", "heart", "teddy"}:
+    if theme not in {"default", "heart", "teddy", "glass"}:
         return jsonify({"success": False, "error": "지원하지 않는 채팅 테마입니다."}), 400
 
     user_id = session["user_id"]
