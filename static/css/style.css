@@ -894,6 +894,45 @@
             background: #f3f3f3;
         }
 
+        /* 설정 메뉴는 한 줄 목록이 아니라 기능 성격이 보이는 작은 섹션으로 나눈다. */
+        #settings-menu {
+            min-width: 210px;
+            padding: 7px;
+            border-color: var(--border-color);
+            border-radius: 14px;
+            background: var(--panel-bg);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, .16);
+        }
+        #settings-menu > div:not(.settings-menu-section-title):not(.settings-menu-divider) {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 39px;
+            padding: 0 11px;
+            border-radius: 9px;
+            font-size: 13px;
+        }
+        #settings-menu > div:not(.settings-menu-section-title):not(.settings-menu-divider):hover {
+            background: var(--friend-hover);
+        }
+        #settings-menu .settings-menu-section-title {
+            padding: 8px 11px 4px;
+            color: color-mix(in srgb, var(--text-color) 56%, transparent);
+            cursor: default;
+            font-size: 10px;
+            font-weight: 750;
+            letter-spacing: .05em;
+        }
+        #settings-menu .settings-menu-section-title:hover { background: transparent; }
+        #settings-menu .settings-menu-divider {
+            height: 1px;
+            margin: 5px 7px;
+            padding: 0;
+            background: var(--border-color);
+            cursor: default;
+        }
+        #settings-menu .settings-menu-divider:hover { background: var(--border-color); }
+
         .reaction-picker {
             position: absolute;
             display: none;
@@ -2417,6 +2456,18 @@
                 padding: 0 12px;
                 border-radius: 12px;
                 font-size: 15px;
+            }
+
+            #settings-menu .settings-menu-section-title {
+                min-height: auto;
+                padding: 10px 12px 4px;
+                font-size: 11px;
+            }
+
+            #settings-menu .settings-menu-divider {
+                min-height: 1px;
+                margin: 6px 8px;
+                padding: 0;
             }
 
             #settings-menu #logout-btn {
