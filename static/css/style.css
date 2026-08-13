@@ -14,8 +14,9 @@
             .container {
                 display: grid;
                 grid-template-columns: 330px minmax(0, 1fr) 238px;
-                gap: 14px;
-                width: min(1500px, calc(100vw - 48px));
+                gap: 12px;
+                /* 바깥 여백은 줄이고, 남는 폭은 중앙 채팅 영역에 우선 배분한다. */
+                width: min(1520px, calc(100vw - 24px));
                 height: min(860px, calc(100vh - 48px));
             }
 
