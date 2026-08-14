@@ -596,6 +596,7 @@
             document.body.classList.remove("mobile-settings-open");
             if (officeComfortPanel) {
                 officeComfortPanel.hidden = true;
+                officeComfortPanel.classList.remove("is-open");
                 officeComfortItem.classList.remove("open");
             }
         }
@@ -755,8 +756,11 @@
 
         officeComfortItem.addEventListener("click", function (event) {
             event.stopPropagation();
-            officeComfortPanel.hidden = !officeComfortPanel.hidden;
-            officeComfortItem.classList.toggle("open", !officeComfortPanel.hidden);
+            const shouldOpen = !officeComfortPanel.classList.contains("is-open");
+            // hidden 속성만 토글하지 않고 클래스로도 상태를 관리해 모든 브라우저에서 확실히 반영한다.
+            officeComfortPanel.hidden = false;
+            officeComfortPanel.classList.toggle("is-open", shouldOpen);
+            officeComfortItem.classList.toggle("open", shouldOpen);
         });
 
         [[officeContrastSelect, "officeContrast"], [officeTextSizeSelect, "officeTextSize"], [officeDensitySelect, "officeDensity"]].forEach(([control, key]) => {
