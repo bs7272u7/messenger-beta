@@ -109,7 +109,22 @@
         document.querySelector("#black-captured").textContent = (game.captured?.[mineColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
         document.querySelector("#room-code").textContent = game.mode === "online" ? `초대 코드 ${game.roomCode}` : game.mode === "ai" ? "AI 대전" : "로컬 2인";
         document.querySelector("#invite-friend-btn").hidden = !(game.mode === "online" && game.status === "waiting" && game.myColor === "w");
-        const status = game.status === "waiting" ? "친구가 초대 코드로 입장하기를 기다리는 중입니다." : game.status === "active" ? (game.mode === "ai" && game.turn === "b" ? "AI가 수를 생각 중입니다…" : `${game.turn === "w" ? "백" : "흑"} 차례${game.check ? " · 체크" : ""}`) : "게임 종료";
+        const visibleTurnLabel =
+            game.mode === "online"
+                ? (game.turn === game.myColor ? "백" : "흑")
+                : (game.turn === "w" ? "백" : "흑");
+
+        const status =
+            game.status === "waiting"
+                ? "친구가 초대 코드로 입장하기를 기다리는 중입니다."
+                : game.status === "active"
+                    ? (
+                        game.mode === "ai" && game.turn === "b"
+                            ? "AI가 수를 생각 중입니다…"
+                            : `${visibleTurnLabel} 차례${game.check ? " · 체크" : ""}`
+                    )
+                    : "게임 종료";
+
         document.querySelector("#game-status").textContent = status;
         const history = document.querySelector("#move-history"); history.innerHTML = "";
         (game.moves || []).forEach((move, index) => {
@@ -198,7 +213,19 @@
     playerModal.addEventListener("click", event => { if (event.target === playerModal) closePlayerModal(); });
     document.querySelectorAll(".chess-player-trigger").forEach(button => button.addEventListener("click", async () => {
         const isMe = button.dataset.playerSlot === "me";
-        const player = isMe || game.mode === "local" || game.myColor !== "b" ? (isMe ? game.white : game.black) : (isMe ? game.black : game.white);
+
+        const mine =
+            game.mode === "local" || game.myColor !== "b"
+                ? game.white
+                : game.black;
+
+        const opponent =
+            game.mode === "local" || game.myColor !== "b"
+                ? game.black
+                : game.white;
+
+        const player = isMe ? mine : opponent;
+
         if (!player?.id) return;
         try {
             const response = await fetch(`/api/chess/players/${player.id}`);
