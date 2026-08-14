@@ -81,6 +81,8 @@ ADMIN_ACCESS_LOCK_SECONDS = 15 * 60
 SUPPORTED_LANGUAGES = {"ko", "en", "zh", "ja", "es"}
 SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
+SUPPORT_INQUIRY_MAX_PER_USER = 5
+REVIEW_MAX_PER_USER = 5
 CHAT_FILE_MAX_BYTES = 20 * 1024 * 1024
 CHAT_FILE_EXTENSIONS = {"pdf", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "mp3", "wav", "m4a"}
 IMAGE_MAX_BYTES = 10 * 1024 * 1024
@@ -1006,6 +1008,8 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id)",
             "CREATE INDEX IF NOT EXISTS idx_notices_published ON notices(is_published, created_at)",
             "CREATE INDEX IF NOT EXISTS idx_inquiries_status ON support_inquiries(status, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_inquiries_user ON support_inquiries(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at)",
         ]:
             cur.execute(stmt)
@@ -1360,6 +1364,7 @@ def push_subscriptions():
 
 @app.route("/api/support-inquiries", methods=["POST"])
 @login_required_api
+@rate_limit(5, 60 * 60, "support_inquiry")
 def send_support_inquiry():
     # 문의는 이메일로 전송되므로 서버에서도 길이·파일 형식·용량을 반드시 다시 검사한다.
     # 브라우저 검사만 믿으면 요청을 직접 조작해 제한을 우회할 수 있다.
@@ -1368,6 +1373,16 @@ def send_support_inquiry():
         return jsonify({"success": False, "error": "문의 내용은 10자 이상 입력해주세요."}), 400
     if len(message) > 3000:
         return jsonify({"success": False, "error": "문의 내용은 3,000자 이하로 입력해주세요."}), 400
+
+    # 첨부 업로드·이메일 발송 전에 계정별 총 문의 수를 확인해 서버 자원을 보호한다.
+    user_id = session["user_id"]
+    with get_db() as conn:
+        inquiry_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM support_inquiries WHERE user_id = %s", (user_id,)
+        ).fetchone()["count"]
+    if inquiry_count >= SUPPORT_INQUIRY_MAX_PER_USER:
+        return jsonify({"success": False, "error": "문의는 계정당 최대 5개까지 등록할 수 있습니다. 기존 문의를 삭제한 뒤 다시 시도해주세요."}), 429
+
     attachment = request.files.get("attachment")
     attachment_data = None
     attachment_url = None
@@ -1562,6 +1577,13 @@ def reviews():
     if not isinstance(rating, int) or rating not in range(1, 6) or len(content) < 5 or len(content) > 1000:
         return jsonify({"success": False, "error": "별점(1~5점)과 5자 이상 후기를 입력해주세요."}), 400
     with get_db() as conn:
+        # 같은 계정의 동시 요청도 사용자 행 잠금으로 직렬화해 5개 제한을 우회하지 못하게 한다.
+        conn.execute("SELECT id FROM users WHERE id = %s FOR UPDATE", (session["user_id"],)).fetchone()
+        review_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM reviews WHERE user_id = %s", (session["user_id"],)
+        ).fetchone()["count"]
+        if review_count >= REVIEW_MAX_PER_USER:
+            return jsonify({"success": False, "error": "리뷰는 계정당 최대 5개까지 작성할 수 있습니다."}), 429
         conn.execute("INSERT INTO reviews (user_id, rating, content, created_at) VALUES (%s, %s, %s, %s)", (session["user_id"], rating, content, now_str()))
         conn.commit()
     return jsonify({"success": True})
