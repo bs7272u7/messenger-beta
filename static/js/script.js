@@ -59,15 +59,20 @@
          * 저장/시간/친구 조회 헬퍼
          * ====================================================== */
 
-        function formatNowTime() {
-            const now = new Date();
+        function getDisplayLocale() {
             const language = window.CloudI18n ? window.CloudI18n.getLanguage() : "ko";
-            const locale = { ko: "ko-KR", en: "en-US", zh: "zh-CN", ja: "ja-JP", es: "es-ES" }[language] || "ko-KR";
-            return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(now);
+            return { ko: "ko-KR", en: "en-US", zh: "zh-CN", ja: "ja-JP", es: "es-ES" }[language] || "ko-KR";
         }
 
-        function todayDate() {
-            return new Date().toISOString().split("T")[0];
+        // 서버는 UTC 시각만 보관하고, 재현님을 포함한 각 사용자의 기기 시간대에서 자연스럽게 다시 표시한다.
+        function formatMessageTime(chat) {
+            if (!chat || !chat.sentAt) return (chat && chat.time) || "";
+            return new Intl.DateTimeFormat(getDisplayLocale(), { hour: "numeric", minute: "2-digit" }).format(new Date(chat.sentAt));
+        }
+
+        function formatMessageDate(chat) {
+            if (!chat || !chat.sentAt) return (chat && chat.date) || "";
+            return new Intl.DateTimeFormat(getDisplayLocale(), { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(chat.sentAt));
         }
 
         // 시스템 메시지는 이름처럼 번역하면 안 되는 값과 안내 문구가 한 문장에 섞여 있다.
@@ -215,6 +220,7 @@
             if (friend) {
                 friend.message = getPreviewText(chatList);
                 friend.lastTime = getPreviewTime(chatList);
+                friend.lastSentAt = chatList.length ? chatList[chatList.length - 1].sentAt : null;
                 readFriends();
             }
         }
@@ -1014,16 +1020,11 @@
                     return;
                 }
 
-                const time = formatNowTime();
-                const today = todayDate();
-
                 const response = await fetch(`/api/conversations/${currentConversationID}/messages`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json"},
                     body: JSON.stringify({
                         text: text,
-                        time: time,
-                        date: today,
                         mine: true,
                         reply: replyMessage,
                         read: false
@@ -1132,13 +1133,15 @@
 
             let lastDate = "";
             chatList.forEach(function (chat, index) {
+                const displayDate = formatMessageDate(chat);
+                const displayTime = formatMessageTime(chat);
 
-                if (chat.date !== lastDate) {
+                if (displayDate !== lastDate) {
                     const dateLine = document.createElement("div");
                     dateLine.className = "date-divider";
-                    dateLine.innerText = chat.date;
+                    dateLine.innerText = displayDate;
                     renderTarget.appendChild(dateLine);
-                    lastDate = chat.date;
+                    lastDate = displayDate;
                 }
 
                 const message = document.createElement("div");
@@ -1214,16 +1217,16 @@
                     message.className = "message-right";
 
                     if (chat.audio) {
-                        message.innerHTML = `<div class="time">${readStatusHTML}${chat.time}</div><audio class="chat-audio" controls src="${chat.audio}"></audio>`;
+                        message.innerHTML = `<div class="time">${readStatusHTML}${displayTime}</div><audio class="chat-audio" controls src="${chat.audio}"></audio>`;
                     } else if (chat.filePath) {
                         message.innerHTML = `
-                            <div class="time">${readStatusHTML}${chat.time}</div>
+                            <div class="time">${readStatusHTML}${displayTime}</div>
                             ${buildFileMessageHTML(chat)}
                         `;
                     } else if (chat.video) {
                         message.innerHTML = `
                             ${reactionsHTML}
-                            <div class="time">${readStatusHTML}${chat.time}</div>
+                            <div class="time">${readStatusHTML}${displayTime}</div>
                             <div class="image-bubble">
                                 <video src="${chat.video}" class="chat-image" controls style="max-width: 250px; border-radius: 12px; display: block;"></video>
                             </div>
@@ -1231,7 +1234,7 @@
                     } else if (chat.image) {
                         message.innerHTML = `
                             ${reactionsHTML}
-                            <div class="time">${readStatusHTML}${chat.time}</div>
+                            <div class="time">${readStatusHTML}${displayTime}</div>
                             <div class="image-bubble">
                                 <img src="${chat.image}" class="chat-image" data-image="${chat.image}">
                             </div>
@@ -1243,7 +1246,7 @@
                             ${buildReplyQuoteHTML(chat.reply)}
                             ${editedHTML}
                             <div class="bubble-row">
-                                <div class="time">${readStatusHTML}${chat.time}</div>
+                                <div class="time">${readStatusHTML}${displayTime}</div>
                                 <div class="bubble">${highlightText(chat.text, searchQuery)}</div>
                             </div>
                             ${reactionsHTML}
@@ -1257,7 +1260,7 @@
                             ${editedHTML}
                             ${reactionsHTML}
                             <div class="bubble-row">
-                                <div class="time">${readStatusHTML}${chat.time}</div>
+                                <div class="time">${readStatusHTML}${displayTime}</div>
                                 <div class="bubble">${highlightText(chat.text, searchQuery)}</div>
                             </div>
                         `;
@@ -1278,18 +1281,18 @@
                     let innerContent;
 
                     if (chat.audio) {
-                        innerContent = `<audio class="chat-audio" controls src="${chat.audio}"></audio><div class="time">${chat.time}</div>`;
+                        innerContent = `<audio class="chat-audio" controls src="${chat.audio}"></audio><div class="time">${displayTime}</div>`;
                     } else if (chat.filePath) {
                         innerContent = `
                             ${buildFileMessageHTML(chat)}
-                            <div class="time">${chat.time}</div>
+                            <div class="time">${displayTime}</div>
                         `;
                     } else if (chat.video) {
                         innerContent = `
                             <div class="image-bubble">
                                 <video src="${chat.video}" class="chat-image" controls style="max-width: 250px; border-radius: 12px; display: block;"></video>
                             </div>
-                            <div class="time">${chat.time}</div>
+                            <div class="time">${displayTime}</div>
                             ${reactionsHTML}
                         `;
                     } else if (chat.image) {
@@ -1297,7 +1300,7 @@
                             <div class="image-bubble">
                                 <img src="${chat.image}" class="chat-image">
                             </div>
-                            <div class="time">${chat.time}</div>
+                            <div class="time">${displayTime}</div>
                             ${reactionsHTML}
                         `;
                     } else if (chat.reply) {
@@ -1309,7 +1312,7 @@
                             ${buildReplyQuoteHTML(chat.reply)}
                             <div class="bubble-row">
                                 <div class="message-left">${highlightText(chat.text, searchQuery)}</div>
-                                <div class="time">${chat.time}</div>
+                                <div class="time">${displayTime}</div>
                             </div>
                             ${reactionsHTML}
                         `;
@@ -1317,7 +1320,7 @@
                         innerContent = `
                             <div class="bubble-row">
                                 <div class="message-left">${highlightText(chat.text, searchQuery)}</div>
-                                <div class="time">${chat.time}</div>
+                                <div class="time">${displayTime}</div>
                             </div>
                             ${reactionsHTML}
                         `;
@@ -1525,7 +1528,7 @@
                 const response = await fetch(`/api/conversations/${currentConversationID}/messages/image`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ image: imageData, time: formatNowTime(), date: todayDate() })
+                    body: JSON.stringify({ image: imageData })
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) throw new Error(result.error || "사진을 보내지 못했습니다.");
@@ -1556,8 +1559,6 @@
             try {
                 const formData = new FormData();
                 formData.append("file", file);
-                formData.append("time", formatNowTime());
-                formData.append("date", todayDate());
                 const response = await fetch(`/api/conversations/${currentConversationID}/messages/file`, { method: "POST", body: formData });
                 const result = await response.json();
                 if (!response.ok || !result.success) throw new Error(result.error || "파일을 보내지 못했습니다.");
@@ -1589,7 +1590,7 @@
                     clearTimeout(audioTimer); stream.getTracks().forEach(track => track.stop()); audioBtn.classList.remove("recording");
                     const blob = new Blob(audioChunks, {type:audioRecorder.mimeType || "audio/webm"});
                     if (!blob.size) return;
-                    const form = new FormData(); form.append("audio", new File([blob], "voice.webm", {type:blob.type})); form.append("time", formatNowTime()); form.append("date", todayDate()); form.append("duration", String(Math.min(30, (Date.now() - audioStartedAt) / 1000)));
+                    const form = new FormData(); form.append("audio", new File([blob], "voice.webm", {type:blob.type})); form.append("duration", String(Math.min(30, (Date.now() - audioStartedAt) / 1000)));
                     const response = await fetch(`/api/conversations/${currentConversationID}/messages/audio`, {method:"POST", body:form}); const result = await response.json();
                     if (!response.ok || !result.success) return showToast(result.error || "음성 전송에 실패했습니다.", "error");
                     await readMessages(); updateFriendPreviewFromServer();
@@ -1680,7 +1681,9 @@
                 .replace("__VIDEO__", '<i class="fa-solid fa-circle-play"></i>')
                 .replace("__FILE__", '<i class="fa-solid fa-paperclip"></i>')
                 .replace("__AUDIO__", '<i class="fa-solid fa-microphone"></i>');
-                const timeHTML = friend.lastTime ? `<span class="friend-time">${friend.lastTime}</span>` : "";
+                const timeHTML = (friend.lastSentAt || friend.lastTime)
+                    ? `<span class="friend-time">${formatMessageTime({ sentAt: friend.lastSentAt, time: friend.lastTime })}</span>`
+                    : "";
 
                 // 안 읽은 개수는 서버가 이미 계산해서 주는 unreadCount를 그대로 사용한다.
                 const unreadHTML = (friend.unreadCount > 0 && friend.id !== currentConversationID)
@@ -3735,13 +3738,8 @@ async function sendVideo(file) {
         return;
     }
     setComposerBusy(true);
-    const time = formatNowTime();
-    const today = todayDate();
-
     const formData = new FormData();
     formData.append("video", file);
-    formData.append("time", time);
-    formData.append("date", today);
 
     try {
         const response = await fetch(`/api/conversations/${currentConversationID}/messages/video`, {

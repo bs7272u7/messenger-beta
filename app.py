@@ -431,6 +431,55 @@ def now_str():
     return datetime.now(kst).strftime("%Y-%m-%d %H:%M:%S")
 
 
+KST = timezone(timedelta(hours=9))
+
+
+def current_message_timestamp_ms():
+    """메시지의 기준 시각은 UTC epoch 밀리초로 저장해 모든 국가에서 같은 순간을 가리킨다."""
+    return int(time.time() * 1000)
+
+
+def legacy_message_labels(sent_at_ms):
+    """기존 time/date 컬럼 호환용 표기는 한국 시간으로만 유지하고, 화면 표시는 브라우저가 맡는다."""
+    moment = datetime.fromtimestamp(sent_at_ms / 1000, timezone.utc).astimezone(KST)
+    hour = moment.hour % 12 or 12
+    return (
+        f"{'오후' if moment.hour >= 12 else '오전'} {hour}:{moment.minute:02d}",
+        moment.strftime("%Y-%m-%d"),
+    )
+
+
+def legacy_message_timestamp_ms(date_text, time_text):
+    """기존 한국 시간 문자열을 UTC 시각으로 옮긴다. 해석할 수 없는 오래된 값은 그대로 둔다."""
+    if not date_text:
+        return None
+    try:
+        date_value = datetime.strptime(str(date_text).replace(".", "-")[:10], "%Y-%m-%d").date()
+        time_match = re.search(r"(오전|오후)\s*(\d{1,2}):(\d{2})", str(time_text or ""))
+        if time_match:
+            period, hour_text, minute_text = time_match.groups()
+            hour, minute = int(hour_text), int(minute_text)
+            if hour == 12:
+                hour = 0
+            if period == "오후":
+                hour += 12
+        else:
+            plain_time = re.search(r"(\d{1,2}):(\d{2})", str(time_text or ""))
+            hour, minute = (int(plain_time.group(1)), int(plain_time.group(2))) if plain_time else (12, 0)
+        return int(datetime(date_value.year, date_value.month, date_value.day, hour, minute, tzinfo=KST).timestamp() * 1000)
+    except (TypeError, ValueError):
+        return None
+
+
+def backfill_message_timestamps(conn):
+    """서비스 전 메시지는 한국 시간으로 작성됐으므로 최초 실행 때만 안전하게 타임스탬프를 채운다."""
+    rows = conn.execute("SELECT id, date, time FROM messages WHERE sent_at IS NULL").fetchall()
+    for row in rows:
+        sent_at = legacy_message_timestamp_ms(row["date"], row["time"])
+        if sent_at is not None:
+            conn.execute("UPDATE messages SET sent_at = %s WHERE id = %s", (sent_at, row["id"]))
+
+
 def get_peer_id(conn, conversation_id, user_id):
     conv = conn.execute("SELECT is_group FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
     if not conv or conv["is_group"]:
@@ -806,6 +855,7 @@ def init_db():
                 reactions TEXT,
                 audio TEXT,
                 message_type VARCHAR(20) NOT NULL DEFAULT 'user',
+                sent_at BIGINT,
                 FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
                 FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE
             )
@@ -868,8 +918,12 @@ def init_db():
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_size BIGINT",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS audio TEXT",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) NOT NULL DEFAULT 'user'",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_at BIGINT",
         ]:
             cur.execute(stmt)
+
+        # 기존 메시지는 당시 한국 시간 문자열을 UTC 기준 원본 시각으로 한 번만 변환한다.
+        backfill_message_timestamps(conn)
 
         cur.execute("""
             UPDATE conversations
@@ -1084,15 +1138,14 @@ def conversation_is_disabled(conn, conversation_id):
 def create_system_message(conn, conversation_id, text, actor_id=None):
     """그룹 공지·테마 변경처럼 누구의 일반 메시지도 아닌 기록을 남긴다."""
     # Render 서버는 UTC로 동작할 수 있으므로, 시스템 메시지도 항상 한국 시간으로 기록한다.
-    now = datetime.now(timezone(timedelta(hours=9)))
-    hour = now.hour % 12 or 12
-    time_label = f"{'오후' if now.hour >= 12 else '오전'} {hour}:{now.minute:02d}"
+    sent_at = current_message_timestamp_ms()
+    time_label, date_label = legacy_message_labels(sent_at)
     row = conn.execute("""
-        INSERT INTO messages (conversation_id, sender_id, text, time, date, edited, pinned, reactions, message_type)
-        SELECT %s, COALESCE(%s, owner_id), %s, %s, %s, FALSE, FALSE, %s, 'system'
+        INSERT INTO messages (conversation_id, sender_id, text, time, date, sent_at, edited, pinned, reactions, message_type)
+        SELECT %s, COALESCE(%s, owner_id), %s, %s, %s, %s, FALSE, FALSE, %s, 'system'
         FROM conversations WHERE id = %s
         RETURNING id
-    """, (conversation_id, actor_id, text, time_label, now.strftime("%Y-%m-%d"), json.dumps([]), conversation_id)).fetchone()
+    """, (conversation_id, actor_id, text, time_label, date_label, sent_at, json.dumps([]), conversation_id)).fetchone()
     if row:
         conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], conversation_id))
     return row["id"] if row else None
@@ -2067,11 +2120,11 @@ def get_conversations():
                     display_name = "(알 수 없음)"
 
             last_msg = conn.execute(
-                "SELECT id, text, image, video, audio, file_name, time FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1",
+                "SELECT id, text, image, video, audio, file_name, time, sent_at FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1",
                 (conversation_id,)
             ).fetchone()
 
-            message_text, last_time = "", ""
+            message_text, last_time, last_sent_at = "", "", None
             last_msg_id = last_msg["id"] if last_msg else 0
             if last_msg:
                 if last_msg["audio"]:
@@ -2085,6 +2138,7 @@ def get_conversations():
                 else:
                     message_text = last_msg["text"] or ""
                 last_time = last_msg["time"] or ""
+                last_sent_at = last_msg["sent_at"]
 
             member_count_row = conn.execute(
                 "SELECT COUNT(*) AS cnt FROM conversation_members WHERE conversation_id = %s",
@@ -2104,6 +2158,7 @@ def get_conversations():
                 "name": display_name,
                 "message": message_text,
                 "lastTime": last_time,
+                "lastSentAt": last_sent_at,
                 "chatTheme": row["chat_theme"] or "default",
                 "isDisabled": bool(row["is_disabled"]),
                 "isMuted": bool(row["is_muted"]),
@@ -2500,6 +2555,7 @@ def get_messages(conversation_id):
                 "fileSize": row["file_size"],
                 "time": row["time"],
                 "date": row["date"],
+                "sentAt": row["sent_at"],
                 "reply": json.loads(row["reply"]) if row["reply"] else None,
                 "edited": bool(row["edited"]),
                 "pinned": bool(row["pinned"]),
@@ -2527,15 +2583,18 @@ def send_message(conversation_id):
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
             return jsonify({"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}), 403
 
+        sent_at = current_message_timestamp_ms()
+        time_label, date_label = legacy_message_labels(sent_at)
         msg_row = conn.execute("""
-            INSERT INTO messages (conversation_id, sender_id, text, image, time, date, reply, edited, pinned, reactions)
-            VALUES (%s, %s, %s, NULL, %s, %s, %s, FALSE, FALSE, %s) RETURNING id
+            INSERT INTO messages (conversation_id, sender_id, text, image, time, date, sent_at, reply, edited, pinned, reactions)
+            VALUES (%s, %s, %s, NULL, %s, %s, %s, %s, FALSE, FALSE, %s) RETURNING id
         """, (
             conversation_id,
             user_id,
             data.get("text"),
-            data.get("time"),
-            data.get("date"),
+            time_label,
+            date_label,
+            sent_at,
             json.dumps(reply) if reply else None,
             json.dumps([])
         )).fetchone()
@@ -2583,15 +2642,18 @@ def send_image(conversation_id):
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
             return jsonify({"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}), 403
 
+        sent_at = current_message_timestamp_ms()
+        time_label, date_label = legacy_message_labels(sent_at)
         msg_row = conn.execute("""
-            INSERT INTO messages (conversation_id, sender_id, text, image, time, date, reply, edited, pinned, reactions)
-            VALUES (%s, %s, NULL, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
+            INSERT INTO messages (conversation_id, sender_id, text, image, time, date, sent_at, reply, edited, pinned, reactions)
+            VALUES (%s, %s, NULL, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
         """, (
             conversation_id,
             user_id,
             image_path,
-            data.get("time"),
-            data.get("date"),
+            time_label,
+            date_label,
+            sent_at,
             json.dumps([])
         )).fetchone()
         new_message_id = msg_row["id"]
@@ -2653,15 +2715,18 @@ def send_video(conversation_id):
         video_file.save(os.path.join(UPLOAD_DIR, filename))
         video_path = f"/static/uploads/{filename}"
 
+        sent_at = current_message_timestamp_ms()
+        time_label, date_label = legacy_message_labels(sent_at)
         msg_row = conn.execute("""
-            INSERT INTO messages (conversation_id, sender_id, text, image, video, time, date, reply, edited, pinned, reactions)
-            VALUES (%s, %s, NULL, NULL, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
+            INSERT INTO messages (conversation_id, sender_id, text, image, video, time, date, sent_at, reply, edited, pinned, reactions)
+            VALUES (%s, %s, NULL, NULL, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
         """, (
             conversation_id,
             user_id,
             video_path,
-            request.form.get("time"),
-            request.form.get("date"),
+            time_label,
+            date_label,
+            sent_at,
             json.dumps([])
         )).fetchone()
         new_message_id = msg_row["id"]
@@ -2714,10 +2779,12 @@ def send_file(conversation_id):
         return jsonify({"success": False, "error": "파일 저장에 실패했습니다."}), 500
 
     with get_db() as conn:
+        sent_at = current_message_timestamp_ms()
+        time_label, date_label = legacy_message_labels(sent_at)
         row = conn.execute("""
-            INSERT INTO messages (conversation_id, sender_id, text, image, video, file_path, file_name, file_size, time, date, reply, edited, pinned, reactions)
-            VALUES (%s, %s, NULL, NULL, NULL, %s, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
-        """, (conversation_id, user_id, file_path, file_name, size, request.form.get("time"), request.form.get("date"), json.dumps([]))).fetchone()
+            INSERT INTO messages (conversation_id, sender_id, text, image, video, file_path, file_name, file_size, time, date, sent_at, reply, edited, pinned, reactions)
+            VALUES (%s, %s, NULL, NULL, NULL, %s, %s, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
+        """, (conversation_id, user_id, file_path, file_name, size, time_label, date_label, sent_at, json.dumps([]))).fetchone()
         new_message_id = row["id"]
         conn.execute("UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s", (new_message_id, conversation_id, user_id))
         conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (new_message_id, conversation_id))
@@ -2753,10 +2820,12 @@ def send_audio(conversation_id):
     if not audio_path:
         return jsonify({"success": False, "error": "음성 메시지 저장에 실패했습니다."}), 500
     with get_db() as conn:
+        sent_at = current_message_timestamp_ms()
+        time_label, date_label = legacy_message_labels(sent_at)
         row = conn.execute("""
-            INSERT INTO messages (conversation_id, sender_id, audio, time, date, edited, pinned, reactions)
-            VALUES (%s, %s, %s, %s, %s, FALSE, FALSE, %s) RETURNING id
-        """, (conversation_id, user_id, audio_path, request.form.get("time"), request.form.get("date"), json.dumps([]))).fetchone()
+            INSERT INTO messages (conversation_id, sender_id, audio, time, date, sent_at, edited, pinned, reactions)
+            VALUES (%s, %s, %s, %s, %s, %s, FALSE, FALSE, %s) RETURNING id
+        """, (conversation_id, user_id, audio_path, time_label, date_label, sent_at, json.dumps([]))).fetchone()
         conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], conversation_id))
         unhide_conversation(conn, conversation_id)
         conn.commit()
@@ -2777,10 +2846,12 @@ def forward_message(message_id):
         source = get_owned_message(conn, user_id, message_id)
         if not source or not get_membership(conn, target_conversation_id, user_id):
             return jsonify({"success": False, "error": "메시지 또는 채팅방을 찾을 수 없습니다."}), 404
+        sent_at = current_message_timestamp_ms()
+        time_label, date_label = legacy_message_labels(sent_at)
         row = conn.execute("""
-            INSERT INTO messages (conversation_id, sender_id, text, image, video, file_path, file_name, file_size, time, date, reply, edited, pinned, reactions)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
-        """, (target_conversation_id, user_id, source["text"], source["image"], source["video"], source["file_path"], source["file_name"], source["file_size"], now_str().split(" ")[1][:5], now_str().split(" ")[0], json.dumps([]))).fetchone()
+            INSERT INTO messages (conversation_id, sender_id, text, image, video, file_path, file_name, file_size, time, date, sent_at, reply, edited, pinned, reactions)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
+        """, (target_conversation_id, user_id, source["text"], source["image"], source["video"], source["file_path"], source["file_name"], source["file_size"], time_label, date_label, sent_at, json.dumps([]))).fetchone()
         conn.execute("UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s", (row["id"], target_conversation_id, user_id))
         conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], target_conversation_id))
         unhide_conversation(conn, target_conversation_id)
