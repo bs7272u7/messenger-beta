@@ -720,12 +720,8 @@
         }
 
         function syncOfficeComfortVisibility() {
-            const enabled = document.body.classList.contains("office-mode");
-            officeComfortItem.hidden = !enabled;
-            if (!enabled) {
-                officeComfortPanel.hidden = true;
-                officeComfortItem.classList.remove("open");
-            }
+            // 편하게 보기는 오피스 모드와 독립적으로 언제든 열 수 있다.
+            officeComfortItem.hidden = false;
         }
 
         function syncThemeToggleAvailability() {

@@ -3513,29 +3513,55 @@
         body.office-mode.office-contrast-high .desktop-profile-copy span,
         body.office-mode.office-contrast-high .empty-chat-subtitle { color:#c1c8d1; }
 
-        body.office-mode.office-text-small .bubble,
-        body.office-mode.office-text-small .message-left { font-size:15px; line-height:1.45; }
-        body.office-mode.office-text-medium .bubble,
-        body.office-mode.office-text-medium .message-left { font-size:16px; line-height:1.55; }
-        body.office-mode.office-text-large .bubble,
-        body.office-mode.office-text-large .message-left { font-size:17px; line-height:1.62; }
-        body.office-mode.office-text-small .input-area textarea { font-size:14px; }
-        body.office-mode.office-text-medium .input-area textarea { font-size:15px; }
-        body.office-mode.office-text-large .input-area textarea { font-size:16px; }
+        /* 일반 테마에서도 대비 선택은 유지하되, 각 채팅 테마의 고유 색은 덮어쓰지 않는다. */
+        body:not(.office-mode).office-contrast-comfort {
+            --text-color:#26313d;
+            --border-color:#d6dce4;
+            --input-border:#c7d0dc;
+            --brand-color:#3d78c8;
+        }
+        body.dark-mode:not(.office-mode).office-contrast-comfort {
+            --text-color:#dce3eb;
+            --border-color:#3b4652;
+            --input-border:#46515f;
+            --brand-color:#77a8e5;
+        }
+        body:not(.office-mode).office-contrast-high {
+            --text-color:#111820;
+            --border-color:#9daab9;
+            --input-border:#7c8c9e;
+            --brand-color:#1f67c7;
+        }
+        body.dark-mode:not(.office-mode).office-contrast-high {
+            --text-color:#f4f7fb;
+            --border-color:#667383;
+            --input-border:#758395;
+            --brand-color:#9bc4ff;
+        }
 
-        body.office-mode.office-density-comfortable .messages { padding:28px; gap:12px; }
-        body.office-mode.office-density-comfortable .message-right { margin-top:18px; }
-        body.office-mode.office-density-comfortable .message-left,
-        body.office-mode.office-density-comfortable .bubble { padding:15px 20px; }
-        body.office-mode.office-density-normal .messages { padding:25px; gap:8px; }
-        body.office-mode.office-density-compact .messages { padding:19px 21px; gap:5px; }
-        body.office-mode.office-density-compact .message-right { margin-top:9px; }
-        body.office-mode.office-density-compact .message-left,
-        body.office-mode.office-density-compact .bubble { padding:10px 15px; }
+        body.office-text-small .bubble,
+        body.office-text-small .message-left { font-size:15px; line-height:1.45; }
+        body.office-text-medium .bubble,
+        body.office-text-medium .message-left { font-size:16px; line-height:1.55; }
+        body.office-text-large .bubble,
+        body.office-text-large .message-left { font-size:17px; line-height:1.62; }
+        body.office-text-small .input-area textarea { font-size:14px; }
+        body.office-text-medium .input-area textarea { font-size:15px; }
+        body.office-text-large .input-area textarea { font-size:16px; }
 
-        body.office-mode.office-reduce-motion *,
-        body.office-mode.office-reduce-motion *::before,
-        body.office-mode.office-reduce-motion *::after {
+        body.office-density-comfortable .messages { padding:28px; gap:12px; }
+        body.office-density-comfortable .message-right { margin-top:18px; }
+        body.office-density-comfortable .message-left,
+        body.office-density-comfortable .bubble { padding:15px 20px; }
+        body.office-density-normal .messages { padding:25px; gap:8px; }
+        body.office-density-compact .messages { padding:19px 21px; gap:5px; }
+        body.office-density-compact .message-right { margin-top:9px; }
+        body.office-density-compact .message-left,
+        body.office-density-compact .bubble { padding:10px 15px; }
+
+        body.office-reduce-motion *,
+        body.office-reduce-motion *::before,
+        body.office-reduce-motion *::after {
             animation-duration:.01ms !important;
             animation-iteration-count:1 !important;
             scroll-behavior:auto !important;
