@@ -3475,10 +3475,25 @@
         }
 
         /* 오피스 모드 전용 개인 설정: 화면 자극은 줄이고, 읽기 대비는 사용자가 조절한다. */
+        #settings-menu .office-comfort-trigger { margin:0; }
+        #settings-menu .office-comfort-trigger > summary {
+            display:flex;
+            align-items:center;
+            gap:10px;
+            min-height:39px;
+            padding:0 11px;
+            border-radius:9px;
+            cursor:pointer;
+            color:var(--text-color);
+            font-size:13px;
+            list-style:none;
+        }
+        #settings-menu .office-comfort-trigger > summary::-webkit-details-marker { display:none; }
+        #settings-menu .office-comfort-trigger > summary:hover { background:var(--friend-hover); }
         .office-comfort-trigger .office-comfort-chevron { margin-left:auto; font-size:11px; transition:transform .16s ease; }
-        .office-comfort-trigger.open .office-comfort-chevron { transform:rotate(180deg); }
+        .office-comfort-trigger[open] .office-comfort-chevron { transform:rotate(180deg); }
         #settings-menu .office-comfort-panel {
-            display:none;
+            display:grid;
             gap:8px;
             min-height:0;
             margin:2px 4px 6px;
@@ -3487,13 +3502,22 @@
             border-radius:8px;
             background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color));
         }
+        #settings-menu .office-comfort-trigger:not([open]) .office-comfort-panel { display:none; }
         #settings-menu .office-comfort-panel:hover { background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color)); }
-        #settings-menu .office-comfort-panel[hidden] { display:none; }
-        #settings-menu .office-comfort-panel.is-open { display:grid !important; }
         .office-comfort-panel label { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; color:color-mix(in srgb, var(--text-color) 76%, transparent); font-size:11px; font-weight:700; }
         .office-comfort-panel select { min-width:84px; padding:5px 7px; border:1px solid var(--input-border); border-radius:5px; outline:none; background:var(--panel-bg); color:var(--text-color); font:inherit; font-size:11px; }
         .office-comfort-panel .office-motion-toggle { grid-template-columns:auto 1fr; padding-top:3px; cursor:pointer; }
         .office-motion-toggle input { margin:0; accent-color:var(--brand-color); }
+
+        @media (max-width:767px) {
+            #settings-menu .office-comfort-trigger > summary {
+                min-height:48px;
+                padding:0 12px;
+                border-radius:12px;
+                font-size:15px;
+            }
+            #settings-menu .office-comfort-panel { margin:2px 6px 8px; padding:10px; }
+        }
 
         body.office-mode.office-contrast-comfort {
             --bg-color:#1a1c1f;

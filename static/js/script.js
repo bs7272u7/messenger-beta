@@ -594,10 +594,9 @@
             settingsMenu.style.display = "none";
             settingsMenu.style.pointerEvents = "none";
             document.body.classList.remove("mobile-settings-open");
-            if (officeComfortPanel) {
-                officeComfortPanel.hidden = true;
-                officeComfortPanel.classList.remove("is-open");
-                officeComfortItem.classList.remove("open");
+            if (officeComfortItem) {
+                // 설정 메뉴를 닫으면 펼쳐 둔 편하게 보기 항목도 함께 접는다.
+                officeComfortItem.open = false;
             }
         }
 
@@ -628,7 +627,6 @@
         const officeModeIcon = document.querySelector("#office-mode-icon");
         const officeModeLabel = document.querySelector("#office-mode-label");
         const officeComfortItem = document.querySelector("#office-comfort-item");
-        const officeComfortPanel = document.querySelector("#office-comfort-panel");
         const officeContrastSelect = document.querySelector("#office-contrast-select");
         const officeTextSizeSelect = document.querySelector("#office-text-size-select");
         const officeDensitySelect = document.querySelector("#office-density-select");
@@ -753,15 +751,6 @@
         }
         syncOfficeModeLabel();
         applyOfficeComfortSettings();
-
-        officeComfortItem.addEventListener("click", function (event) {
-            event.stopPropagation();
-            const shouldOpen = !officeComfortPanel.classList.contains("is-open");
-            // hidden 속성만 토글하지 않고 클래스로도 상태를 관리해 모든 브라우저에서 확실히 반영한다.
-            officeComfortPanel.hidden = false;
-            officeComfortPanel.classList.toggle("is-open", shouldOpen);
-            officeComfortItem.classList.toggle("open", shouldOpen);
-        });
 
         [[officeContrastSelect, "officeContrast"], [officeTextSizeSelect, "officeTextSize"], [officeDensitySelect, "officeDensity"]].forEach(([control, key]) => {
             control.addEventListener("change", function () {

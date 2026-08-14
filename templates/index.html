@@ -42,8 +42,9 @@
     <div class="settings-menu-section-title">화면</div>
     <div id="theme-toggle-item"><i class="fa-solid fa-moon" id="theme-toggle-icon"></i><span id="theme-toggle-label">다크 모드</span></div>
     <div id="office-mode-item"><i class="fa-solid fa-briefcase" id="office-mode-icon"></i><span id="office-mode-label">오피스 모드 켜기</span></div>
-    <div id="office-comfort-item" class="office-comfort-trigger"><i class="fa-solid fa-eye"></i><span>편하게 보기</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></div>
-    <div id="office-comfort-panel" class="office-comfort-panel" hidden>
+    <details id="office-comfort-item" class="office-comfort-trigger">
+        <summary><i class="fa-solid fa-eye"></i><span>편하게 보기</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></summary>
+        <div id="office-comfort-panel" class="office-comfort-panel">
         <label>화면 대비
             <select id="office-contrast-select">
                 <option value="comfort">편안함</option>
@@ -66,7 +67,8 @@
             </select>
         </label>
         <label class="office-motion-toggle"><input id="office-reduce-motion" type="checkbox"> <span>움직임 줄이기</span></label>
-    </div>
+        </div>
+    </details>
     <div class="settings-menu-divider"></div>
     <div class="settings-menu-section-title">계정 · 알림</div>
     <div id="account-settings-item"><i class="fa-solid fa-user-gear"></i>계정 설정</div>
