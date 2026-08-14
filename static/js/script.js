@@ -645,6 +645,10 @@
 
         themeToggleItem.addEventListener("click", function (event) {
             event.stopPropagation();
+            if (document.body.classList.contains("office-mode")) {
+                showToast("오피스 모드에서는 다크/라이트 모드를 변경할 수 없습니다.");
+                return;
+            }
             closeSettingsMenu();
             document.body.classList.toggle("dark-mode");
 
@@ -660,14 +664,30 @@
         });
 
         // 오피스 모드는 기능을 바꾸지 않고, 오래 보는 업무용 시각 밀도만 차분하게 조절한다.
+        function syncThemeToggleAvailability() {
+            const officeEnabled = document.body.classList.contains("office-mode");
+            themeToggleItem.classList.toggle("disabled", officeEnabled);
+            themeToggleItem.setAttribute("aria-disabled", officeEnabled ? "true" : "false");
+            if (officeEnabled) {
+                themeToggleIcon.className = "fa-solid fa-lock";
+                themeToggleLabel.innerText = "오피스 모드에서는 화면 모드 고정";
+                return;
+            }
+            const isDark = document.body.classList.contains("dark-mode");
+            themeToggleIcon.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+            themeToggleLabel.innerText = isDark ? "라이트 모드" : "다크 모드";
+        }
+
         function syncOfficeModeLabel() {
             const enabled = document.body.classList.contains("office-mode");
             officeModeIcon.className = enabled ? "fa-solid fa-briefcase" : "fa-solid fa-briefcase";
             officeModeLabel.innerText = enabled ? "오피스 모드 끄기" : "오피스 모드 켜기";
+            syncThemeToggleAvailability();
         }
 
         if (localStorage.getItem("officeMode") === "enabled") {
             document.body.classList.add("office-mode");
+            document.body.classList.remove("dark-mode");
         }
         syncOfficeModeLabel();
 
@@ -675,6 +695,12 @@
             event.stopPropagation();
             closeSettingsMenu();
             const enabled = document.body.classList.toggle("office-mode");
+            if (enabled) {
+                // 사용자가 선택해 둔 화면 모드는 보존하고, 오피스 모드 동안만 적용을 멈춘다.
+                document.body.classList.remove("dark-mode");
+            } else if (localStorage.getItem("theme") === "dark") {
+                document.body.classList.add("dark-mode");
+            }
             localStorage.setItem("officeMode", enabled ? "enabled" : "disabled");
             syncOfficeModeLabel();
             showToast(enabled ? "오피스 모드를 적용했습니다." : "오피스 모드를 해제했습니다.");

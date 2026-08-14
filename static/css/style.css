@@ -3332,6 +3332,9 @@
 
         body.office-mode #office-mode-item { background: rgba(111, 156, 255, .12); color: #b8ceff; }
         body.office-mode #office-mode-item i { color: #8fb2ff; }
+        #theme-toggle-item.disabled { opacity: .52; cursor: not-allowed; }
+        #theme-toggle-item.disabled:hover { background: transparent; color: inherit; }
+        body.office-mode #theme-toggle-item.disabled { color:#9ea8b8; }
         /* 오피스 모드의 메뉴는 흰 배경 대신 낮은 대비의 차콜 표면을 쓴다. */
         body.office-mode .attach-menu,
         body.office-mode .message-menu,
