@@ -3914,6 +3914,22 @@ def chess_history_api():
     return jsonify([{"id": str(row["id"]), "mode": row["mode"], "status": row["status"], "result": json.loads(row["result"]) if row["result"] else None, "createdAt": row["created_at"]} for row in rows])
 
 
+@app.route("/api/chess/history/<game_id>", methods=["DELETE"])
+@login_required_api
+def chess_delete_history_api(game_id):
+    """진행 중인 대국은 보호하고, 끝난 본인 전적만 삭제한다."""
+    with get_db() as conn:
+        game = chess_game_or_404(conn, game_id)
+        user_id = session["user_id"]
+        if user_id not in {game["white_player_id"], game["black_player_id"]}:
+            return jsonify({"success": False, "error": "본인 전적만 삭제할 수 있습니다."}), 403
+        if game["status"] != "finished":
+            return jsonify({"success": False, "error": "진행 중인 게임은 삭제할 수 없습니다."}), 400
+        conn.execute("DELETE FROM chess_games WHERE id = %s", (game_id,))
+        conn.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/api/chess/games/<game_id>/move", methods=["POST"])
 @login_required_api
 def chess_move_api(game_id):

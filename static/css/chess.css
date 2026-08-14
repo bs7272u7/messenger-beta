@@ -8,6 +8,7 @@ button,input,select { font:inherit; } button { cursor:pointer; } .chess-lobby-sh
 .move-history button { width:100%; padding:3px 5px; color:inherit; text-align:left; background:transparent; border:0; border-radius:6px; }
 .move-history button:hover { background:#2b3b52; }
 .chess-history-list { display:grid; gap:8px; color:var(--chess-muted); }.chess-history-row { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-radius:10px; background:#172131; }.chess-history-row a { color:#9fc8ff; text-decoration:none; }
+.chess-history-row>div { display:flex; align-items:center; gap:8px; }.history-delete { width:28px; height:28px; border:0; border-radius:7px; color:#f3c3b9; background:#54342d; }.history-delete:hover { background:#7c4337; }
 
 /* 체스 전용: 숲속 성의 고전적인 게임 테이블. 이미지 저작권 없이 CSS 레이어로 배경을 만든다. */
 :root { --chess-bg:#152116; --chess-card:rgba(35,44,26,.91); --chess-line:#8f8054; --chess-text:#f4e9c9; --chess-muted:#c0b58f; --chess-blue:#d5b66a; --light-square:#eeeed2; --dark-square:#769656; }
@@ -39,3 +40,6 @@ body.chess-page::before { content:""; position:fixed; inset:0; pointer-events:no
     .chess-board-area { padding:8px; }
     .chess-board { border-width:8px; }
 }
+
+/* 빈 줄도 기물이 있는 줄과 정확히 같은 높이를 갖도록 8행을 명시한다. */
+.chess-board { grid-template-rows:repeat(8, minmax(0, 1fr)); }
