@@ -73,6 +73,18 @@
     <div class="settings-menu-divider"></div>
     <div class="settings-menu-section-title">계정 · 알림</div>
     <div id="account-settings-item"><i class="fa-solid fa-user-gear"></i>계정 설정</div>
+    <details id="language-setting-item" class="language-setting-item">
+        <summary><i class="fa-solid fa-language"></i><span>언어</span><span class="language-setting-current" id="language-setting-current">한국어</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></summary>
+        <div class="language-setting-panel">
+            <select id="language-select" data-language-select aria-label="언어">
+                <option value="ko">한국어</option>
+                <option value="en">English</option>
+                <option value="zh">中文</option>
+                <option value="ja">日本語</option>
+                <option value="es">español</option>
+            </select>
+        </div>
+    </details>
     <div id="notification-settings-item">
         <i class="fa-solid fa-bell"></i>
         <span>알림 설정</span>
@@ -830,7 +842,8 @@
 
 </div>
 
-    <script>const MY_USER_ID = {{ user_id }};</script>
+    <script>const MY_USER_ID = {{ user_id }}; window.CLOUD_LANGUAGE = {{ user_language|tojson }};</script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

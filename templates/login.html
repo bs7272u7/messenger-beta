@@ -362,6 +362,9 @@
             color: #1d2939;
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
         }
+        .auth-language-select { position:fixed; top:18px; right:18px; z-index:3; min-width:104px; padding:8px 10px; border:1px solid var(--border-glass); border-radius:10px; outline:none; background:rgba(28,26,61,.78); color:var(--text-primary); font:inherit; font-size:12px; backdrop-filter:blur(12px); }
+        .auth-language-select option { color:#202033; background:#fff; }
+        @media (max-width: 520px) { .auth-language-select { top:12px; right:12px; } }
 
         .recovery-modal h2 {
             margin: 0 0 8px;
@@ -445,6 +448,9 @@
     </style>
 </head>
 <body>
+    <select class="auth-language-select" data-language-select aria-label="언어">
+        <option value="ko">한국어</option><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option><option value="es">español</option>
+    </select>
 
     <div class="bubble-deco bubble-1">
         <svg viewBox="0 0 90 70" xmlns="http://www.w3.org/2000/svg">
@@ -537,6 +543,7 @@
         </div>
     </div>
 
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script>
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const originalFetch = window.fetch;
@@ -648,6 +655,7 @@
             const body = mode === "login"
                 ? { identifier: usernameInput.value.trim(), password: passwordInput.value }
                 : { password: passwordInput.value };
+            body.language = window.CloudI18n ? window.CloudI18n.getLanguage() : "ko";
 
             if (mode === "register") {
                 body.username = registerUsernameInput.value.trim();

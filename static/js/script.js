@@ -660,6 +660,8 @@
         const officeTextSizeSelect = document.querySelector("#office-text-size-select");
         const officeDensitySelect = document.querySelector("#office-density-select");
         const officeReduceMotion = document.querySelector("#office-reduce-motion");
+        const languageSelect = document.querySelector("#language-select");
+        const languageSettingCurrent = document.querySelector("#language-setting-current");
         const deleteAccountPassword = document.querySelector("#delete-account-password");
         const deleteAccountBtn = document.querySelector("#delete-account-btn");
         const profileImageInput = document.querySelector("#profile-image-input");
@@ -752,6 +754,14 @@
             officeComfortItem.hidden = false;
         }
 
+        function syncLanguageSetting() {
+            if (!window.CloudI18n || !languageSelect || !languageSettingCurrent) return;
+            const language = window.CloudI18n.getLanguage();
+            const labels = { ko: "한국어", en: "English", zh: "中文", ja: "日本語", es: "español" };
+            languageSelect.value = language;
+            languageSettingCurrent.textContent = labels[language];
+        }
+
         function syncThemeToggleAvailability() {
             const officeEnabled = document.body.classList.contains("office-mode");
             themeToggleItem.classList.toggle("disabled", officeEnabled);
@@ -780,6 +790,22 @@
         }
         syncOfficeModeLabel();
         applyOfficeComfortSettings();
+        syncLanguageSetting();
+
+        window.addEventListener("cloud-language-change", async function (event) {
+            syncLanguageSetting();
+            try {
+                const response = await fetch("/api/account/language", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ language: event.detail.language })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.error || "언어 설정을 저장하지 못했습니다.");
+            } catch (error) {
+                showToast(error.message || "언어 설정을 저장하지 못했습니다.", "error");
+            }
+        });
 
         [[officeContrastSelect, "officeContrast"], [officeTextSizeSelect, "officeTextSize"], [officeDensitySelect, "officeDensity"]].forEach(([control, key]) => {
             control.addEventListener("change", function () {
@@ -829,7 +855,7 @@
         }
 
         function showAlert(message, onClose) {
-            modalMessage.innerText = message;
+            modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
             modalCancelBtn.style.display = "none";
             modalOverlay.style.display = "flex";
 
@@ -847,7 +873,8 @@
             const toast = document.createElement("div");
             const icon = type === "success" ? "fa-circle-check" : type === "error" ? "fa-circle-exclamation" : "fa-circle-info";
             toast.className = `toast ${type}`;
-            toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${escapeHTML(message)}</span>`;
+            const localizedMessage = window.CloudI18n ? window.CloudI18n.t(message) : message;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${escapeHTML(localizedMessage)}</span>`;
             document.querySelector("#toast-region").appendChild(toast);
             setTimeout(function () {
                 toast.classList.add("out");

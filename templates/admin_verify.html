@@ -48,6 +48,7 @@
         {% endif %}
         <a class="back" href="{{ url_for('home') }}"><i class="fa-solid fa-arrow-left"></i> 메신저로 돌아가기</a>
     </main>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     {% if access_key_configured %}
     <script>
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;

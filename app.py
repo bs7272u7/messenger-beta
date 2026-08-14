@@ -74,6 +74,7 @@ ADMIN_ACCESS_KEY_HASH = os.environ.get("ADMIN_ACCESS_KEY_HASH")
 ADMIN_ACCESS_SESSION_SECONDS = 30 * 60
 ADMIN_ACCESS_MAX_FAILURES = 5
 ADMIN_ACCESS_LOCK_SECONDS = 15 * 60
+SUPPORTED_LANGUAGES = {"ko", "en", "zh", "ja", "es"}
 SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
 CHAT_FILE_MAX_BYTES = 20 * 1024 * 1024
@@ -102,6 +103,12 @@ def get_csrf_token():
     if "csrf_token" not in session:
         session["csrf_token"] = secrets.token_urlsafe(32)
     return session["csrf_token"]
+
+
+def get_interface_language():
+    """로그인 전 인증 화면도 같은 언어를 쓸 수 있도록 요청 헤더를 우선 확인한다."""
+    language = request.headers.get("X-App-Language") or session.get("language") or "ko"
+    return language if language in SUPPORTED_LANGUAGES else "ko"
 
 
 @app.context_processor
@@ -649,6 +656,8 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_until DOUBLE PRECISION NOT NULL DEFAULT 0")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspension_reason TEXT")
+        # 기기마다 언어가 달라지지 않도록 사용자 계정에 선택 언어를 함께 저장한다.
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'ko'")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 
         cur.execute("""
@@ -1041,7 +1050,7 @@ def home():
     user_id = session["user_id"]
     with get_db() as conn:
         user = conn.execute(
-            "SELECT username, display_name, profile_image, email FROM users WHERE id = %s",
+            "SELECT username, display_name, profile_image, email, language FROM users WHERE id = %s",
             (user_id,),
         ).fetchone()
 
@@ -1054,6 +1063,7 @@ def home():
 
     session["display_name"] = display_name
     session["profile_image"] = profile_image
+    session["language"] = user["language"] if user["language"] in SUPPORTED_LANGUAGES else "ko"
 
     return render_template(
         "index.html",
@@ -1061,6 +1071,7 @@ def home():
         username=display_name,
         profile_image=profile_image,
         user_email=user["email"],  
+        user_language=session["language"],
 
     )
 
@@ -1181,6 +1192,20 @@ def login_page():
 def api_logout():
     session.clear()
     return jsonify({"success": True})
+
+
+@app.route("/api/account/language", methods=["PATCH"])
+@login_required_api
+def update_account_language():
+    """화면 언어는 계정에 저장해 PC와 모바일에서 같은 선택을 유지한다."""
+    language = (request.get_json() or {}).get("language", "ko")
+    if language not in SUPPORTED_LANGUAGES:
+        return jsonify({"success": False, "error": "지원하지 않는 언어입니다."}), 400
+    with get_db() as conn:
+        conn.execute("UPDATE users SET language = %s WHERE id = %s", (language, session["user_id"]))
+        conn.commit()
+    session["language"] = language
+    return jsonify({"success": True, "language": language})
 
 
 @app.route("/api/push-config", methods=["GET"])
@@ -1654,6 +1679,7 @@ def admin_user_suspension(user_id):
 def register():
     data = request.get_json() or {}
     password = data.get("password") or ""
+    language = data.get("language") if data.get("language") in SUPPORTED_LANGUAGES else "ko"
     display_name = (data.get("display_name") or "").strip()
     username = (data.get("username") or "").strip().lower()
     email = (data.get("email") or "").strip().lower()
@@ -1689,8 +1715,8 @@ def register():
         display_name = display_name or username
 
         row = conn.execute(
-            "INSERT INTO users (username, password_hash, display_name, profile_image, email, is_admin) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email, bool(ADMIN_EMAIL and email == ADMIN_EMAIL))
+            "INSERT INTO users (username, password_hash, display_name, profile_image, email, is_admin, language) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email, bool(ADMIN_EMAIL and email == ADMIN_EMAIL), language)
         ).fetchone()
 
         user_id = row["id"]
@@ -1704,6 +1730,7 @@ def register():
     session["user_id"] = user_id
     session["username"] = username
     session["display_name"] = display_name
+    session["language"] = language
     return jsonify({"success": True})
 
 
@@ -1713,16 +1740,17 @@ def login():
     data = request.get_json() or {}
     identifier = (data.get("identifier") or "").strip()
     password = data.get("password") or ""
+    requested_language = data.get("language") if data.get("language") in SUPPORTED_LANGUAGES else None
 
     with get_db() as conn:
         if "@" in identifier:
             user = conn.execute(
-                "SELECT id, username, password_hash, display_name, profile_image, is_suspended, suspended_until, suspension_reason FROM users WHERE email = %s",
+                "SELECT id, username, password_hash, display_name, profile_image, language, is_suspended, suspended_until, suspension_reason FROM users WHERE email = %s",
                 (identifier.lower(),)
             ).fetchone()
         else:
             user = conn.execute(
-                "SELECT id, username, password_hash, display_name, profile_image, is_suspended, suspended_until, suspension_reason FROM users WHERE username = %s",
+                "SELECT id, username, password_hash, display_name, profile_image, language, is_suspended, suspended_until, suspension_reason FROM users WHERE username = %s",
                 (identifier,)
             ).fetchone()
 
@@ -1743,6 +1771,11 @@ def login():
     session["username"] = user["username"]
     session["display_name"] = user["display_name"] or user["username"]
     session["profile_image"] = user["profile_image"]
+    session["language"] = requested_language or (user["language"] if user["language"] in SUPPORTED_LANGUAGES else "ko")
+    if requested_language:
+        with get_db() as conn:
+            conn.execute("UPDATE users SET language = %s WHERE id = %s", (requested_language, user["id"]))
+            conn.commit()
     return jsonify({"success": True})
 
 
@@ -3160,12 +3193,45 @@ def delete_group_photo(conversation_id):
     return jsonify({"success": True, "profile_image": DEFAULT_PROFILE_IMAGE})
 
 
+def email_copy(kind, language, code=None, username=None):
+    """인증 관련 메일은 화면 언어와 같은 언어로 보내되, 인증 코드는 항상 눈에 띄게 유지한다."""
+    copies = {
+        "en": {
+            "verification": ("Email verification code", f"<p>Your verification code: <strong>{code}</strong></p><p>Enter it within 3 minutes.</p>"),
+            "reset": ("Cloud Chatting password reset code", f"<p>Use this code to reset your password.</p><p>Verification code: <strong>{code}</strong></p><p>Enter it within 3 minutes.</p>"),
+            "username": ("Cloud Chatting username reminder", f"<p>Here is the username you requested.</p><p>Username: <strong>{username}</strong></p>"),
+        },
+        "zh": {
+            "verification": ("邮箱验证码", f"<p>验证码：<strong>{code}</strong></p><p>请在 3 分钟内输入。</p>"),
+            "reset": ("Cloud Chatting 密码重置验证码", f"<p>这是密码重置验证码。</p><p>验证码：<strong>{code}</strong></p><p>请在 3 分钟内输入。</p>"),
+            "username": ("Cloud Chatting 用户名提醒", f"<p>这是您请求的用户名。</p><p>用户名：<strong>{username}</strong></p>"),
+        },
+        "ja": {
+            "verification": ("メール認証コード", f"<p>認証コード：<strong>{code}</strong></p><p>3分以内に入力してください。</p>"),
+            "reset": ("Cloud Chatting パスワード再設定コード", f"<p>パスワード再設定コードです。</p><p>認証コード：<strong>{code}</strong></p><p>3分以内に入力してください。</p>"),
+            "username": ("Cloud Chatting IDのお知らせ", f"<p>ご依頼のIDです。</p><p>ID：<strong>{username}</strong></p>"),
+        },
+        "es": {
+            "verification": ("Código de verificación de correo", f"<p>Tu código de verificación: <strong>{code}</strong></p><p>Introdúcelo en menos de 3 minutos.</p>"),
+            "reset": ("Código para restablecer la contraseña de Cloud Chatting", f"<p>Este es tu código para restablecer la contraseña.</p><p>Código: <strong>{code}</strong></p><p>Introdúcelo en menos de 3 minutos.</p>"),
+            "username": ("Recordatorio de usuario de Cloud Chatting", f"<p>Este es el usuario solicitado.</p><p>Usuario: <strong>{username}</strong></p>"),
+        },
+        "ko": {
+            "verification": ("이메일 인증 코드", f"<p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>"),
+            "reset": ("클라우드 채팅 비밀번호 재설정 코드", f"<p>비밀번호 재설정 코드입니다.</p><p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>"),
+            "username": ("클라우드 채팅 아이디 안내", f"<p>요청하신 아이디 안내입니다.</p><p>아이디: <strong>{username}</strong></p>"),
+        },
+    }
+    return copies.get(language, copies["ko"])[kind]
+
+
 def send_verification_email(email, code):
+    subject, html = email_copy("verification", get_interface_language(), code=code)
     resend.Emails.send({
         "from": get_resend_sender(),
         "to": email,
-        "subject": "이메일 인증 코드",
-        "html": f"<p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>",
+        "subject": subject,
+        "html": html,
     })
 
 
@@ -3178,15 +3244,12 @@ def get_resend_sender():
 
 
 def send_password_reset_email(email, code):
+    subject, html = email_copy("reset", get_interface_language(), code=code)
     resend.Emails.send({
         "from": get_resend_sender(),
         "to": email,
-        "subject": "클라우드 채팅 비밀번호 재설정 코드",
-        "html": (
-            "<p>비밀번호 재설정 코드입니다.</p>"
-            f"<p>인증 코드: <strong>{code}</strong></p>"
-            "<p>3분 이내에 입력해주세요.</p>"
-        ),
+        "subject": subject,
+        "html": html,
     })
 
 @app.route("/api/password-reset/send-code", methods=["POST"])
@@ -3318,14 +3381,12 @@ def confirm_password_reset():
     return jsonify({"success": True})
 
 def send_username_reminder_email(email, username):
+    subject, html = email_copy("username", get_interface_language(), username=username)
     resend.Emails.send({
         "from": get_resend_sender(),
         "to": email,
-        "subject": "클라우드 채팅 아이디 안내",
-        "html": (
-            "<p>요청하신 아이디 안내입니다.</p>"
-            f"<p>아이디: <strong>{username}</strong></p>"
-        ),
+        "subject": subject,
+        "html": html,
     })
 
 @app.route("/api/find-username", methods=["POST"])

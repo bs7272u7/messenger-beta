@@ -1585,6 +1585,19 @@
         }
         #settings-menu .settings-menu-divider:hover { background: var(--border-color); }
 
+        /* 언어는 전역 설정이라 계정·알림 영역에서 바로 바꾸고, 모바일에서도 같은 구조로 펼쳐진다. */
+        #settings-menu .language-setting-item { margin:0; }
+        #settings-menu .language-setting-item > summary {
+            display:flex; align-items:center; gap:10px; min-height:39px; padding:0 11px;
+            border-radius:9px; cursor:pointer; color:var(--text-color); font-size:13px; list-style:none;
+        }
+        #settings-menu .language-setting-item > summary::-webkit-details-marker { display:none; }
+        #settings-menu .language-setting-item > summary:hover { background:var(--friend-hover); }
+        #settings-menu .language-setting-item[open] .office-comfort-chevron { transform:rotate(180deg); }
+        .language-setting-current { margin-left:auto; color:color-mix(in srgb, var(--text-color) 58%, transparent); font-size:11px; }
+        .language-setting-panel { padding:4px 10px 9px; }
+        .language-setting-panel select { width:100%; min-height:34px; padding:0 9px; border:1px solid var(--input-border); border-radius:8px; outline:none; background:var(--panel-bg); color:var(--text-color); font:inherit; font-size:12px; }
+
         .reaction-picker {
             position: absolute;
             display: none;
@@ -3594,6 +3607,8 @@
                 font-size:15px;
             }
             #settings-menu .office-comfort-panel { margin:2px 6px 8px; padding:10px; }
+            #settings-menu .language-setting-item > summary { min-height:48px; padding:0 12px; border-radius:12px; font-size:15px; }
+            #settings-menu .language-setting-panel { display:block; min-height:0; padding:3px 12px 10px; }
         }
 
         body.office-mode.office-contrast-comfort {
