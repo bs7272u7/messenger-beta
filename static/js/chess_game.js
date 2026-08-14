@@ -83,7 +83,7 @@
         document.querySelector("#white-name").textContent = game.white.name;
         document.querySelector("#black-name").textContent = game.black.name;
         document.querySelector("#white-rating").textContent = `RATING ${game.white.rating ?? 1200}`;
-        document.querySelector("#black-rating").textContent = game.black.rating == null ? "AI" : `RATING ${game.black.rating}`;
+        document.querySelector("#black-rating").textContent = game.mode === "ai" ? "AI" : game.status === "waiting" ? "상대 입장 대기" : `RATING ${game.black.rating ?? 1200}`;
         document.querySelector("#white-clock").textContent = displayClock(game.whiteRemainingMs, "w");
         document.querySelector("#black-clock").textContent = displayClock(game.blackRemainingMs, "b");
         document.querySelector("#white-captured").textContent = (game.captured?.black || []).map(piece => pieceGlyph[piece]).join(" ");
@@ -147,7 +147,8 @@
         inviteFriends.textContent = "친구 목록을 불러오는 중…";
         try {
             const response = await fetch(`/api/chess/games/${gameId}/inviteable-friends`);
-            const data = await response.json();
+            const contentType = response.headers.get("content-type") || "";
+            const data = contentType.includes("application/json") ? await response.json() : {success:false, error:"초대 목록을 불러오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해주세요."};
             if (!response.ok || !data.success) throw new Error(data.error || "친구 목록을 불러오지 못했습니다.");
             inviteFriends.innerHTML = "";
             if (!data.friends.length) { inviteFriends.textContent = "초대할 친구가 없습니다."; return; }
@@ -160,7 +161,8 @@
                 button.addEventListener("click", async () => {
                     button.disabled = true;
                     const response = await fetch(`/api/chess/games/${gameId}/invites`, {method:"POST", headers:{"Content-Type":"application/json", "X-CSRF-Token":csrf}, body:JSON.stringify({userId:friend.id})});
-                    const data = await response.json();
+                    const contentType = response.headers.get("content-type") || "";
+                    const data = contentType.includes("application/json") ? await response.json() : {success:false, error:"초대를 보내지 못했습니다. 잠시 후 다시 시도해주세요."};
                     if (!response.ok || !data.success) { button.disabled = false; return alert(data.error || "초대를 보내지 못했습니다."); }
                     button.innerHTML = `<span>초대를 보냈습니다</span><i class="fa-solid fa-check"></i>`;
                 });

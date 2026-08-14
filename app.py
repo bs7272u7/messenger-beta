@@ -3959,14 +3959,16 @@ def chess_accept_invite_page(invite_id):
 def chess_invitable_friends(conn, user_id):
     """1:1 채팅방으로 연결된 친구만 체스 대국 초대 대상으로 반환한다."""
     return conn.execute("""
-        SELECT DISTINCT users.id, users.display_name, users.username, users.profile_image, conversations.id AS conversation_id
+        SELECT DISTINCT users.id, users.display_name, users.username, users.profile_image, conversations.id AS conversation_id,
+               COALESCE(users.display_name, users.username) AS sort_name
         FROM conversations
         JOIN conversation_members mine ON mine.conversation_id = conversations.id AND mine.user_id = %s
         JOIN conversation_members peer_member ON peer_member.conversation_id = conversations.id AND peer_member.user_id != %s
         JOIN users ON users.id = peer_member.user_id
         WHERE conversations.is_group = FALSE
           AND NOT EXISTS (SELECT 1 FROM blocks WHERE (blocker_id = %s AND blocked_id = users.id) OR (blocker_id = users.id AND blocked_id = %s))
-        ORDER BY COALESCE(users.display_name, users.username)
+        -- PostgreSQL의 DISTINCT 정렬 규칙을 지켜 초대 목록 API가 HTML 오류 페이지로 떨어지지 않게 한다.
+        ORDER BY sort_name
     """, (user_id, user_id, user_id, user_id)).fetchall()
 
 
@@ -4058,7 +4060,7 @@ def chess_history_api():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT id, mode, result, status, created_at FROM chess_games
-            WHERE white_player_id = %s OR black_player_id = %s
+            WHERE status = 'finished' AND (white_player_id = %s OR black_player_id = %s)
             ORDER BY created_at DESC LIMIT 20
         """, (session["user_id"], session["user_id"])).fetchall()
     return jsonify([{"id": str(row["id"]), "mode": row["mode"], "status": row["status"], "result": json.loads(row["result"]) if row["result"] else None, "createdAt": row["created_at"]} for row in rows])
