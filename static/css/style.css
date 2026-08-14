@@ -1130,9 +1130,10 @@
             overflow: hidden;
             text-align: left;
         }
-        .profile-editor-header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px 15px; border-bottom:1px solid var(--border-color); }
+        .profile-editor-header { position:relative; display:flex; align-items:center; justify-content:center; padding:18px 56px 15px; border-bottom:1px solid var(--border-color); text-align:center; }
         .profile-editor-header span { display:block; margin-bottom:3px; color:var(--brand-color); font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
         .profile-editor-header h2 { margin:0; color:var(--text-color); font-size:19px; letter-spacing:-.03em; }
+        .profile-editor-header .settings-modal-close { position:absolute; right:22px; top:50%; transform:translateY(-50%); }
         .profile-editor-visual { position:relative; padding-bottom:43px; }
         .profile-editor-modal .profile-cover-preview {
             position:relative;
@@ -1154,14 +1155,14 @@
         .profile-avatar-camera { position:absolute; right:-3px; bottom:1px; display:grid; width:30px; height:30px; border:3px solid var(--panel-bg); border-radius:50%; place-items:center; background:var(--brand-color); color:#fff; font-size:11px; cursor:pointer; box-shadow:0 4px 10px rgba(15,23,42,.18); }
         .profile-editor-body { display:grid; gap:15px; padding:19px 22px 18px; }
         .profile-editor-identity { display:grid; gap:7px; }
-        .profile-editor-identity label { color:color-mix(in srgb, var(--text-color) 78%, transparent); font-size:12px; font-weight:750; }
+        .profile-editor-identity label { color:color-mix(in srgb, var(--text-color) 78%, transparent); font-size:12px; font-weight:750; text-align:center; }
         .profile-editor-identity label small { float:right; color:color-mix(in srgb, var(--text-color) 50%, transparent); font-size:11px; font-weight:500; }
         .profile-editor-modal .settings-input { width:100%; min-height:42px; margin:0; box-sizing:border-box; border-radius:10px; }
         .profile-editor-modal textarea.settings-input { min-height:76px; resize:vertical; }
         .profile-editor-tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding-top:1px; }
         .profile-editor-tools button { min-height:36px; border:1px solid var(--input-border); border-radius:9px; background:transparent; color:color-mix(in srgb, var(--text-color) 72%, transparent); font-size:11px; font-weight:700; cursor:pointer; }
         .profile-editor-tools button:hover { border-color:#d87575; color:#cf5858; background:color-mix(in srgb, #e05252 8%, transparent); }
-        .profile-editor-footer { display:flex; justify-content:flex-end; gap:9px; padding:14px 22px 18px; border-top:1px solid var(--border-color); background:color-mix(in srgb, var(--panel-bg) 94%, var(--brand-color)); }
+        .profile-editor-footer { display:flex; justify-content:center; gap:9px; padding:14px 22px 18px; border-top:1px solid var(--border-color); background:color-mix(in srgb, var(--panel-bg) 94%, var(--brand-color)); }
         .profile-editor-footer button { min-width:88px; min-height:39px; border:1px solid var(--input-border); border-radius:10px; background:var(--panel-bg); color:var(--text-color); font-size:13px; font-weight:750; cursor:pointer; }
         .profile-editor-footer .modal-confirm { border:0; background:linear-gradient(135deg, var(--brand-color), color-mix(in srgb, var(--brand-color) 76%, #8ac6ff)); color:#fff; box-shadow:0 7px 16px color-mix(in srgb, var(--brand-color) 28%, transparent); }
         body.dark-mode .profile-editor-modal .profile-cover-preview { background:linear-gradient(135deg, #273b6c, #40649a); }
