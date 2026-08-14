@@ -61,12 +61,9 @@
 
         function formatNowTime() {
             const now = new Date();
-            let hour = now.getHours();
-            const minute = String(now.getMinutes()).padStart(2, "0");
-            const period = hour >= 12 ? "오후" : "오전";
-            hour = hour % 12;
-            if (hour === 0) hour = 12;
-            return `${period} ${hour}:${minute}`;
+            const language = window.CloudI18n ? window.CloudI18n.getLanguage() : "ko";
+            const locale = { ko: "ko-KR", en: "en-US", zh: "zh-CN", ja: "ja-JP", es: "es-ES" }[language] || "ko-KR";
+            return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(now);
         }
 
         function todayDate() {
@@ -130,7 +127,10 @@
             profileCardCover.style.backgroundImage = friend.peerCoverImage ? `url("${friend.peerCoverImage}")` : "";
             profileCardName.textContent = friend.name;
             profileCardBio.textContent = friend.peerBio || "소개글이 없습니다.";
-            profileCardPresence.textContent = friend.isOnline ? "● 온라인" : "● 오프라인";
+            const i18n = window.CloudI18n;
+            profileCardPresence.textContent = friend.isOnline
+                ? `● ${i18n ? i18n.t("온라인") : "온라인"}`
+                : `● ${i18n ? i18n.t("오프라인") : "오프라인"}`;
             profileCardOverlay.style.display = "flex";
         }
 
