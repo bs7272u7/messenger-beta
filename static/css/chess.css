@@ -42,4 +42,11 @@ body.chess-page::before { content:""; position:fixed; inset:0; pointer-events:no
 }
 
 /* 빈 줄도 기물이 있는 줄과 정확히 같은 높이를 갖도록 8행을 명시한다. */
-.chess-board { grid-template-rows:repeat(8, minmax(0, 1fr)); }
+.chess-board {
+    /* 국제 체스판은 항상 8×8=64칸이다. 행·열·각 칸을 모두 명시해 화면 폭과 무관하게 정사각형을 유지한다. */
+    width:100%;
+    min-width:0;
+    grid-template-columns:repeat(8, minmax(0, 1fr));
+    grid-template-rows:repeat(8, minmax(0, 1fr));
+}
+.chess-square { min-width:0; min-height:0; aspect-ratio:1 / 1; }
