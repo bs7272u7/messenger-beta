@@ -579,6 +579,10 @@
             settingsMenu.style.display = "none";
             settingsMenu.style.pointerEvents = "none";
             document.body.classList.remove("mobile-settings-open");
+            if (officeComfortPanel) {
+                officeComfortPanel.hidden = true;
+                officeComfortItem.classList.remove("open");
+            }
         }
 
         function openSettingsMenu(anchor) {
@@ -607,6 +611,12 @@
         const officeModeItem = document.querySelector("#office-mode-item");
         const officeModeIcon = document.querySelector("#office-mode-icon");
         const officeModeLabel = document.querySelector("#office-mode-label");
+        const officeComfortItem = document.querySelector("#office-comfort-item");
+        const officeComfortPanel = document.querySelector("#office-comfort-panel");
+        const officeContrastSelect = document.querySelector("#office-contrast-select");
+        const officeTextSizeSelect = document.querySelector("#office-text-size-select");
+        const officeDensitySelect = document.querySelector("#office-density-select");
+        const officeReduceMotion = document.querySelector("#office-reduce-motion");
         const deleteAccountPassword = document.querySelector("#delete-account-password");
         const deleteAccountBtn = document.querySelector("#delete-account-btn");
         const profileImageInput = document.querySelector("#profile-image-input");
@@ -672,6 +682,37 @@
         });
 
         // 오피스 모드는 기능을 바꾸지 않고, 오래 보는 업무용 시각 밀도만 차분하게 조절한다.
+        function getOfficeComfortSettings() {
+            return {
+                contrast: localStorage.getItem("officeContrast") || "comfort",
+                textSize: localStorage.getItem("officeTextSize") || "medium",
+                density: localStorage.getItem("officeDensity") || "comfortable",
+                reduceMotion: localStorage.getItem("officeReduceMotion") === "true"
+                    || (localStorage.getItem("officeReduceMotion") === null && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+            };
+        }
+
+        function applyOfficeComfortSettings() {
+            const settings = getOfficeComfortSettings();
+            ["comfort", "standard", "high"].forEach(value => document.body.classList.toggle(`office-contrast-${value}`, settings.contrast === value));
+            ["small", "medium", "large"].forEach(value => document.body.classList.toggle(`office-text-${value}`, settings.textSize === value));
+            ["comfortable", "normal", "compact"].forEach(value => document.body.classList.toggle(`office-density-${value}`, settings.density === value));
+            document.body.classList.toggle("office-reduce-motion", settings.reduceMotion);
+            officeContrastSelect.value = settings.contrast;
+            officeTextSizeSelect.value = settings.textSize;
+            officeDensitySelect.value = settings.density;
+            officeReduceMotion.checked = settings.reduceMotion;
+        }
+
+        function syncOfficeComfortVisibility() {
+            const enabled = document.body.classList.contains("office-mode");
+            officeComfortItem.hidden = !enabled;
+            if (!enabled) {
+                officeComfortPanel.hidden = true;
+                officeComfortItem.classList.remove("open");
+            }
+        }
+
         function syncThemeToggleAvailability() {
             const officeEnabled = document.body.classList.contains("office-mode");
             themeToggleItem.classList.toggle("disabled", officeEnabled);
@@ -691,6 +732,7 @@
             officeModeIcon.className = enabled ? "fa-solid fa-briefcase" : "fa-solid fa-briefcase";
             officeModeLabel.innerText = enabled ? "오피스 모드 끄기" : "오피스 모드 켜기";
             syncThemeToggleAvailability();
+            syncOfficeComfortVisibility();
         }
 
         if (localStorage.getItem("officeMode") === "enabled") {
@@ -698,6 +740,24 @@
             document.body.classList.remove("dark-mode");
         }
         syncOfficeModeLabel();
+        applyOfficeComfortSettings();
+
+        officeComfortItem.addEventListener("click", function (event) {
+            event.stopPropagation();
+            officeComfortPanel.hidden = !officeComfortPanel.hidden;
+            officeComfortItem.classList.toggle("open", !officeComfortPanel.hidden);
+        });
+
+        [[officeContrastSelect, "officeContrast"], [officeTextSizeSelect, "officeTextSize"], [officeDensitySelect, "officeDensity"]].forEach(([control, key]) => {
+            control.addEventListener("change", function () {
+                localStorage.setItem(key, control.value);
+                applyOfficeComfortSettings();
+            });
+        });
+        officeReduceMotion.addEventListener("change", function () {
+            localStorage.setItem("officeReduceMotion", String(officeReduceMotion.checked));
+            applyOfficeComfortSettings();
+        });
 
         officeModeItem.addEventListener("click", function (event) {
             event.stopPropagation();

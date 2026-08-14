@@ -3392,6 +3392,74 @@
             filter: grayscale(.82) saturate(.45) brightness(1.12);
         }
 
+        /* 오피스 모드 전용 개인 설정: 화면 자극은 줄이고, 읽기 대비는 사용자가 조절한다. */
+        .office-comfort-trigger .office-comfort-chevron { margin-left:auto; font-size:11px; transition:transform .16s ease; }
+        .office-comfort-trigger.open .office-comfort-chevron { transform:rotate(180deg); }
+        #settings-menu .office-comfort-panel {
+            display:grid;
+            gap:8px;
+            min-height:0;
+            margin:2px 4px 6px;
+            padding:9px;
+            border:1px solid var(--border-color);
+            border-radius:8px;
+            background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color));
+        }
+        #settings-menu .office-comfort-panel:hover { background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color)); }
+        #settings-menu .office-comfort-panel[hidden] { display:none; }
+        .office-comfort-panel label { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; color:color-mix(in srgb, var(--text-color) 76%, transparent); font-size:11px; font-weight:700; }
+        .office-comfort-panel select { min-width:84px; padding:5px 7px; border:1px solid var(--input-border); border-radius:5px; outline:none; background:var(--panel-bg); color:var(--text-color); font:inherit; font-size:11px; }
+        .office-comfort-panel .office-motion-toggle { grid-template-columns:auto 1fr; padding-top:3px; cursor:pointer; }
+        .office-motion-toggle input { margin:0; accent-color:var(--brand-color); }
+
+        body.office-mode.office-contrast-comfort {
+            --bg-color:#1a1c1f;
+            --panel-bg:#23262a;
+            --chat-bg:#1d1f22;
+            --text-color:#e1e5e9;
+            --message-left-bg:#2a2d31;
+            --bubble-bg:#2d4b65;
+            --brand-color:#789fce;
+            --brand-hover:#91b4df;
+        }
+        body.office-mode.office-contrast-comfort .messages-wrap { background:linear-gradient(145deg, #202226, #1b1d20); }
+        body.office-mode.office-contrast-comfort .bubble { background:linear-gradient(135deg, #365672, #2c4962); }
+        body.office-mode.office-contrast-standard { --text-color:#e8eaed; --message-left-bg:#2b2d31; --bubble-bg:#315473; --brand-color:#7ca8df; }
+        body.office-mode.office-contrast-high { --text-color:#f5f7fa; --message-left-bg:#303338; --bubble-bg:#385e82; --brand-color:#9fc4ff; --input-border:#616873; }
+        body.office-mode.office-contrast-high .time,
+        body.office-mode.office-contrast-high .friend-last-message,
+        body.office-mode.office-contrast-high .desktop-profile-copy span,
+        body.office-mode.office-contrast-high .empty-chat-subtitle { color:#c1c8d1; }
+
+        body.office-mode.office-text-small .bubble,
+        body.office-mode.office-text-small .message-left { font-size:15px; line-height:1.45; }
+        body.office-mode.office-text-medium .bubble,
+        body.office-mode.office-text-medium .message-left { font-size:16px; line-height:1.55; }
+        body.office-mode.office-text-large .bubble,
+        body.office-mode.office-text-large .message-left { font-size:17px; line-height:1.62; }
+        body.office-mode.office-text-small .input-area textarea { font-size:14px; }
+        body.office-mode.office-text-medium .input-area textarea { font-size:15px; }
+        body.office-mode.office-text-large .input-area textarea { font-size:16px; }
+
+        body.office-mode.office-density-comfortable .messages { padding:28px; gap:12px; }
+        body.office-mode.office-density-comfortable .message-right { margin-top:18px; }
+        body.office-mode.office-density-comfortable .message-left,
+        body.office-mode.office-density-comfortable .bubble { padding:15px 20px; }
+        body.office-mode.office-density-normal .messages { padding:25px; gap:8px; }
+        body.office-mode.office-density-compact .messages { padding:19px 21px; gap:5px; }
+        body.office-mode.office-density-compact .message-right { margin-top:9px; }
+        body.office-mode.office-density-compact .message-left,
+        body.office-mode.office-density-compact .bubble { padding:10px 15px; }
+
+        body.office-mode.office-reduce-motion *,
+        body.office-mode.office-reduce-motion *::before,
+        body.office-mode.office-reduce-motion *::after {
+            animation-duration:.01ms !important;
+            animation-iteration-count:1 !important;
+            scroll-behavior:auto !important;
+            transition-duration:.01ms !important;
+        }
+
         @media (max-width: 767px) {
             body.office-mode .friend-list,
             body.office-mode .chat { border-radius: 0; }

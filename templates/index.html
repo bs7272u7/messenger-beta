@@ -42,6 +42,31 @@
     <div class="settings-menu-section-title">화면</div>
     <div id="theme-toggle-item"><i class="fa-solid fa-moon" id="theme-toggle-icon"></i><span id="theme-toggle-label">다크 모드</span></div>
     <div id="office-mode-item"><i class="fa-solid fa-briefcase" id="office-mode-icon"></i><span id="office-mode-label">오피스 모드 켜기</span></div>
+    <div id="office-comfort-item" class="office-comfort-trigger" hidden><i class="fa-solid fa-eye"></i><span>눈 편안함 설정</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></div>
+    <div id="office-comfort-panel" class="office-comfort-panel" hidden>
+        <label>화면 대비
+            <select id="office-contrast-select">
+                <option value="comfort">편안함</option>
+                <option value="standard">기본</option>
+                <option value="high">고대비</option>
+            </select>
+        </label>
+        <label>글자 크기
+            <select id="office-text-size-select">
+                <option value="small">작게</option>
+                <option value="medium">기본</option>
+                <option value="large">크게</option>
+            </select>
+        </label>
+        <label>채팅 밀도
+            <select id="office-density-select">
+                <option value="comfortable">여유롭게</option>
+                <option value="normal">기본</option>
+                <option value="compact">촘촘하게</option>
+            </select>
+        </label>
+        <label class="office-motion-toggle"><input id="office-reduce-motion" type="checkbox"> <span>움직임 줄이기</span></label>
+    </div>
     <div class="settings-menu-divider"></div>
     <div class="settings-menu-section-title">계정 · 알림</div>
     <div id="account-settings-item"><i class="fa-solid fa-user-gear"></i>계정 설정</div>
