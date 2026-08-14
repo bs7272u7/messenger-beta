@@ -495,6 +495,17 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="moderation-warning-overlay">
+        <section class="modal-box moderation-warning-modal" role="dialog" aria-modal="true" aria-labelledby="moderation-warning-title">
+            <div class="moderation-warning-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <p class="moderation-warning-eyebrow">CLOUD CHATTING 운영 안내</p>
+            <h2 id="moderation-warning-title">운영 경고가 도착했습니다</h2>
+            <p class="moderation-warning-description">서비스 운영 정책 위반으로 경고가 기록되었습니다. 내용을 확인하고 안전한 이용을 부탁드립니다.</p>
+            <div class="moderation-warning-reason"><strong>처리 사유</strong><p id="moderation-warning-reason"></p><time id="moderation-warning-date"></time></div>
+            <button type="button" id="moderation-warning-acknowledge" class="settings-btn">확인했습니다</button>
+        </section>
+    </div>
+
     <div class="modal-overlay" id="new-group-overlay">
         <div class="modal-box" style="text-align: left;">
             <div class="modal-message" style="text-align: center;">새 그룹 만들기</div>
@@ -690,6 +701,14 @@
                         </div>
                         <p>답변을 확인하고, 답변 전 문의는 수정하거나 삭제할 수 있습니다.</p>
                         <div id="support-inquiry-history" class="support-inquiry-history"><p class="support-history-empty">문의 내역을 불러오는 중입니다.</p></div>
+                    </div>
+                    <div class="support-card">
+                        <div class="support-card-title">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <span>운영 안내</span>
+                        </div>
+                        <p>운영팀에서 전달한 경고 및 이용 관련 안내를 확인할 수 있습니다.</p>
+                        <div id="moderation-warning-history" class="support-inquiry-history"><p class="support-history-empty">운영 안내를 불러오는 중입니다.</p></div>
                     </div>
                     <p class="icon-attribution">
                         테디베어 아이콘: <a href="https://icons8.com/icon/buXB36D4XW2N/teddy-bear" target="_blank" rel="noopener noreferrer">Icons8</a>

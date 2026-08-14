@@ -574,6 +574,7 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         """)
+        cur.execute("ALTER TABLE moderation_actions ADD COLUMN IF NOT EXISTS seen_at TEXT")
 
         # ADMIN_EMAIL과 일치하는 계정만 관리자 권한을 부여한다.
         # 권한은 화면이나 세션이 아닌 DB에서 다시 확인하므로 주소를 직접 입력해도 우회할 수 없다.
@@ -1207,6 +1208,48 @@ def get_my_support_inquiries():
         rows = conn.execute("""
             SELECT id, message, attachment_name, attachment_url, status, admin_reply, created_at, answered_at
             FROM support_inquiries WHERE user_id = %s ORDER BY id DESC
+        """, (session["user_id"],)).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/moderation/warnings", methods=["GET"])
+@login_required_api
+def get_unread_moderation_warnings():
+    """경고는 다음 로그인 때 한 번 확인시키고, 확인 전 기록만 전달한다."""
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, reason, created_at
+            FROM moderation_actions
+            WHERE target_user_id = %s AND action = 'warning' AND seen_at IS NULL
+            ORDER BY id ASC
+        """, (session["user_id"],)).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/moderation/warnings/<int:warning_id>/acknowledge", methods=["POST"])
+@login_required_api
+def acknowledge_moderation_warning(warning_id):
+    with get_db() as conn:
+        updated = conn.execute("""
+            UPDATE moderation_actions SET seen_at = %s
+            WHERE id = %s AND target_user_id = %s AND action = 'warning' AND seen_at IS NULL
+            RETURNING id
+        """, (now_str(), warning_id, session["user_id"])).fetchone()
+        conn.commit()
+    if not updated:
+        return jsonify({"success": False, "error": "확인할 운영 경고를 찾을 수 없습니다."}), 404
+    return jsonify({"success": True})
+
+
+@app.route("/api/moderation/warnings/history", methods=["GET"])
+@login_required_api
+def get_moderation_warning_history():
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT reason, created_at, seen_at
+            FROM moderation_actions
+            WHERE target_user_id = %s AND action = 'warning'
+            ORDER BY id DESC
         """, (session["user_id"],)).fetchall()
     return jsonify([dict(row) for row in rows])
 

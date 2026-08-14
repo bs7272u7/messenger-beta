@@ -429,6 +429,11 @@
         const supportInquiryResult = document.querySelector("#support-inquiry-result");
         const supportInquirySubmitBtn = document.querySelector("#support-inquiry-submit-btn");
         const supportInquiryHistory = document.querySelector("#support-inquiry-history");
+        const moderationWarningOverlay = document.querySelector("#moderation-warning-overlay");
+        const moderationWarningReason = document.querySelector("#moderation-warning-reason");
+        const moderationWarningDate = document.querySelector("#moderation-warning-date");
+        const moderationWarningAcknowledge = document.querySelector("#moderation-warning-acknowledge");
+        const moderationWarningHistory = document.querySelector("#moderation-warning-history");
         const reviewRating = document.querySelector("#review-rating");
         const reviewContent = document.querySelector("#review-content");
         const reviewSubmitBtn = document.querySelector("#review-submit-btn");
@@ -2753,6 +2758,63 @@ async function loadSupportInquiryHistory() {
     }
 }
 
+let unreadModerationWarnings = [];
+
+function showNextModerationWarning() {
+    const warning = unreadModerationWarnings[0];
+    if (!warning) {
+        moderationWarningOverlay.style.display = "none";
+        return;
+    }
+    moderationWarningReason.textContent = warning.reason || "운영 정책 위반";
+    moderationWarningDate.textContent = `처리 일시 · ${(warning.created_at || "").slice(0, 16)}`;
+    moderationWarningAcknowledge.textContent = unreadModerationWarnings.length > 1
+        ? `확인했습니다 (${unreadModerationWarnings.length})`
+        : "확인했습니다";
+    moderationWarningOverlay.style.display = "flex";
+}
+
+async function loadUnreadModerationWarnings() {
+    try {
+        const response = await fetch("/api/moderation/warnings");
+        if (!response.ok) return;
+        unreadModerationWarnings = await response.json();
+        showNextModerationWarning();
+    } catch (error) {
+        // 경고 안내 조회 실패가 채팅 화면 사용을 막으면 안 된다.
+    }
+}
+
+async function loadModerationWarningHistory() {
+    try {
+        const response = await fetch("/api/moderation/warnings/history");
+        const warnings = await response.json();
+        if (!response.ok) throw new Error("운영 안내를 불러오지 못했습니다.");
+        moderationWarningHistory.innerHTML = warnings.length ? warnings.map(function (warning) {
+            return `<article class="support-history-item moderation-history-item"><div class="support-history-head"><strong><i class="fa-solid fa-triangle-exclamation"></i> 운영 경고</strong><span>${escapeHTML((warning.created_at || "").slice(0, 16))}</span></div><p>${escapeHTML(warning.reason || "운영 정책 위반")}</p></article>`;
+        }).join("") : '<p class="support-history-empty">받은 운영 안내가 없습니다.</p>';
+    } catch (error) {
+        moderationWarningHistory.innerHTML = '<p class="support-history-empty">운영 안내를 불러오지 못했습니다.</p>';
+    }
+}
+
+moderationWarningAcknowledge.addEventListener("click", async function () {
+    const warning = unreadModerationWarnings[0];
+    if (!warning) return;
+    moderationWarningAcknowledge.disabled = true;
+    try {
+        const response = await fetch(`/api/moderation/warnings/${warning.id}/acknowledge`, { method: "POST" });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "경고 확인 처리에 실패했습니다.");
+        unreadModerationWarnings.shift();
+        showNextModerationWarning();
+    } catch (error) {
+        showToast(error.message || "경고 확인 처리에 실패했습니다.", "error");
+    } finally {
+        moderationWarningAcknowledge.disabled = false;
+    }
+});
+
 supportInquiryHistory.addEventListener("click", async function (event) {
     const editId = event.target.dataset.editInquiry;
     const deleteId = event.target.dataset.deleteInquiry;
@@ -2997,6 +3059,7 @@ reviewSubmitBtn.addEventListener("click", async function () {
             closeSettingsMenu();
             loadPublicNotices();
             loadSupportInquiryHistory();
+            loadModerationWarningHistory();
             helpOverlay.style.display = "flex";
         });
         helpCloseBtn.addEventListener("click", function () {
@@ -3643,3 +3706,4 @@ async function sendVideo(file) {
         loadFriends().then(updateBlockState);
         loadFriendRequests();
         loadUpdateHistory();
+        loadUnreadModerationWarnings();
