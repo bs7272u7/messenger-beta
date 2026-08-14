@@ -82,11 +82,14 @@
     function renderMeta() {
         document.querySelector("#white-name").textContent = game.white.name;
         document.querySelector("#black-name").textContent = game.black.name;
+        document.querySelector("#white-rating").textContent = `RATING ${game.white.rating ?? 1200}`;
+        document.querySelector("#black-rating").textContent = game.black.rating == null ? "AI" : `RATING ${game.black.rating}`;
         document.querySelector("#white-clock").textContent = displayClock(game.whiteRemainingMs, "w");
         document.querySelector("#black-clock").textContent = displayClock(game.blackRemainingMs, "b");
         document.querySelector("#white-captured").textContent = (game.captured?.black || []).map(piece => pieceGlyph[piece]).join(" ");
         document.querySelector("#black-captured").textContent = (game.captured?.white || []).map(piece => pieceGlyph[piece]).join(" ");
         document.querySelector("#room-code").textContent = game.mode === "online" ? `초대 코드 ${game.roomCode}` : game.mode === "ai" ? "AI 대전" : "로컬 2인";
+        document.querySelector("#invite-friend-btn").hidden = !(game.mode === "online" && game.status === "waiting" && game.myColor === "w");
         const status = game.status === "waiting" ? "친구가 초대 코드로 입장하기를 기다리는 중입니다." : game.status === "active" ? (game.mode === "ai" && game.turn === "b" ? "AI가 수를 생각 중입니다…" : `${game.turn === "w" ? "백" : "흑"} 차례${game.check ? " · 체크" : ""}`) : "게임 종료";
         document.querySelector("#game-status").textContent = status;
         const history = document.querySelector("#move-history"); history.innerHTML = "";
@@ -97,12 +100,20 @@
             item.appendChild(button); history.appendChild(item);
         });
         if (game.result?.status && game.result.status !== "active") showResult(game.result);
+        renderChat(game.chatMessages || []);
     }
+    function renderChat(messages) {
+        const list = document.querySelector("#chess-chat-list"); list.innerHTML = "";
+        messages.forEach(message => { const item = document.createElement("div"); item.className = message.sender_id === game.white.id && game.myColor === "w" || message.sender_id === game.black.id && game.myColor === "b" ? "mine" : ""; item.textContent = `${message.display_name || message.username}: ${message.text}`; list.appendChild(item); });
+        list.scrollTop = list.scrollHeight;
+    }
+    function appendChat(message) { const messages = [...(game.chatMessages || []), message]; game.chatMessages = messages.slice(-40); renderChat(game.chatMessages); }
     function showResult(result) {
         const names = { checkmate:"체크메이트", stalemate:"스테일메이트", draw_50_move:"50수 무승부", draw_threefold:"동일 국면 3회 반복", draw_insufficient_material:"기물 부족 무승부", draw_agreed:"합의 무승부", resignation:"기권", timeout:"시간 초과", disconnect:"연결 끊김" };
         const winner = result.winner === "w" ? game.white.name : result.winner === "b" ? game.black.name : null;
         document.querySelector("#result-title").textContent = names[result.status] || "게임 종료";
-        document.querySelector("#result-description").textContent = winner ? `${winner}님의 승리입니다.` : "무승부로 게임이 종료되었습니다.";
+        const changes = result.ratingChanges; const changeText = changes && game.mode === "online" ? ` 레이팅 ${game.myColor === "w" ? (changes.white >= 0 ? "+" : "") + changes.white : (changes.black >= 0 ? "+" : "") + changes.black}` : "";
+        document.querySelector("#result-description").textContent = (winner ? `${winner}님의 승리입니다.` : "무승부로 게임이 종료되었습니다.") + changeText;
         document.querySelector("#game-result-modal").hidden = false;
     }
     function applyState(state) {
@@ -127,10 +138,43 @@
             alert(error.message);
         }
     });
+    const inviteModal = document.querySelector("#chess-invite-modal");
+    const inviteFriends = document.querySelector("#chess-invite-friends");
+    function closeInviteModal() { inviteModal.hidden = true; }
+    document.querySelector("#close-chess-invite").addEventListener("click", closeInviteModal);
+    document.querySelector("#invite-friend-btn").addEventListener("click", async () => {
+        inviteModal.hidden = false;
+        inviteFriends.textContent = "친구 목록을 불러오는 중…";
+        try {
+            const response = await fetch(`/api/chess/games/${gameId}/inviteable-friends`);
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || "친구 목록을 불러오지 못했습니다.");
+            inviteFriends.innerHTML = "";
+            if (!data.friends.length) { inviteFriends.textContent = "초대할 친구가 없습니다."; return; }
+            data.friends.forEach(friend => {
+                const button = document.createElement("button"); button.type = "button"; button.className = "chess-invite-friend";
+                const image = document.createElement("img"), label = document.createElement("span"), username = document.createElement("small"), icon = document.createElement("i");
+                image.src = friend.profile_image || "/static/default_profile.png"; image.alt = "";
+                label.append(document.createTextNode(friend.display_name || friend.username)); username.textContent = `@${friend.username}`; label.appendChild(username);
+                icon.className = "fa-solid fa-paper-plane"; button.append(image, label, icon);
+                button.addEventListener("click", async () => {
+                    button.disabled = true;
+                    const response = await fetch(`/api/chess/games/${gameId}/invites`, {method:"POST", headers:{"Content-Type":"application/json", "X-CSRF-Token":csrf}, body:JSON.stringify({userId:friend.id})});
+                    const data = await response.json();
+                    if (!response.ok || !data.success) { button.disabled = false; return alert(data.error || "초대를 보내지 못했습니다."); }
+                    button.innerHTML = `<span>초대를 보냈습니다</span><i class="fa-solid fa-check"></i>`;
+                });
+                inviteFriends.appendChild(button);
+            });
+        } catch (error) { inviteFriends.textContent = error.message; }
+    });
     document.querySelector("#flip-board").addEventListener("click", () => { flipped = !flipped; renderBoard(); });
     document.querySelector("#resign-btn").addEventListener("click", async () => { if (!confirm("정말 기권할까요?")) return; const response = await fetch(`/api/chess/games/${gameId}/resign`, {method:"POST", headers:{"X-CSRF-Token":csrf}}); const data = await response.json(); if (data.success) applyState(data.game); else alert(data.error); });
     document.querySelector("#draw-btn").addEventListener("click", async () => { const response = await fetch(`/api/chess/games/${gameId}/draw`, {method:"POST", headers:{"X-CSRF-Token":csrf}}); const data = await response.json(); if (data.success) applyState(data.game); else alert(data.error); });
-    if (socket) { socket.emit("room:join", {gameId}); socket.emit("game:reconnect", {gameId}); socket.on("game:state_update", applyState); socket.on("game:start", applyState); socket.on("game:timeout", loadState); socket.on("game:error", data => alert(data.error || "게임 처리 중 오류가 발생했습니다.")); }
+    document.querySelector("#chess-chat-form").addEventListener("submit", event => { event.preventDefault(); const input = document.querySelector("#chess-chat-input"), text = input.value.trim(); if (text && socket) { socket.emit("chat:message", {gameId, text}); input.value = ""; } });
+    document.querySelectorAll("#chess-emote-tray [data-emote]").forEach(button => button.addEventListener("click", () => socket?.emit("emote:send", {gameId, emote:button.dataset.emote})));
+    function showEmote(data) { const pop = document.querySelector("#chess-emote-pop"); pop.textContent = `${data.emoji} ${data.sender} · ${data.label}`; pop.hidden = false; clearTimeout(showEmote.timer); showEmote.timer = setTimeout(() => pop.hidden = true, 2400); prepareChessAudio(); if (chessAudioContext) playChessMoveSound(); }
+    if (socket) { socket.emit("room:join", {gameId}); socket.emit("game:reconnect", {gameId}); socket.on("game:state_update", applyState); socket.on("game:start", applyState); socket.on("game:timeout", loadState); socket.on("game:error", data => alert(data.error || "게임 처리 중 오류가 발생했습니다.")); socket.on("chat:message", appendChat); socket.on("emote:receive", showEmote); }
     setInterval(() => { if (game?.status === "active") { renderMeta(); } }, 500);
     setInterval(() => { if (game?.status === "active") loadState(); }, 5000);
     loadState();

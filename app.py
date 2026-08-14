@@ -774,6 +774,24 @@ def init_db():
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_games_room ON chess_games(room_code)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_moves_game ON chess_game_moves(game_id, move_number)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chess_invites (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES chess_games(id) ON DELETE CASCADE,
+                inviter_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                invitee_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                UNIQUE (game_id, invitee_id)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_invites_invitee ON chess_invites(invitee_id, status)")
+        cur.execute("ALTER TABLE chess_games ADD COLUMN IF NOT EXISTS ratings_applied BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("""CREATE TABLE IF NOT EXISTS chess_game_chat_messages (
+            id SERIAL PRIMARY KEY, game_id UUID NOT NULL REFERENCES chess_games(id) ON DELETE CASCADE,
+            sender_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text VARCHAR(200) NOT NULL, created_at TEXT NOT NULL
+        )""")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_game_chat ON chess_game_chat_messages(game_id, id)")
 
         # ADMIN_EMAIL과 일치하는 계정만 관리자 권한을 부여한다.
         # 권한은 화면이나 세션이 아닌 DB에서 다시 확인하므로 주소를 직접 입력해도 우회할 수 없다.
@@ -3762,6 +3780,7 @@ def chess_board_for_game(conn, game):
 
 def chess_game_state(conn, game, user_id=None):
     game = refresh_chess_clock(conn, game)
+    game = apply_chess_ratings(conn, game)
     board = chess_board_for_game(conn, game)
     move_rows = conn.execute("SELECT move_number, san, fen FROM chess_game_moves WHERE game_id = %s ORDER BY move_number", (game["id"],)).fetchall()
     state = board.state()
@@ -3776,7 +3795,30 @@ def chess_game_state(conn, game, user_id=None):
         "myColor": "w" if user_id == game["white_player_id"] else ("b" if user_id == game["black_player_id"] and game["mode"] != "local" else None),
         "canPlay": bool(user_id and (game["mode"] == "local" and user_id == game["white_player_id"] or user_id in {game["white_player_id"], game["black_player_id"]})),
     })
+    ratings = conn.execute("SELECT id, chess_rating FROM users WHERE id IN (%s, %s)", (game["white_player_id"], game["black_player_id"] or -1)).fetchall()
+    rating_map = {row["id"]: row["chess_rating"] for row in ratings}
+    state["white"]["rating"] = rating_map.get(game["white_player_id"], 1200)
+    state["black"]["rating"] = rating_map.get(game["black_player_id"], None) if game["black_player_id"] else None
+    chats = conn.execute("SELECT chat.sender_id, users.display_name, users.username, chat.text FROM chess_game_chat_messages chat JOIN users ON users.id = chat.sender_id WHERE chat.game_id = %s ORDER BY chat.id DESC LIMIT 40", (game["id"],)).fetchall()
+    state["chatMessages"] = [dict(row) for row in reversed(chats)]
     return state
+
+
+def apply_chess_ratings(conn, game):
+    """온라인 대국의 종료 결과만 한 번 ELO 방식으로 반영한다."""
+    if game["mode"] != "online" or game["status"] != "finished" or game["ratings_applied"] or not game["white_player_id"] or not game["black_player_id"]:
+        return game
+    result = json.loads(game["result"] or "{}")
+    if result.get("status") not in {"checkmate", "resignation", "timeout", "disconnect", "stalemate", "draw_50_move", "draw_threefold", "draw_insufficient_material", "draw_agreed"}:
+        return game
+    rows = conn.execute("SELECT id, chess_rating FROM users WHERE id IN (%s, %s)", (game["white_player_id"], game["black_player_id"])).fetchall()
+    ratings = {row["id"]: row["chess_rating"] for row in rows}; white, black = ratings[game["white_player_id"]], ratings[game["black_player_id"]]
+    expected = 1 / (1 + 10 ** ((black - white) / 400)); score = 1 if result.get("winner") == "w" else 0 if result.get("winner") == "b" else .5
+    change = round(24 * (score - expected)); result["ratingChanges"] = {"white": change, "black": -change}
+    conn.execute("UPDATE users SET chess_rating = chess_rating + %s WHERE id = %s", (change, game["white_player_id"]))
+    conn.execute("UPDATE users SET chess_rating = chess_rating - %s WHERE id = %s", (change, game["black_player_id"]))
+    conn.execute("UPDATE chess_games SET ratings_applied = TRUE, result = %s WHERE id = %s", (json.dumps(result), game["id"]))
+    return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()
 
 
 def chess_can_control_turn(game, user_id, turn):
@@ -3905,6 +3947,86 @@ def chess_lobby_page():
 @login_required_page
 def chess_game_page(game_id):
     return render_template("chess_game.html", game_id=game_id)
+
+
+@app.route("/chess/invite/<int:invite_id>")
+@login_required_page
+def chess_accept_invite_page(invite_id):
+    """채팅 메시지의 초대 링크는 수락 화면을 거쳐서만 대국에 입장한다."""
+    return render_template("chess_invite.html", invite_id=invite_id)
+
+
+def chess_invitable_friends(conn, user_id):
+    """1:1 채팅방으로 연결된 친구만 체스 대국 초대 대상으로 반환한다."""
+    return conn.execute("""
+        SELECT DISTINCT users.id, users.display_name, users.username, users.profile_image, conversations.id AS conversation_id
+        FROM conversations
+        JOIN conversation_members mine ON mine.conversation_id = conversations.id AND mine.user_id = %s
+        JOIN conversation_members peer_member ON peer_member.conversation_id = conversations.id AND peer_member.user_id != %s
+        JOIN users ON users.id = peer_member.user_id
+        WHERE conversations.is_group = FALSE
+          AND NOT EXISTS (SELECT 1 FROM blocks WHERE (blocker_id = %s AND blocked_id = users.id) OR (blocker_id = users.id AND blocked_id = %s))
+        ORDER BY COALESCE(users.display_name, users.username)
+    """, (user_id, user_id, user_id, user_id)).fetchall()
+
+
+@app.route("/api/chess/games/<game_id>/inviteable-friends")
+@login_required_api
+def chess_invitable_friends_api(game_id):
+    with get_db() as conn:
+        game = chess_game_or_404(conn, game_id)
+        if game["mode"] != "online" or game["status"] != "waiting" or game["white_player_id"] != session["user_id"]:
+            return jsonify({"success": False, "error": "대기 중인 온라인 방장만 친구를 초대할 수 있습니다."}), 403
+        friends = chess_invitable_friends(conn, session["user_id"])
+    return jsonify({"success": True, "friends": [dict(friend) for friend in friends]})
+
+
+@app.route("/api/chess/games/<game_id>/invites", methods=["POST"])
+@login_required_api
+def chess_send_invite_api(game_id):
+    invitee_id = (request.get_json() or {}).get("userId")
+    try:
+        invitee_id = int(invitee_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "초대할 친구를 선택해주세요."}), 400
+    with get_db() as conn:
+        game = chess_game_or_404(conn, game_id)
+        user_id = session["user_id"]
+        if game["mode"] != "online" or game["status"] != "waiting" or game["white_player_id"] != user_id:
+            return jsonify({"success": False, "error": "대기 중인 온라인 방장만 친구를 초대할 수 있습니다."}), 403
+        friends = {friend["id"]: friend for friend in chess_invitable_friends(conn, user_id)}
+        if invitee_id not in friends:
+            return jsonify({"success": False, "error": "친구만 초대할 수 있습니다."}), 403
+        invite = conn.execute("""
+            INSERT INTO chess_invites (game_id, inviter_id, invitee_id, status, created_at)
+            VALUES (%s, %s, %s, 'pending', %s)
+            ON CONFLICT (game_id, invitee_id) DO UPDATE SET status = 'pending', created_at = EXCLUDED.created_at
+            RETURNING id
+        """, (game_id, user_id, invitee_id, now_str())).fetchone()
+        invite_url = url_for("chess_accept_invite_page", invite_id=invite["id"], _external=True)
+        create_system_message(conn, friends[invitee_id]["conversation_id"], f"체스 대국 초대가 도착했습니다. 참여하기: {invite_url}", user_id)
+        conn.commit()
+    notify_user(invitee_id, "chess_invite", {"gameId": str(game_id), "inviteId": invite["id"]})
+    socketio.emit("conversation_updated", {"conversationId": friends[invitee_id]["conversation_id"]}, room=f"conversation_{friends[invitee_id]['conversation_id']}")
+    return jsonify({"success": True})
+
+
+@app.route("/api/chess/invites/<int:invite_id>/accept", methods=["POST"])
+@login_required_api
+def chess_accept_invite_api(invite_id):
+    with get_db() as conn:
+        invite = conn.execute("SELECT * FROM chess_invites WHERE id = %s", (invite_id,)).fetchone()
+        if not invite or invite["invitee_id"] != session["user_id"] or invite["status"] != "pending":
+            return jsonify({"success": False, "error": "유효하지 않거나 이미 처리된 체스 초대입니다."}), 404
+        game = chess_game_or_404(conn, invite["game_id"])
+        if game["mode"] != "online" or game["status"] != "waiting":
+            return jsonify({"success": False, "error": "이 체스 방은 이미 시작되었거나 종료되었습니다."}), 400
+        game = activate_chess_game(conn, game, session["user_id"])
+        conn.execute("UPDATE chess_invites SET status = CASE WHEN id = %s THEN 'accepted' ELSE 'expired' END WHERE game_id = %s AND status = 'pending'", (invite_id, game["id"]))
+        state = chess_game_state(conn, game, session["user_id"])
+        conn.commit()
+    socketio.emit("game:start", state, room=f"chess_{game['id']}")
+    return jsonify({"success": True, "game": state})
 
 
 @app.route("/api/chess/games", methods=["POST"])
@@ -4135,6 +4257,39 @@ def chess_socket_reconnect(data):
         game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, session["user_id"]); conn.commit()
     join_room(f"chess_{game['id']}")
     socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+
+
+@socketio.on("chat:message")
+def chess_socket_chat_message(data):
+    if "user_id" not in session:
+        return
+    text = (data or {}).get("text", "").strip()
+    if not text or len(text) > 200:
+        return
+    with get_db() as conn:
+        game = chess_game_or_404(conn, (data or {}).get("gameId")); user_id = session["user_id"]
+        if game["status"] != "active" or user_id not in {game["white_player_id"], game["black_player_id"]}:
+            return
+        row = conn.execute("INSERT INTO chess_game_chat_messages (game_id, sender_id, text, created_at) VALUES (%s, %s, %s, %s) RETURNING id", (game["id"], user_id, text, now_str())).fetchone()
+        user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone(); conn.commit()
+    socketio.emit("chat:message", {"id": row["id"], "sender_id": user_id, "display_name": user["display_name"], "username": user["username"], "text": text}, room=f"chess_{game['id']}")
+
+
+@socketio.on("emote:send")
+def chess_socket_emote(data):
+    if "user_id" not in session:
+        return
+    emote = (data or {}).get("emote")
+    labels = {"respect": "리스펙", "goodgame": "좋은 경기", "crown": "잘했어요", "taunt": "도발", "smirk": "도발", "laugh": "도발"}
+    emojis = {"respect": "👏", "goodgame": "🤝", "crown": "👑", "taunt": "😈", "smirk": "😏", "laugh": "😂"}
+    if emote not in emojis:
+        return
+    with get_db() as conn:
+        game = chess_game_or_404(conn, (data or {}).get("gameId")); user_id = session["user_id"]
+        if game["status"] != "active" or user_id not in {game["white_player_id"], game["black_player_id"]}:
+            return
+        user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
+    socketio.emit("emote:receive", {"emoji": emojis[emote], "label": labels[emote], "sender": user["display_name"] or user["username"]}, room=f"chess_{game['id']}")
 
 
 @socketio.on("room:leave")
