@@ -50,7 +50,7 @@
         rows.forEach(row => cols.forEach(col => {
             const square = squareFrom(row, col), piece = grid[row][col], button = document.createElement("button");
             button.className = `chess-square ${(row + col) % 2 ? "dark" : "light"}`;
-            button.dataset.square = square; button.draggable = !!piece && isMyTurn(); button.disabled = movePending;
+            button.dataset.square = square; button.draggable = !!piece && isMyTurn(); 
             if (square === selected) button.classList.add("selected");
             if (selectedTargets.includes(square)) button.classList.add("legal");
             if (lastMove && (lastMove.from === square || lastMove.to === square)) button.classList.add("last-move");

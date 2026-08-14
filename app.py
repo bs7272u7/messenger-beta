@@ -3942,7 +3942,7 @@ def submit_chess_move(conn, game, user_id, from_sq, to_sq, promotion=None):
 def play_chess_ai_reply(game_id):
     """AI가 바로 응수하지 않도록 짧은 생각 시간을 둔 뒤, 서버에서만 다음 수를 계산한다."""
     try:
-        socketio.sleep(2.3)
+        socketio.sleep(0.25)
         state = None
         with get_db() as conn:
             game = conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
