@@ -464,6 +464,11 @@
 
         .friend-name {
             font-weight: 500;
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .friend-preview {
@@ -503,12 +508,15 @@
             justify-content: space-between;
             align-items: center;
             width: 100%;
+            min-width: 0;
+            gap: 8px;
         }
 
         .friend-time {
             font-size: 11px;
             color: gray;
             flex-shrink: 0;
+            white-space: nowrap;
         }
 
         .unread-badge {
