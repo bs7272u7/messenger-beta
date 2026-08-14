@@ -51,8 +51,7 @@
             .desktop-profile-copy strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
             .desktop-profile-copy span { color: color-mix(in srgb, var(--text-color) 58%, transparent); font-size: 11px; }
             .desktop-profile-card #edit-profile-btn,
-            .desktop-quick-actions .side-nav-settings,
-            .desktop-quick-actions #chess-launch-btn {
+            .desktop-quick-actions .side-nav-settings {
                 display: inline-grid;
                 width: 34px;
                 height: 34px;
@@ -90,8 +89,7 @@
             }
             #friend-inbox-btn:hover,
             .desktop-profile-card #edit-profile-btn:hover,
-            .desktop-quick-actions .side-nav-settings:hover,
-            .desktop-quick-actions #chess-launch-btn:hover { background: var(--friend-hover); color: var(--brand-color); }
+            .desktop-quick-actions .side-nav-settings:hover { background: var(--friend-hover); color: var(--brand-color); }
 
             .friend-list-heading { display: flex; align-items: center; justify-content: space-between; padding-top: 16px; }
             .friend-list-heading h2 { margin: 0; font-size: 18px; }
@@ -588,6 +586,30 @@
 
         .chat-header h2 {
             margin: 0;
+        }
+
+        /* 채팅 헤더의 체스 진입은 다른 보조 아이콘과 같은 크기·대비로 유지한다. */
+        #chat-chess-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            color: var(--text-color);
+            opacity: .75;
+            font-size: 19px;
+            line-height: 1;
+            text-decoration: none;
+            transition: background-color .18s ease, color .18s ease, opacity .18s ease;
+        }
+
+        #chat-chess-btn:hover,
+        #chat-chess-btn:focus-visible {
+            background: color-mix(in srgb, var(--brand-color) 12%, transparent);
+            color: var(--brand-color);
+            opacity: 1;
+            outline: none;
         }
 
         .chat-header-avatar {
