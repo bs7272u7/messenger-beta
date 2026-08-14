@@ -63,3 +63,15 @@ body.chess-page::before { content:""; position:fixed; inset:0; pointer-events:no
 .chess-invite-friend img { width:34px; height:34px; border-radius:50%; object-fit:cover; }.chess-invite-friend span { flex:1; }.chess-invite-friend small { display:block; margin-top:2px; color:#c9bd99; }.chess-invite-friend > i { color:#e7c263; }
 .chess-rating { display:block; margin-top:5px; color:#ddc56f; font-size:11px; letter-spacing:.06em; }.chess-game-chat { margin-top:14px; border-top:1px solid #65734d; padding-top:10px; }.chess-chat-list { display:grid; gap:5px; min-height:76px; max-height:115px; margin:8px 0; overflow:auto; color:#e9dfc2; font-size:12px; line-height:1.35; }.chess-chat-list div { padding:5px 7px; border-radius:6px; background:#24321f; }.chess-chat-list .mine { background:#4e663a; }.chess-game-chat form { display:flex; gap:6px; }.chess-game-chat input { min-width:0; flex:1; padding:8px; border:1px solid #77865d; border-radius:7px; color:#f5edda; background:#1d2919; }.chess-game-chat form .chess-primary { padding:8px 10px; }.chess-emote-tray { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }.chess-emote-tray button { width:29px; height:29px; border:1px solid #798761; border-radius:7px; background:#2d3e25; font-size:16px; }.chess-emote-pop { position:fixed; z-index:12; top:82px; left:50%; transform:translateX(-50%); padding:12px 18px; border:1px solid #e3bd56; border-radius:12px; color:#fff4ce; background:#26361fd9; box-shadow:0 12px 28px #07100699; font-weight:700; animation:chess-emote-pop .25s ease-out; }@keyframes chess-emote-pop { from { opacity:0; transform:translate(-50%,-10px) scale(.9); } to { opacity:1; transform:translate(-50%,0) scale(1); } }
 .chess-history-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }.chess-history-heading h2 { margin-bottom:13px; }.chess-history-clear { margin-bottom:13px; border:1px solid #89604c; border-radius:7px; padding:6px 9px; color:#ffe1d2; background:#593a30; font-size:12px; }
+
+/* 플레이어 카드는 메신저의 프로필 카드처럼 누를 수 있지만, 보드 입력과는 분리한다. */
+.chess-player-trigger { width:100%; padding:0; color:inherit; background:transparent; border:0; text-align:left; }
+.chess-player-trigger:hover strong { text-decoration:underline; text-underline-offset:3px; }
+.chess-player-modal-box { position:relative; }
+#chess-player-avatar { width:76px; height:76px; border:3px solid #dbc27c; border-radius:50%; object-fit:cover; background:#e9e1c8; }
+#chess-player-username { margin-top:-6px; font-size:13px; }
+.chess-player-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:18px 0; }
+.chess-player-stats span { padding:10px 8px; border:1px solid #6c7954; border-radius:8px; color:#d9cda9; font-size:12px; }
+.chess-player-stats strong { display:block; margin-top:4px; color:#fff1c6; font-size:14px; }
+.chess-board.is-pending { opacity:.92; cursor:progress; }
+.chess-board.is-pending .chess-square { cursor:progress; }

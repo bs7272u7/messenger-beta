@@ -878,35 +878,33 @@
          * 커스텀 확인/알림 모달
          * ====================================================== */
 
+        // 하나의 확인 모달에는 항상 하나의 작업만 연결한다. 이전 취소 처리기가 남아
+        // 친구 차단/삭제 때 과거 채팅방 삭제 모달을 다시 열던 상태 충돌을 막는다.
+        let activeModalAction = null;
+        function closeAppModal(confirmed) {
+            const action = activeModalAction;
+            activeModalAction = null;
+            modalOverlay.style.display = "none";
+            if (action) action(confirmed);
+        }
+        modalConfirmBtn.addEventListener("click", function () { closeAppModal(true); });
+        modalCancelBtn.addEventListener("click", function () { closeAppModal(false); });
+        modalOverlay.addEventListener("click", function (event) {
+            if (event.target === modalOverlay) closeAppModal(false);
+        });
+
         function showConfirm(message, onConfirm) {
-            modalMessage.innerText = message;
+            activeModalAction = onConfirm;
+            modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
             modalCancelBtn.style.display = "inline-block";
             modalOverlay.style.display = "flex";
-
-            function cleanup() {
-                modalOverlay.style.display = "none";
-                modalConfirmBtn.removeEventListener("click", onOk);
-                modalCancelBtn.removeEventListener("click", onCancel);
-            }
-            function onOk() { cleanup(); onConfirm(true); }
-            function onCancel() { cleanup(); onConfirm(false); }
-
-            modalConfirmBtn.addEventListener("click", onOk);
-            modalCancelBtn.addEventListener("click", onCancel);
         }
 
         function showAlert(message, onClose) {
+            activeModalAction = function (confirmed) { if (confirmed && onClose) onClose(); };
             modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
             modalCancelBtn.style.display = "none";
             modalOverlay.style.display = "flex";
-
-            function cleanup() {
-                modalOverlay.style.display = "none";
-                modalConfirmBtn.removeEventListener("click", onOk);
-            }
-            function onOk() { cleanup(); if (onClose) onClose(); }
-
-            modalConfirmBtn.addEventListener("click", onOk);
         }
 
         // 저장·복사처럼 즉시 끝나는 작업은 화면을 막는 모달 대신 짧은 토스트로 알려준다.
@@ -1756,15 +1754,17 @@
         }
 
         async function loadFriendRequests() {
-            const response = await fetch("/api/friend-requests");
+            const [response, chessResponse] = await Promise.all([fetch("/api/friend-requests"), fetch("/api/chess/invites")]);
             const result = await response.json();
+            const chessResult = chessResponse.ok ? await chessResponse.json() : { invites: [] };
             const incoming = result.incoming || [];
             const outgoing = result.outgoing || [];
+            const chessInvites = chessResult.invites || [];
 
-            incomingRequestCount.innerText = incoming.length;
+            incomingRequestCount.innerText = incoming.length + chessInvites.length;
             outgoingRequestCount.innerText = outgoing.length;
-            friendInboxBadge.hidden = incoming.length === 0;
-            friendInboxBadge.textContent = incoming.length > 99 ? "99+" : incoming.length;
+            friendInboxBadge.hidden = incoming.length + chessInvites.length === 0;
+            friendInboxBadge.textContent = incoming.length + chessInvites.length > 99 ? "99+" : incoming.length + chessInvites.length;
 
             outgoingFriendRequestList.innerHTML = "";
 
@@ -1804,16 +1804,39 @@
                 });
             }
 
-            renderFriendRequestList(incoming);
+            renderFriendRequestList(incoming, chessInvites);
         }
 
-        function renderFriendRequestList(incoming) {
+        function renderFriendRequestList(incoming, chessInvites = []) {
             friendRequestList.innerHTML = "";
 
-            if(incoming.length === 0) {
+            if(incoming.length === 0 && chessInvites.length === 0) {
                 friendRequestList.innerHTML = `<div class="friend-request-empty">받은 요청이 없습니다.</div>`;
                 return;
             }
+
+            chessInvites.forEach(function (invite) {
+                const item = document.createElement("div");
+                item.className = "friend-request-item chess-inbox-invite";
+                item.innerHTML = `
+                    <img class="request-profile-image" src="${escapeHTML(invite.profile_image || "/static/default_profile.png")}"><span><strong><i class="fa-solid fa-chess-knight"></i> ${escapeHTML(invite.display_name || invite.username)}</strong><small>체스 대국에 초대했습니다.</small></span>
+                    <span class="accept-request-icon" title="수락"><i class="fa-solid fa-check"></i></span>
+                    <span class="decline-request-icon" title="거절"><i class="fa-solid fa-xmark"></i></span>
+                `;
+                item.querySelector(".accept-request-icon").addEventListener("click", async function () {
+                    const response = await fetch(`/api/chess/invites/${invite.id}/accept`, { method:"POST", headers:{"X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')?.content || ""} });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) return showAlert(result.error || "체스 초대를 수락하지 못했습니다.");
+                    location.href = `/chess/game/${result.game.id}`;
+                });
+                item.querySelector(".decline-request-icon").addEventListener("click", async function () {
+                    const response = await fetch(`/api/chess/invites/${invite.id}/decline`, { method:"POST", headers:{"X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')?.content || ""} });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) return showAlert(result.error || "체스 초대를 거절하지 못했습니다.");
+                    await loadFriendRequests();
+                });
+                friendRequestList.appendChild(item);
+            });
 
             incoming.forEach(function (req) {
                 const item = document.createElement("div");
@@ -3869,6 +3892,10 @@ async function sendVideo(file) {
             updateChatHeader(getCurrentFriend()); 
             readFriends();
             updateBlockState();
+        });
+        socket.on("chess_invite", async function () {
+            await loadFriendRequests();
+            showToast("메시지함에 체스 대국 초대가 도착했습니다.", "info");
         });
 
         // 친구 요청 도착/수락/거절, 차단/차단해제 — 친구 관계가 바뀔 때마다 여기로 신호가 옴

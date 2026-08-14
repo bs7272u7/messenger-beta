@@ -1,10 +1,11 @@
 (function () {
     const shell = document.querySelector(".chess-game-shell");
     const gameId = shell.dataset.gameId;
+    const currentUserId = Number(shell.dataset.currentUserId || 0);
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
     const boardElement = document.querySelector("#chess-board");
     const pieceGlyph = { P:"♙", N:"♘", B:"♗", R:"♖", Q:"♕", K:"♔", p:"♟", n:"♞", b:"♝", r:"♜", q:"♛", k:"♚" };
-    let game = null, selected = null, pendingPromotion = null, flipped = false, lastMove = null, replayFen = null, hasLoadedState = false, chessAudioContext = null;
+    let game = null, selected = null, pendingPromotion = null, flipped = false, lastMove = null, replayFen = null, hasLoadedState = false, chessAudioContext = null, movePending = false;
     const socket = window.io ? io() : null;
 
     function squareFrom(row, col) { return "abcdefgh"[col] + (8 - row); }
@@ -14,7 +15,17 @@
         return grid;
     }
     function legalTargets(from) { return (game?.legalMoves || []).filter(move => move.slice(0,2) === from).map(move => move.slice(2,4)); }
-    function isMyTurn() { return !replayFen && game && game.status === "active" && (game.mode === "local" || game.myColor === game.turn); }
+    function isMyTurn() { return !movePending && !replayFen && game && game.status === "active" && (game.mode === "local" || game.myColor === game.turn); }
+    function isMine(piece) { return game?.mode === "local" ? piece === piece.toUpperCase() : (piece === piece.toUpperCase() ? "w" : "b") === game?.myColor; }
+    function viewFlipped() { return Boolean(game?.myColor === "b") !== flipped; }
+    function viewPiece(piece) {
+        const type = piece.toLowerCase();
+        const own = isMine(piece);
+        const glyphs = own
+            ? {p:"♙", n:"♘", b:"♗", r:"♖", q:"♕", k:"♔"}
+            : {p:"♟", n:"♞", b:"♝", r:"♜", q:"♛", k:"♚"};
+        return glyphs[type];
+    }
     function prepareChessAudio() {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextClass) return;
@@ -33,18 +44,18 @@
     }
     function renderBoard() {
         if (!game) return; const grid = fenPieces(replayFen || game.fen); boardElement.innerHTML = "";
-        const rows = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
-        const cols = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
+        const rows = viewFlipped() ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
+        const cols = viewFlipped() ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
         const selectedTargets = selected ? legalTargets(selected) : [];
         rows.forEach(row => cols.forEach(col => {
             const square = squareFrom(row, col), piece = grid[row][col], button = document.createElement("button");
             button.className = `chess-square ${(row + col) % 2 ? "dark" : "light"}`;
-            button.dataset.square = square; button.draggable = !!piece && isMyTurn();
+            button.dataset.square = square; button.draggable = !!piece && isMyTurn(); button.disabled = movePending;
             if (square === selected) button.classList.add("selected");
             if (selectedTargets.includes(square)) button.classList.add("legal");
             if (lastMove && (lastMove.from === square || lastMove.to === square)) button.classList.add("last-move");
             if (game.check && piece && piece.toLowerCase() === "k" && (piece === "K" ? "w" : "b") === game.turn) button.classList.add("checked");
-            if (piece) button.innerHTML = `<span class="chess-piece ${piece === piece.toUpperCase() ? "white" : "black"}">${pieceGlyph[piece]}</span>`;
+            if (piece) button.innerHTML = `<span class="chess-piece ${isMine(piece) ? "white" : "black"}">${viewPiece(piece)}</span>`;
             button.addEventListener("click", () => selectSquare(square));
             button.addEventListener("dragstart", event => { if (!isMyTurn()) return event.preventDefault(); event.dataTransfer.setData("text/plain", square); });
             button.addEventListener("dragover", event => event.preventDefault());
@@ -66,12 +77,15 @@
         sendMove(from, to);
     }
     async function sendMove(from, to, promotion) {
+        if (movePending) return;
+        movePending = true; boardElement.classList.add("is-pending");
         try {
             prepareChessAudio();
             const response = await fetch(`/api/chess/games/${gameId}/move`, {method:"POST", headers:{"Content-Type":"application/json", "X-CSRF-Token":csrf}, body:JSON.stringify({from, to, promotion})});
             const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || "수를 둘 수 없습니다.");
             lastMove = {from, to}; selected = null; applyState(data.game);
         } catch (error) { alert(error.message); selected = null; renderBoard(); }
+        finally { movePending = false; boardElement.classList.remove("is-pending"); renderBoard(); }
     }
     function displayClock(value, turn) {
         if (value === null || value === undefined) return "∞";
@@ -80,14 +94,19 @@
         current = Math.max(0, current); return `${Math.floor(current / 60000)}:${String(Math.floor(current / 1000) % 60).padStart(2,"0")}`;
     }
     function renderMeta() {
-        document.querySelector("#white-name").textContent = game.white.name;
-        document.querySelector("#black-name").textContent = game.black.name;
-        document.querySelector("#white-rating").textContent = `RATING ${game.white.rating ?? 1200}`;
-        document.querySelector("#black-rating").textContent = game.mode === "ai" ? "AI" : game.status === "waiting" ? "상대 입장 대기" : `RATING ${game.black.rating ?? 1200}`;
-        document.querySelector("#white-clock").textContent = displayClock(game.whiteRemainingMs, "w");
-        document.querySelector("#black-clock").textContent = displayClock(game.blackRemainingMs, "b");
-        document.querySelector("#white-captured").textContent = (game.captured?.black || []).map(piece => pieceGlyph[piece]).join(" ");
-        document.querySelector("#black-captured").textContent = (game.captured?.white || []).map(piece => pieceGlyph[piece]).join(" ");
+        // 실제 서버 색상과 화면 색상을 분리한다. 양쪽 모두 자신의 진영을 백/하단으로 본다.
+        const mine = game.mode === "local" || game.myColor !== "b" ? game.white : game.black;
+        const opponent = game.mode === "local" || game.myColor !== "b" ? game.black : game.white;
+        const mineColor = game.mode === "local" || game.myColor !== "b" ? "w" : "b";
+        const opponentColor = mineColor === "w" ? "b" : "w";
+        document.querySelector("#white-name").textContent = mine.name;
+        document.querySelector("#black-name").textContent = opponent.name;
+        document.querySelector("#white-rating").textContent = mine.rating == null ? "AI" : `RATING ${mine.rating}`;
+        document.querySelector("#black-rating").textContent = opponent.rating == null ? (game.status === "waiting" ? "상대 입장 대기" : "AI") : `RATING ${opponent.rating}`;
+        document.querySelector("#white-clock").textContent = displayClock(mineColor === "w" ? game.whiteRemainingMs : game.blackRemainingMs, mineColor);
+        document.querySelector("#black-clock").textContent = displayClock(opponentColor === "w" ? game.whiteRemainingMs : game.blackRemainingMs, opponentColor);
+        document.querySelector("#white-captured").textContent = (game.captured?.[opponentColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
+        document.querySelector("#black-captured").textContent = (game.captured?.[mineColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
         document.querySelector("#room-code").textContent = game.mode === "online" ? `초대 코드 ${game.roomCode}` : game.mode === "ai" ? "AI 대전" : "로컬 2인";
         document.querySelector("#invite-friend-btn").hidden = !(game.mode === "online" && game.status === "waiting" && game.myColor === "w");
         const status = game.status === "waiting" ? "친구가 초대 코드로 입장하기를 기다리는 중입니다." : game.status === "active" ? (game.mode === "ai" && game.turn === "b" ? "AI가 수를 생각 중입니다…" : `${game.turn === "w" ? "백" : "흑"} 차례${game.check ? " · 체크" : ""}`) : "게임 종료";
@@ -119,6 +138,8 @@
     function applyState(state) {
         const previousMoveCount = game?.moves?.length || 0;
         const hasNewMove = hasLoadedState && (state.moves?.length || 0) > previousMoveCount;
+        // 방 전체로 전송된 상태라도 현재 로그인한 계정 기준으로 시점을 다시 계산한다.
+        if (state.mode !== "local") state.myColor = Number(state.white?.id) === currentUserId ? "w" : Number(state.black?.id) === currentUserId ? "b" : null;
         game = state; replayFen = null; renderBoard(); renderMeta();
         if (hasNewMove) playChessMoveSound();
         hasLoadedState = true;
@@ -169,6 +190,38 @@
                 inviteFriends.appendChild(button);
             });
         } catch (error) { inviteFriends.textContent = error.message; }
+    });
+    const playerModal = document.querySelector("#chess-player-modal");
+    let inspectedPlayer = null;
+    function closePlayerModal() { playerModal.hidden = true; inspectedPlayer = null; }
+    document.querySelector("#close-chess-player").addEventListener("click", closePlayerModal);
+    playerModal.addEventListener("click", event => { if (event.target === playerModal) closePlayerModal(); });
+    document.querySelectorAll(".chess-player-trigger").forEach(button => button.addEventListener("click", async () => {
+        const isMe = button.dataset.playerSlot === "me";
+        const player = isMe || game.mode === "local" || game.myColor !== "b" ? (isMe ? game.white : game.black) : (isMe ? game.black : game.white);
+        if (!player?.id) return;
+        try {
+            const response = await fetch(`/api/chess/players/${player.id}`);
+            const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || "프로필을 불러오지 못했습니다.");
+            inspectedPlayer = data.player;
+            document.querySelector("#chess-player-avatar").src = inspectedPlayer.profileImage || "/static/default_profile.png";
+            document.querySelector("#chess-player-name").textContent = inspectedPlayer.name;
+            document.querySelector("#chess-player-username").textContent = `@${inspectedPlayer.username}`;
+            document.querySelector("#chess-player-rating").textContent = inspectedPlayer.rating ?? "-";
+            const record = inspectedPlayer.record || {}; document.querySelector("#chess-player-record").textContent = `${record.wins || 0}승 ${record.draws || 0}무 ${record.losses || 0}패`;
+            const addButton = document.querySelector("#chess-player-friend-btn");
+            addButton.hidden = isMe || inspectedPlayer.isFriend;
+            addButton.disabled = false; addButton.innerHTML = '<i class="fa-solid fa-user-plus"></i> 친구 추가';
+            playerModal.hidden = false;
+        } catch (error) { alert(error.message); }
+    }));
+    document.querySelector("#chess-player-friend-btn").addEventListener("click", async event => {
+        if (!inspectedPlayer) return;
+        event.currentTarget.disabled = true;
+        const response = await fetch(`/api/chess/players/${inspectedPlayer.id}/friend-request`, {method:"POST", headers:{"X-CSRF-Token":csrf}});
+        const data = await response.json();
+        if (!response.ok || !data.success) { event.currentTarget.disabled = false; return alert(data.error || "친구 요청에 실패했습니다."); }
+        event.currentTarget.innerHTML = '<i class="fa-solid fa-check"></i> 요청 완료';
     });
     document.querySelector("#flip-board").addEventListener("click", () => { flipped = !flipped; renderBoard(); });
     document.querySelector("#resign-btn").addEventListener("click", async () => { if (!confirm("정말 기권할까요?")) return; const response = await fetch(`/api/chess/games/${gameId}/resign`, {method:"POST", headers:{"X-CSRF-Token":csrf}}); const data = await response.json(); if (data.success) applyState(data.game); else alert(data.error); });

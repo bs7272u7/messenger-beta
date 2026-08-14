@@ -1691,6 +1691,37 @@ def admin_inquiry_detail(inquiry_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/admin/inquiries/<int:inquiry_id>", methods=["DELETE"])
+@admin_required_api
+def admin_delete_inquiry(inquiry_id):
+    """문의 한 건을 삭제한다. 첨부 파일 원본은 안전을 위해 자동 삭제하지 않는다."""
+    with get_db() as conn:
+        deleted = conn.execute("DELETE FROM support_inquiries WHERE id = %s", (inquiry_id,)).rowcount
+        conn.commit()
+    if not deleted:
+        return jsonify({"success": False, "error": "이미 삭제되었거나 존재하지 않는 문의입니다."}), 404
+    return jsonify({"success": True, "deleted": 1})
+
+
+@app.route("/api/admin/inquiries/bulk-delete", methods=["POST"])
+@admin_required_api
+def admin_bulk_delete_inquiries():
+    """체크된 문의만 삭제하며 빈 목록은 전체 삭제로 해석하지 않는다."""
+    raw_ids = (request.get_json() or {}).get("ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return jsonify({"success": False, "error": "삭제할 문의를 선택해주세요."}), 400
+    try:
+        inquiry_ids = list({int(item) for item in raw_ids if int(item) > 0})
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "문의 선택 정보가 올바르지 않습니다."}), 400
+    if not inquiry_ids:
+        return jsonify({"success": False, "error": "삭제할 문의를 선택해주세요."}), 400
+    with get_db() as conn:
+        deleted = conn.execute("DELETE FROM support_inquiries WHERE id = ANY(%s::int[])", (inquiry_ids,)).rowcount
+        conn.commit()
+    return jsonify({"success": True, "deleted": deleted})
+
+
 @app.route("/api/admin/reports", methods=["GET"])
 @admin_required_api
 def admin_reports():
@@ -3771,6 +3802,40 @@ def chess_player_name(conn, user_id):
     return (user["display_name"] or user["username"]) if user else "알 수 없음"
 
 
+def chess_player_summary(conn, user_id):
+    """메신저의 프로필 카드 정보에 체스 레이팅과 전적을 덧붙여 재사용한다."""
+    if not user_id:
+        return {"id": None, "name": "AI", "username": "ai", "profileImage": None, "rating": None,
+                "record": {"wins": 0, "draws": 0, "losses": 0}}
+    user = conn.execute(
+        "SELECT id, username, display_name, profile_image, chess_rating FROM users WHERE id = %s", (user_id,)
+    ).fetchone()
+    if not user:
+        return {"id": user_id, "name": "알 수 없음", "username": "", "profileImage": DEFAULT_PROFILE_IMAGE,
+                "rating": 1200, "record": {"wins": 0, "draws": 0, "losses": 0}}
+    games = conn.execute("""
+        SELECT result, white_player_id FROM chess_games
+        WHERE status = 'finished' AND mode = 'online'
+          AND (white_player_id = %s OR black_player_id = %s)
+    """, (user_id, user_id)).fetchall()
+    wins = draws = losses = 0
+    for game in games:
+        result = json.loads(game["result"] or "{}")
+        winner = result.get("winner")
+        color = "w" if game["white_player_id"] == user_id else "b"
+        if winner is None:
+            draws += 1
+        elif winner == color:
+            wins += 1
+        else:
+            losses += 1
+    return {
+        "id": user["id"], "name": user["display_name"] or user["username"], "username": user["username"],
+        "profileImage": user["profile_image"] or DEFAULT_PROFILE_IMAGE, "rating": user["chess_rating"] or 1200,
+        "record": {"wins": wins, "draws": draws, "losses": losses},
+    }
+
+
 def refresh_chess_clock(conn, game):
     """서버 시각으로만 남은 시간을 깎아 브라우저 시간 조작을 막는다."""
     if game["status"] != "active" or game["time_control"] == "unlimited" or not game["turn_started_ms"]:
@@ -3810,17 +3875,15 @@ def chess_game_state(conn, game, user_id=None):
         "id": str(game["id"]), "roomCode": game["room_code"], "mode": game["mode"], "status": game["status"],
         "timeControl": game["time_control"], "whiteRemainingMs": game["white_remaining_ms"],
         "blackRemainingMs": game["black_remaining_ms"], "turnStartedMs": game["turn_started_ms"],
-        "white": {"id": game["white_player_id"], "name": chess_player_name(conn, game["white_player_id"])},
-        "black": {"id": game["black_player_id"], "name": chess_player_name(conn, game["black_player_id"]) if game["black_player_id"] else ("AI" if game["mode"] == "ai" else "대기 중")},
+        "white": chess_player_summary(conn, game["white_player_id"]),
+        "black": chess_player_summary(conn, game["black_player_id"]) if game["black_player_id"] else (
+            chess_player_summary(conn, None) if game["mode"] == "ai" else {"id": None, "name": "대기 중", "username": "", "profileImage": None, "rating": None, "record": {"wins": 0, "draws": 0, "losses": 0}}
+        ),
         "result": json.loads(game["result"]) if game["result"] else state["result"],
         "moves": [{"number": row["move_number"], "san": row["san"], "fen": row["fen"]} for row in move_rows],
         "myColor": "w" if user_id == game["white_player_id"] else ("b" if user_id == game["black_player_id"] and game["mode"] != "local" else None),
         "canPlay": bool(user_id and (game["mode"] == "local" and user_id == game["white_player_id"] or user_id in {game["white_player_id"], game["black_player_id"]})),
     })
-    ratings = conn.execute("SELECT id, chess_rating FROM users WHERE id IN (%s, %s)", (game["white_player_id"], game["black_player_id"] or -1)).fetchall()
-    rating_map = {row["id"]: row["chess_rating"] for row in ratings}
-    state["white"]["rating"] = rating_map.get(game["white_player_id"], 1200)
-    state["black"]["rating"] = rating_map.get(game["black_player_id"], None) if game["black_player_id"] else None
     chats = conn.execute("SELECT chat.sender_id, users.display_name, users.username, chat.text FROM chess_game_chat_messages chat JOIN users ON users.id = chat.sender_id WHERE chat.game_id = %s ORDER BY chat.id DESC LIMIT 40", (game["id"],)).fetchall()
     state["chatMessages"] = [dict(row) for row in reversed(chats)]
     return state
@@ -4051,6 +4114,91 @@ def chess_accept_invite_api(invite_id):
         conn.commit()
     socketio.emit("game:start", state, room=f"chess_{game['id']}")
     return jsonify({"success": True, "game": state})
+
+
+@app.route("/api/chess/invites", methods=["GET"])
+@login_required_api
+def chess_inbox_invites_api():
+    """체스 초대는 일반 팝업이 아니라 기존 메시지함에서 처리할 수 있도록 별도로 제공한다."""
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT i.id, i.created_at, g.id AS game_id, g.time_control, g.room_code,
+                   u.id AS inviter_id, u.username, u.display_name, u.profile_image, u.chess_rating
+            FROM chess_invites i
+            JOIN chess_games g ON g.id = i.game_id
+            JOIN users u ON u.id = i.inviter_id
+            WHERE i.invitee_id = %s AND i.status = 'pending' AND g.status = 'waiting'
+            ORDER BY i.created_at DESC
+        """, (session["user_id"],)).fetchall()
+    return jsonify({"success": True, "invites": [dict(row) for row in rows]})
+
+
+@app.route("/api/chess/invites/<int:invite_id>/decline", methods=["POST"])
+@login_required_api
+def chess_decline_invite_api(invite_id):
+    with get_db() as conn:
+        invite = conn.execute(
+            "SELECT * FROM chess_invites WHERE id = %s AND invitee_id = %s AND status = 'pending'",
+            (invite_id, session["user_id"]),
+        ).fetchone()
+        if not invite:
+            return jsonify({"success": False, "error": "처리할 수 없는 체스 초대입니다."}), 404
+        conn.execute("UPDATE chess_invites SET status = 'declined' WHERE id = %s", (invite_id,))
+        conn.commit()
+    notify_user(invite["inviter_id"], "chess_invite_updated", {"inviteId": invite_id, "status": "declined"})
+    return jsonify({"success": True})
+
+
+@app.route("/api/chess/players/<int:player_id>")
+@login_required_api
+def chess_player_profile_api(player_id):
+    with get_db() as conn:
+        user = conn.execute("SELECT id, profile_visibility, is_suspended FROM users WHERE id = %s", (player_id,)).fetchone()
+        if not user:
+            return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
+        shared_game = conn.execute("""
+            SELECT 1 FROM chess_games
+            WHERE (white_player_id = %s OR black_player_id = %s)
+              AND (white_player_id = %s OR black_player_id = %s)
+            LIMIT 1
+        """, (session["user_id"], session["user_id"], player_id, player_id)).fetchone()
+        if player_id != session["user_id"] and not shared_game and not can_view_profile(conn, session["user_id"], user):
+            return jsonify({"success": False, "error": "이 사용자는 프로필을 비공개로 설정했습니다."}), 403
+        summary = chess_player_summary(conn, player_id)
+        is_friend = are_users_friends(conn, session["user_id"], player_id)
+    return jsonify({"success": True, "player": {**summary, "isFriend": is_friend}})
+
+
+@app.route("/api/chess/players/<int:player_id>/friend-request", methods=["POST"])
+@login_required_api
+def chess_send_friend_request_api(player_id):
+    """체스 프로필 카드에서도 메신저 친구 요청과 같은 테이블/규칙을 재사용한다."""
+    user_id = session["user_id"]
+    if player_id == user_id:
+        return jsonify({"success": False, "error": "자기 자신에게 친구 요청을 보낼 수 없습니다."}), 400
+    with get_db() as conn:
+        target = conn.execute("SELECT id FROM users WHERE id = %s", (player_id,)).fetchone()
+        if not target or is_blocked_either_way(conn, user_id, player_id):
+            return jsonify({"success": False, "error": "친구 요청을 보낼 수 없는 사용자입니다."}), 403
+        if are_users_friends(conn, user_id, player_id):
+            return jsonify({"success": False, "error": "이미 친구입니다."}), 400
+        reverse = conn.execute(
+            "SELECT id FROM friend_requests WHERE requester_id = %s AND addressee_id = %s AND status = 'pending'",
+            (player_id, user_id),
+        ).fetchone()
+        if reverse:
+            _accept_friend_request(conn, reverse["id"], user_id)
+            message = "서로 친구가 되었습니다."
+        else:
+            conn.execute("""
+                INSERT INTO friend_requests (requester_id, addressee_id, status, created_at)
+                VALUES (%s, %s, 'pending', %s)
+                ON CONFLICT (requester_id, addressee_id) DO UPDATE SET status = 'pending', created_at = EXCLUDED.created_at
+            """, (user_id, player_id, now_str()))
+            message = "친구 요청을 보냈습니다."
+        conn.commit()
+    notify_user(player_id, "friend_updated", {})
+    return jsonify({"success": True, "message": message})
 
 
 @app.route("/api/chess/games", methods=["POST"])
