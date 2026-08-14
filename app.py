@@ -4064,6 +4064,22 @@ def chess_history_api():
     return jsonify([{"id": str(row["id"]), "mode": row["mode"], "status": row["status"], "result": json.loads(row["result"]) if row["result"] else None, "createdAt": row["created_at"]} for row in rows])
 
 
+@app.route("/api/chess/history", methods=["DELETE"])
+@login_required_api
+def chess_delete_all_history_api():
+    """현재 로그인 계정의 종료 전적만 삭제한다. 진행 중인 방과 레이팅은 보존한다."""
+    with get_db() as conn:
+        rows = conn.execute("SELECT id FROM chess_games WHERE status = 'finished' AND (white_player_id = %s OR black_player_id = %s)", (session["user_id"], session["user_id"])).fetchall()
+        game_ids = [row["id"] for row in rows]
+        if not game_ids:
+            return jsonify({"success": True, "deleted": 0})
+        conn.execute("DELETE FROM chess_game_chat_messages WHERE game_id = ANY(%s)", (game_ids,))
+        conn.execute("DELETE FROM chess_game_moves WHERE game_id = ANY(%s)", (game_ids,))
+        conn.execute("DELETE FROM chess_games WHERE id = ANY(%s)", (game_ids,))
+        conn.commit()
+    return jsonify({"success": True, "deleted": len(game_ids)})
+
+
 @app.route("/api/chess/history/<game_id>", methods=["DELETE"])
 @login_required_api
 def chess_delete_history_api(game_id):

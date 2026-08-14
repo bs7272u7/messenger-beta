@@ -41,4 +41,12 @@
             if (!list.children.length) list.textContent = "아직 완료한 체스 게임이 없습니다.";
         }));
     }());
+    document.querySelector("#delete-all-chess-history").addEventListener("click", async event => {
+        if (!confirm("종료된 내 체스 전적과 기보를 모두 삭제할까요? 레이팅은 유지됩니다.")) return;
+        const response = await fetch("/api/chess/history", {method:"DELETE", headers:{"X-CSRF-Token":csrf}});
+        const data = await response.json();
+        if (!response.ok || !data.success) return alert(data.error || "전적을 삭제하지 못했습니다.");
+        document.querySelector("#chess-history-list").textContent = "아직 완료한 체스 게임이 없습니다.";
+        event.currentTarget.disabled = true;
+    });
 }());
