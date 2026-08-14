@@ -1,3 +1,5 @@
+# Cloud Chatting 서버의 중심 파일입니다.
+# 기능을 추가할 때는 "입력 검증 → 권한 확인 → DB 저장 → 실시간 알림" 순서를 먼저 확인합니다.
 from functools import wraps
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, abort
 from flask_socketio import SocketIO, join_room

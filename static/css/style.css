@@ -1,6 +1,10 @@
 
         /* # 전체 테마 컬러 토큰: 라이트/다크 모드에서 공통으로 쓰는 색상 값을 한 곳에서 관리한다. */
 
+        /*
+         * 화면 스타일의 기준 파일입니다. 공통 색은 변수로, 채팅방별 분위기는 .chat-theme-*로 분리합니다.
+         * 재현님이 디자인을 바꿀 때는 먼저 공통 변수인지, 특정 테마 전용인지 구분해서 수정합니다.
+         */
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
         body {
