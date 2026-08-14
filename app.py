@@ -4073,9 +4073,10 @@ def chess_delete_all_history_api():
         game_ids = [row["id"] for row in rows]
         if not game_ids:
             return jsonify({"success": True, "deleted": 0})
-        conn.execute("DELETE FROM chess_game_chat_messages WHERE game_id = ANY(%s)", (game_ids,))
-        conn.execute("DELETE FROM chess_game_moves WHERE game_id = ANY(%s)", (game_ids,))
-        conn.execute("DELETE FROM chess_games WHERE id = ANY(%s)", (game_ids,))
+        # UUID 배열임을 명시해 배포 DB에서도 전적·기보·채팅을 함께 안정적으로 삭제한다.
+        conn.execute("DELETE FROM chess_game_chat_messages WHERE game_id = ANY(%s::uuid[])", (game_ids,))
+        conn.execute("DELETE FROM chess_game_moves WHERE game_id = ANY(%s::uuid[])", (game_ids,))
+        conn.execute("DELETE FROM chess_games WHERE id = ANY(%s::uuid[])", (game_ids,))
         conn.commit()
     return jsonify({"success": True, "deleted": len(game_ids)})
 
