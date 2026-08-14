@@ -474,8 +474,9 @@
 
         .status-dot {
             position: absolute;
-            right: -2px;
-            bottom: -2px;
+            /* 아바타 가장자리에 살짝 걸쳐 보여, 분리되지 않으면서도 상태를 인식하기 쉽다. */
+            right: -1px;
+            bottom: -1px;
             width: 11px;
             height: 11px;
             border-radius: 50%;
@@ -1159,8 +1160,9 @@
         .profile-avatar-camera { position:absolute; right:-3px; bottom:1px; display:grid; width:30px; height:30px; border:3px solid var(--panel-bg); border-radius:50%; place-items:center; background:var(--brand-color); color:#fff; font-size:11px; cursor:pointer; box-shadow:0 4px 10px rgba(15,23,42,.18); }
         .profile-editor-body { display:grid; gap:15px; padding:19px 22px 18px; }
         .profile-editor-identity { display:grid; gap:7px; }
-        .profile-editor-identity label { color:color-mix(in srgb, var(--text-color) 78%, transparent); font-size:12px; font-weight:750; text-align:center; }
-        .profile-editor-identity label small { float:right; color:color-mix(in srgb, var(--text-color) 50%, transparent); font-size:11px; font-weight:500; }
+        .profile-editor-identity label { position:relative; color:color-mix(in srgb, var(--text-color) 78%, transparent); font-size:12px; font-weight:750; text-align:center; }
+        /* 글자 수 안내는 제목의 정렬 폭에 포함하지 않아 제목이 정확히 중앙을 유지한다. */
+        .profile-editor-identity label small { position:absolute; right:0; color:color-mix(in srgb, var(--text-color) 50%, transparent); font-size:11px; font-weight:500; }
         .profile-editor-modal .settings-input { width:100%; min-height:42px; margin:0; box-sizing:border-box; border-radius:10px; }
         .profile-editor-modal textarea.settings-input { min-height:76px; resize:vertical; }
         .profile-editor-tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding-top:1px; }
