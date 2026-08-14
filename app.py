@@ -977,12 +977,15 @@ def conversation_is_disabled(conn, conversation_id):
 
 def create_system_message(conn, conversation_id, text, actor_id=None):
     """그룹 공지·테마 변경처럼 누구의 일반 메시지도 아닌 기록을 남긴다."""
+    now = datetime.now()
+    hour = now.hour % 12 or 12
+    time_label = f"{'오후' if now.hour >= 12 else '오전'} {hour}:{now.minute:02d}"
     row = conn.execute("""
         INSERT INTO messages (conversation_id, sender_id, text, time, date, edited, pinned, reactions, message_type)
         SELECT %s, COALESCE(%s, owner_id), %s, %s, %s, FALSE, FALSE, %s, 'system'
         FROM conversations WHERE id = %s
         RETURNING id
-    """, (conversation_id, actor_id, text, datetime.now().strftime("%H:%M"), datetime.now().strftime("%Y-%m-%d"), json.dumps([]), conversation_id)).fetchone()
+    """, (conversation_id, actor_id, text, time_label, now.strftime("%Y-%m-%d"), json.dumps([]), conversation_id)).fetchone()
     if row:
         conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], conversation_id))
     return row["id"] if row else None
