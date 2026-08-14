@@ -9,3 +9,4 @@ resend
 requests
 cloudinary
 pywebpush
+Pillow

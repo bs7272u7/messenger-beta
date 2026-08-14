@@ -8,6 +8,9 @@ import uuid
 import re
 import random
 import time
+import secrets
+import hmac
+import io
 from threading import Lock
 import resend
 import ipaddress
@@ -20,6 +23,7 @@ import cloudinary
 import cloudinary.uploader
 from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
+from PIL import Image, UnidentifiedImageError
 from dotenv import load_dotenv
 import psycopg2
 import psycopg2.extras
@@ -35,10 +39,18 @@ resend.api_key = os.environ.get("RESEND_API_KEY")
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 요청 본문 최대 50MB
+if not os.environ.get("SECRET_KEY") and os.environ.get("RENDER_EXTERNAL_URL"):
+    raise RuntimeError("운영 환경에서는 SECRET_KEY를 반드시 설정해야 합니다.")
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-this-in-production")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    # 로컬 HTTP 개발은 유지하고, Render HTTPS에서는 보안 쿠키를 강제한다.
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER_EXTERNAL_URL")) or os.environ.get("SESSION_COOKIE_SECURE", "").lower() == "true",
+)
 
-# threading 모드 & 외부 접근/웹소켓 허용
-socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
+# 별도 외부 도메인 연결은 허용하지 않고, 서비스와 같은 출처의 웹소켓만 받는다.
+socketio = SocketIO(app, async_mode="threading")
 
 # 이미지/동영상이 저장될 폴더와 기본 프로필 사진 경로
 UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads")
@@ -64,11 +76,15 @@ SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
 CHAT_FILE_MAX_BYTES = 20 * 1024 * 1024
 CHAT_FILE_EXTENSIONS = {"pdf", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "mp3", "wav", "m4a"}
+IMAGE_MAX_BYTES = 10 * 1024 * 1024
+IMAGE_MAX_PIXELS = 40_000_000
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY")
 VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY")
 VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL")
 active_socket_ids = {}
 active_socket_ids_lock = Lock()
+_rate_limit_buckets = {}
+_rate_limit_lock = Lock()
 
 if CLOUDINARY_ENABLED:
     cloudinary.config(
@@ -77,6 +93,68 @@ if CLOUDINARY_ENABLED:
         api_secret=os.environ["CLOUDINARY_API_SECRET"],
         secure=True,
     )
+
+
+def get_csrf_token():
+    """세션마다 예측 불가능한 토큰을 발급해 외부 사이트의 요청 위조를 막는다."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    return session["csrf_token"]
+
+
+@app.context_processor
+def inject_security_values():
+    return {"csrf_token": get_csrf_token()}
+
+
+@app.before_request
+def protect_from_csrf():
+    """브라우저 세션을 사용하는 모든 상태 변경 API는 CSRF 헤더를 요구한다."""
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+    if not request.path.startswith("/api/"):
+        return None
+    supplied = request.headers.get("X-CSRF-Token", "")
+    if not supplied or not hmac.compare_digest(supplied, get_csrf_token()):
+        return jsonify({"success": False, "error": "보안 토큰이 올바르지 않습니다. 페이지를 새로고침한 뒤 다시 시도해주세요."}), 403
+    return None
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
+    if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
+
+def get_client_ip():
+    # Render 프록시 뒤에서는 X-Forwarded-For의 첫 주소가 실제 접속자 IP다.
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    return forwarded.split(",", 1)[0].strip() if forwarded else (request.remote_addr or "unknown")
+
+
+def rate_limit(limit, window_seconds, scope):
+    """로그인·인증 메일 API의 자동화 남용을 줄이는 가벼운 IP 단위 제한이다."""
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            now = time.time()
+            key = (scope, get_client_ip())
+            with _rate_limit_lock:
+                attempts = [stamp for stamp in _rate_limit_buckets.get(key, []) if stamp > now - window_seconds]
+                if len(attempts) >= limit:
+                    retry_after = max(1, int(window_seconds - (now - attempts[0])))
+                    app.logger.warning("Rate limit blocked: scope=%s ip=%s", scope, get_client_ip())
+                    return jsonify({"success": False, "error": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", "retry_after": retry_after}), 429
+                attempts.append(now)
+                _rate_limit_buckets[key] = attempts
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
 
 
 class OpenGraphParser(HTMLParser):
@@ -459,7 +537,29 @@ def notify_conversation_message(conn, conversation_id, sender_id, preview):
             send_push_notification(conn, row["user_id"], row["conversation_name"] or "Cloud Chatting", preview, f"/?conversation={conversation_id}")
 
 
+def validate_base64_image(data_url):
+    """확장자 위장·과도한 이미지 용량·압축 폭탄을 저장 전에 차단한다."""
+    match = re.fullmatch(r"data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)", data_url or "")
+    if not match or len(match.group(2)) > (IMAGE_MAX_BYTES * 4 // 3) + 4:
+        return None, None
+    try:
+        raw_image = base64.b64decode(match.group(2), validate=True)
+        if not raw_image or len(raw_image) > IMAGE_MAX_BYTES:
+            return None, None
+        Image.MAX_IMAGE_PIXELS = IMAGE_MAX_PIXELS
+        with Image.open(io.BytesIO(raw_image)) as image:
+            if image.width * image.height > IMAGE_MAX_PIXELS:
+                return None, None
+            image.verify()
+    except (ValueError, UnidentifiedImageError, Image.DecompressionBombError, OSError):
+        return None, None
+    return raw_image, ("jpg" if match.group(1) == "jpeg" else match.group(1))
+
+
 def save_base64_image(data_url):
+    raw_image, ext = validate_base64_image(data_url)
+    if raw_image is None:
+        return None
     # Render의 임시 디스크 문제를 피하기 위해 Cloudinary가 설정되면 우선 사용한다.
     # 로컬 개발 중에는 기존 static/uploads 저장 방식으로 자동 폴백된다.
     try:
@@ -471,18 +571,11 @@ def save_base64_image(data_url):
             )
             return result["secure_url"]
 
-        header, encoded = data_url.split(",", 1)
-        mime = header.split(";")[0].split(":")[1]
-        ext = mime.split("/")[1] if "/" in mime else "png"
-        if ext == "jpeg":
-            ext = "jpg"
-        ext = ext.split(";")[0].strip()
-
         filename = f"{uuid.uuid4().hex}.{ext}"
         filepath = os.path.join(UPLOAD_DIR, filename)
 
         with open(filepath, "wb") as f:
-            f.write(base64.b64decode(encoded))
+            f.write(raw_image)
 
         return f"/static/uploads/{filename}"
     except Exception as e:
@@ -1026,6 +1119,7 @@ def admin_access_verify():
 
 @app.route("/api/admin/access-key", methods=["POST"])
 @admin_account_required_api
+@rate_limit(8, 15 * 60, "admin_access")
 def verify_admin_access_key():
     if not ADMIN_ACCESS_KEY_HASH:
         return jsonify({"success": False, "error": "서버에 관리자 접근 키가 설정되지 않았습니다."}), 503
@@ -1554,6 +1648,7 @@ def admin_user_suspension(user_id):
 # ----------------------------------------------------------------
 
 @app.route("/api/register", methods=["POST"])
+@rate_limit(5, 60 * 60, "register")
 def register():
     data = request.get_json() or {}
     password = data.get("password") or ""
@@ -1597,6 +1692,8 @@ def register():
         ).fetchone()
 
         user_id = row["id"]
+        # 가입 직전의 임시 세션을 버려 세션 고정 공격 가능성을 줄인다.
+        session.clear()
         session["profile_image"] = DEFAULT_PROFILE_IMAGE
 
         conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (email,))
@@ -1609,6 +1706,7 @@ def register():
 
 
 @app.route("/api/login", methods=["POST"])
+@rate_limit(10, 15 * 60, "login")
 def login():
     data = request.get_json() or {}
     identifier = (data.get("identifier") or "").strip()
@@ -1627,6 +1725,7 @@ def login():
             ).fetchone()
 
     if not user or not check_password_hash(user["password_hash"], password):
+        app.logger.warning("Failed login attempt: ip=%s", get_client_ip())
         return jsonify({"success": False, "error": "아이디/이메일 또는 비밀번호가 올바르지 않습니다."})
     suspension_state = get_suspension_state(user)
     if suspension_state == "expired":
@@ -1636,7 +1735,8 @@ def login():
     elif suspension_state:
         return jsonify({"success": False, "error": "이용 정지 상태인 계정입니다. 고객센터로 문의해주세요."}), 403
 
-    session.pop("admin_verified_until", None)
+    # 로그인마다 새 세션을 시작해 이전 브라우저 세션 정보를 이어받지 않는다.
+    session.clear()
     session["user_id"] = user["id"]
     session["username"] = user["username"]
     session["display_name"] = user["display_name"] or user["username"]
@@ -2490,6 +2590,12 @@ def send_video(conversation_id):
     user_id = session["user_id"]
 
     video_file = request.files.get("video")
+    if video_file:
+        video_file.seek(0, os.SEEK_END)
+        video_size = video_file.tell()
+        video_file.seek(0)
+        if video_size > CHAT_FILE_MAX_BYTES:
+            return jsonify({"success": False, "error": "동영상 파일이 너무 큽니다."}), 400
     if not video_file or video_file.filename == "":
         return jsonify({"success": False, "error": "동영상 파일이 없습니다."}), 400
 
@@ -3082,6 +3188,7 @@ def send_password_reset_email(email, code):
     })
 
 @app.route("/api/password-reset/send-code", methods=["POST"])
+@rate_limit(5, 15 * 60, "password_reset_email")
 def send_password_reset_code():
     email = (request.get_json() or {}).get("email", "").strip().lower()
 
@@ -3131,6 +3238,7 @@ def send_password_reset_code():
 
 
 @app.route("/api/password-reset/verify-code", methods=["POST"])
+@rate_limit(12, 15 * 60, "password_reset_verify")
 def verify_password_reset_code():
     """비밀번호 변경 전에 재설정 인증번호만 먼저 확인한다."""
     data = request.get_json() or {}
@@ -3154,6 +3262,7 @@ def verify_password_reset_code():
 
 
 @app.route("/api/password-reset/confirm", methods=["POST"])
+@rate_limit(8, 15 * 60, "password_reset_confirm")
 def confirm_password_reset():
     data = request.get_json() or {}
 
@@ -3218,6 +3327,7 @@ def send_username_reminder_email(email, username):
     })
 
 @app.route("/api/find-username", methods=["POST"])
+@rate_limit(5, 15 * 60, "find_username")
 def find_username():
     email = (request.get_json() or {}).get("email", "").strip().lower()
 
@@ -3244,6 +3354,7 @@ def find_username():
 
 
 @app.route("/api/send-verification-code", methods=["POST"])
+@rate_limit(5, 15 * 60, "registration_email")
 def send_verification_code():
     data = request.get_json() or {}
     email = (data.get("email") or "").strip().lower()
@@ -3277,6 +3388,7 @@ def send_verification_code():
 
 
 @app.route("/api/verify-email-code", methods=["POST"])
+@rate_limit(12, 15 * 60, "registration_verify")
 def verify_email_code():
     """회원가입 전 인증번호를 미리 확인해 사용자에게 완료 상태를 보여준다."""
     data = request.get_json() or {}
@@ -3298,6 +3410,7 @@ def verify_email_code():
 
 @app.route("/api/account/email/send-code", methods=["POST"])
 @login_required_api
+@rate_limit(5, 15 * 60, "account_email")
 def send_account_email_code():
     user_id = session["user_id"]
     data = request.get_json() or {}

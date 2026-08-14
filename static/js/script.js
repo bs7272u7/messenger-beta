@@ -2,7 +2,15 @@
          * 세션 만료 처리: API가 401을 주면 로그인 페이지로 보낸다.
          * ====================================================== */
         const _originalFetch = window.fetch;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         window.fetch = async function (...args) {
+            const requestOptions = args[1] || {};
+            const method = (requestOptions.method || (args[0] instanceof Request && args[0].method) || "GET").toUpperCase();
+            if (csrfToken && ["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+                const headers = new Headers(requestOptions.headers || (args[0] instanceof Request ? args[0].headers : undefined));
+                headers.set("X-CSRF-Token", csrfToken);
+                args[1] = { ...requestOptions, headers };
+            }
             const response = await _originalFetch(...args);
             if (response.status === 401) {
                 window.location.href = "/login";
