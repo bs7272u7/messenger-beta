@@ -383,6 +383,7 @@
         const logoutBtn = document.querySelector("#logout-btn");
         const editProfileBtn = document.querySelector("#edit-profile-btn");
         const myProfileOverlay = document.querySelector("#my-profile-overlay");
+        const myProfileCloseBtn = document.querySelector("#my-profile-close-btn");
         const accountSettingsItem = document.querySelector("#account-settings-item");
         const notificationSettingsItem = document.querySelector("#notification-settings-item");
         const updateNoticeBadge = document.querySelector("#update-notice-badge");
@@ -2291,6 +2292,10 @@
             pendingProfileImageRemoval = false;
             myProfileOverlay.style.display = "none";
         });
+        myProfileCloseBtn.addEventListener("click", function () { myProfileCancelBtn.click(); });
+        myProfileOverlay.addEventListener("click", function (event) {
+            if (event.target === myProfileOverlay) myProfileCancelBtn.click();
+        });
 
         myProfileSaveBtn.addEventListener("click", async function () {
             const newName = document.querySelector("#my-profile-name").value.trim();
@@ -3420,6 +3425,13 @@ changeProfilePicBtn.addEventListener("click", function () {
 
 profileModalPic.addEventListener("click", function () {
     profileImageInput.click();
+});
+
+profileModalPic.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        profileImageInput.click();
+    }
 });
 
 profileImageInput.addEventListener("change", function () {

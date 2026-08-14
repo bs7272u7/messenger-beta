@@ -402,44 +402,46 @@
     </div>
 
     <div class="modal-overlay" id="my-profile-overlay">
-        <div class="modal-box">
-            <div class="modal-message">내 프로필 수정</div>
+        <section class="modal-box profile-editor-modal" role="dialog" aria-modal="true" aria-labelledby="profile-editor-title">
+            <header class="profile-editor-header">
+                <div><span>Cloud Chatting</span><h2 id="profile-editor-title">프로필 편집</h2></div>
+                <button type="button" id="my-profile-close-btn" class="settings-modal-close" aria-label="프로필 편집 닫기"><i class="fa-solid fa-xmark"></i></button>
+            </header>
 
-            <div class="profile" id="profile-modal-pic" style="width: 70px; height: 70px; margin: 0 auto 10px; cursor: pointer;">
-                {% if profile_image %}
-                    <img src="{{ profile_image }}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">
-                {% else %}
-                    <i class="fa-solid fa-circle-user"></i>
-                {% endif %}
+            <div class="profile-editor-visual">
+                <div id="profile-cover-preview" class="profile-cover-preview" aria-label="프로필 배경사진 미리보기">
+                    <span><i class="fa-regular fa-image"></i> 배경사진 없음</span>
+                </div>
+                <label for="cover-image-input" class="profile-cover-change"><i class="fa-solid fa-camera"></i><span>배경 변경</span></label>
+                <div class="profile-editor-avatar-wrap">
+                    <div class="profile" id="profile-modal-pic" role="button" tabindex="0" aria-label="프로필 사진 변경">
+                        {% if profile_image %}
+                            <img src="{{ profile_image }}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">
+                        {% else %}
+                            <i class="fa-solid fa-circle-user"></i>
+                        {% endif %}
+                    </div>
+                    <button type="button" id="change-profile-pic-btn" class="profile-avatar-camera" aria-label="프로필 사진 변경"><i class="fa-solid fa-camera"></i></button>
+                </div>
             </div>
             <input type="file" id="profile-image-input" accept="image/*" style="display:none;">
-            <div class="profile-edit-actions">
-                <button type="button" id="change-profile-pic-btn"><i class="fa-regular fa-image"></i> 사진 변경</button>
-                <button type="button" id="remove-profile-pic-btn" class="danger"><i class="fa-regular fa-trash-can"></i> 사진 삭제</button>
-            </div>
-
-            <input type="text" id="my-profile-name" placeholder="이름" class="settings-input">
-            <textarea id="my-profile-bio" placeholder="소개글 (최대 300자)" maxlength="300" class="settings-input" style="min-height:76px;"></textarea>
-            <label class="profile-visibility-label" for="my-profile-visibility">프로필 공개 범위</label>
-            <select id="my-profile-visibility" class="settings-input">
-                <option value="friends">친구만 공개</option>
-                <option value="public">전체 공개</option>
-                <option value="private">비공개</option>
-            </select>
-            <div id="profile-cover-preview" class="profile-cover-preview" aria-label="프로필 배경사진 미리보기">
-                <span><i class="fa-regular fa-image"></i> 배경사진 없음</span>
-            </div>
-            <div class="profile-cover-actions">
-                <label for="cover-image-input"><i class="fa-solid fa-image"></i> 배경사진 변경</label>
-                <button type="button" id="remove-cover-image-btn"><i class="fa-regular fa-trash-can"></i> 제거</button>
-            </div>
             <input type="file" id="cover-image-input" accept="image/*" style="display:none;">
 
-            <div class="modal-buttons">
-                <button id="my-profile-cancel-btn">취소</button>
-                <button class="modal-confirm" id="my-profile-save-btn">저장</button>
+            <div class="profile-editor-body">
+                <div class="profile-editor-identity"><label for="my-profile-name">표시 이름</label><input type="text" id="my-profile-name" placeholder="이름" class="settings-input"></div>
+                <div class="profile-editor-identity"><label for="my-profile-bio">소개글 <small>최대 300자</small></label><textarea id="my-profile-bio" placeholder="나를 간단히 소개해보세요." maxlength="300" class="settings-input"></textarea></div>
+                <div class="profile-editor-identity"><label for="my-profile-visibility">프로필 공개 범위</label><select id="my-profile-visibility" class="settings-input"><option value="friends">친구만 공개</option><option value="public">전체 공개</option><option value="private">비공개</option></select></div>
+                <div class="profile-editor-tools">
+                    <button type="button" id="remove-profile-pic-btn"><i class="fa-regular fa-trash-can"></i> 프로필 사진 삭제</button>
+                    <button type="button" id="remove-cover-image-btn"><i class="fa-regular fa-trash-can"></i> 배경사진 제거</button>
+                </div>
             </div>
-        </div>
+
+            <footer class="profile-editor-footer">
+                <button id="my-profile-cancel-btn" type="button">취소</button>
+                <button id="my-profile-save-btn" type="button" class="modal-confirm"><i class="fa-solid fa-check"></i> 저장하기</button>
+            </footer>
+        </section>
     </div>
 
     <div class="modal-overlay" id="profile-card-overlay">
