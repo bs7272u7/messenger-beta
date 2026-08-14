@@ -977,7 +977,8 @@ def conversation_is_disabled(conn, conversation_id):
 
 def create_system_message(conn, conversation_id, text, actor_id=None):
     """그룹 공지·테마 변경처럼 누구의 일반 메시지도 아닌 기록을 남긴다."""
-    now = datetime.now()
+    # Render 서버는 UTC로 동작할 수 있으므로, 시스템 메시지도 항상 한국 시간으로 기록한다.
+    now = datetime.now(timezone(timedelta(hours=9)))
     hour = now.hour % 12 or 12
     time_label = f"{'오후' if now.hour >= 12 else '오전'} {hour}:{now.minute:02d}"
     row = conn.execute("""
