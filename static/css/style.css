@@ -2526,6 +2526,29 @@
         .accept-request-icon { color: #2e7d32; cursor: pointer; }
         .decline-request-icon { color: #c62828; cursor: pointer; }
 
+        .friend-panel-item span.chess-invite-friend-icon {
+            display:inline-grid;
+            width:28px;
+            height:28px;
+            border-radius:8px;
+            place-items:center;
+            color:var(--brand-color);
+            cursor:pointer;
+            transition:background .16s ease, transform .16s ease, opacity .16s ease;
+        }
+
+        .friend-panel-item span.chess-invite-friend-icon:hover,
+        .friend-panel-item span.chess-invite-friend-icon:focus-visible {
+            background:color-mix(in srgb, var(--brand-color) 12%, transparent);
+            transform:translateY(-1px);
+            outline:none;
+        }
+
+        .friend-panel-item span.chess-invite-friend-icon.is-sending {
+            opacity:.55;
+            pointer-events:none;
+        }
+
         .friend-panel-item span.delete-friend-icon {
             cursor: pointer;
             color: #e05252;

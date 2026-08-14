@@ -4211,6 +4211,105 @@ def chess_create_game_api():
         conn.commit()
     return jsonify({"success": True, "game": state})
 
+@app.route("/api/chess/quick-invite/<int:friend_id>", methods=["POST"])
+@login_required_api
+def chess_quick_invite_friend_api(friend_id):
+    """메신저 친구 목록에서 온라인 체스방을 만들고 해당 친구에게 즉시 초대한다."""
+    user_id = session["user_id"]
+    data = request.get_json(silent=True) or {}
+    time_control = data.get("timeControl", "unlimited")
+
+    with get_db() as conn:
+        # 실제 친구 관계인지 확인한다.
+        if not are_users_friends(conn, user_id, friend_id):
+            return jsonify({
+                "success": False,
+                "error": "친구에게만 체스 초대를 보낼 수 있습니다."
+            }), 403
+
+        # 차단 관계가 있으면 초대를 보내지 않는다.
+        if is_blocked_either_way(conn, user_id, friend_id):
+            return jsonify({
+                "success": False,
+                "error": "차단된 사용자에게는 체스 초대를 보낼 수 없습니다."
+            }), 403
+
+        # 상대 친구의 1:1 대화방을 먼저 확인한다.
+        # 모든 권한 검사를 통과한 뒤에만 대기방을 생성해 불필요한 chess_games 행이 남지 않게 한다.
+        friends = {
+            friend["id"]: friend
+            for friend in chess_invitable_friends(conn, user_id)
+        }
+
+        friend = friends.get(friend_id)
+        if not friend:
+            return jsonify({
+                "success": False,
+                "error": "체스 초대를 보낼 수 있는 친구가 아닙니다."
+            }), 403
+
+        # 모든 권한 검사를 통과한 뒤 온라인 대기방 생성
+        game = create_chess_game(
+            conn,
+            user_id,
+            "online",
+            time_control,
+        )
+
+        invite = conn.execute("""
+            INSERT INTO chess_invites (
+                game_id,
+                inviter_id,
+                invitee_id,
+                status,
+                created_at
+            )
+            VALUES (%s, %s, %s, 'pending', %s)
+            RETURNING id
+        """, (
+            game["id"],
+            user_id,
+            friend_id,
+            now_str(),
+        )).fetchone()
+
+        invite_url = url_for(
+            "chess_accept_invite_page",
+            invite_id=invite["id"],
+            _external=True,
+        )
+
+        create_system_message(
+            conn,
+            friend["conversation_id"],
+            f"체스 대국 초대가 도착했습니다. 참여하기: {invite_url}",
+            user_id,
+        )
+
+        state = chess_game_state(conn, game, user_id)
+        conn.commit()
+
+    notify_user(
+        friend_id,
+        "chess_invite",
+        {
+            "gameId": str(game["id"]),
+            "inviteId": invite["id"],
+        },
+    )
+
+    socketio.emit(
+        "conversation_updated",
+        {"conversationId": friend["conversation_id"]},
+        room=f"conversation_{friend['conversation_id']}",
+    )
+
+    return jsonify({
+        "success": True,
+        "game": state,
+        "inviteId": invite["id"],
+    })
+
 
 @app.route("/api/chess/games/<game_id>")
 @login_required_api

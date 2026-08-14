@@ -2103,20 +2103,63 @@
                         ? `<span class="unblock-friend-icon" title="차단 해제"><i class="fa-solid fa-lock-open"></i></span>`
                         : `<span class="block-friend-icon" title="차단"><i class="fa-solid fa-ban"></i></span>`);
 
+                const chessInviteIconHTML = friend.blockedByMe || friend.blockedMe
+                    ? ""
+                    : `<span class="chess-invite-friend-icon" title="체스 초대" role="button" tabindex="0" aria-label="${escapeHTML(friend.name)}님에게 체스 초대">
+                        <i class="fa-solid fa-chess-knight"></i>
+                    </span>`;
+
                 item.innerHTML = `
                     <button type="button" class="friend-panel-profile-trigger" aria-label="${escapeHTML(friend.name)} 프로필 보기">
                         <img src="${escapeHTML(friend.peerProfileImage || "/static/default_profile.png")}" alt="">
                         <span>${escapeHTML(friend.name)}</span>
                     </button>
                     <div class="friend-panel-actions">
+                        ${chessInviteIconHTML}
                         ${blockIconHTML}
-                        <span class="delete-friend-icon"><i class="fa-solid fa-trash"></i></span>
+                        <span class="delete-friend-icon" title="친구 삭제"><i class="fa-solid fa-trash"></i></span>
                     </div>
                 `;
 
                 item.querySelector(".friend-panel-profile-trigger").addEventListener("click", function () {
                     openProfileCard(friend);
                 });
+
+                const chessInviteIcon = item.querySelector(".chess-invite-friend-icon");
+                if (chessInviteIcon) {
+                    const sendChessInvite = async function (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (chessInviteIcon.classList.contains("is-sending")) return;
+
+                        chessInviteIcon.classList.add("is-sending");
+                        chessInviteIcon.setAttribute("aria-busy", "true");
+
+                        try {
+                            const response = await fetch(`/api/chess/quick-invite/${friend.peerId}`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ timeControl: "unlimited" })
+                            });
+                            const result = await response.json();
+                            if (!response.ok || !result.success) {
+                                throw new Error(result.error || "체스 초대를 보내지 못했습니다.");
+                            }
+
+                            showToast(`"${friend.name}"님에게 체스 초대를 보냈습니다.`);
+                            window.location.href = `/chess/game/${result.game.id}`;
+                        } catch (error) {
+                            chessInviteIcon.classList.remove("is-sending");
+                            chessInviteIcon.removeAttribute("aria-busy");
+                            showAlert(error.message || "체스 초대를 보내는 중 문제가 발생했습니다.");
+                        }
+                    };
+
+                    chessInviteIcon.addEventListener("click", sendChessInvite);
+                    chessInviteIcon.addEventListener("keydown", function (event) {
+                        if (event.key === "Enter" || event.key === " ") sendChessInvite(event);
+                    });
+                }
 
                 item.querySelector(".delete-friend-icon").addEventListener("click", function () {
                     showConfirm(`"${friend.name}"님을 삭제하시겠습니까?`, async function (confirmDelete) {
