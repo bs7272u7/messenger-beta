@@ -5,6 +5,7 @@ psycopg2-binary
 Werkzeug
 python-dotenv
 gunicorn
+simple-websocket
 resend
 requests
 cloudinary

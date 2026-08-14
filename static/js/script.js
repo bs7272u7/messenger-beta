@@ -807,12 +807,14 @@
             themeToggleItem.setAttribute("aria-disabled", officeEnabled ? "true" : "false");
             if (officeEnabled) {
                 themeToggleIcon.className = "fa-solid fa-lock";
-                themeToggleLabel.innerText = "오피스 모드에서는 화면 모드 고정";
+                themeToggleLabel.innerText = "화면 모드 고정됨";
+                themeToggleItem.title = "오피스 모드에서는 다크/라이트 모드를 바꿀 수 없습니다.";
                 return;
             }
             const isDark = document.body.classList.contains("dark-mode");
             themeToggleIcon.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
             themeToggleLabel.innerText = isDark ? "라이트 모드" : "다크 모드";
+            themeToggleItem.removeAttribute("title");
         }
 
         function syncOfficeModeLabel() {

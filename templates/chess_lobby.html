@@ -8,7 +8,7 @@
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/chess-favicon-knight.ico', v='20260815') }}">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='images/chess-favicon-knight.png', v='20260815') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260815.4') }}">
 </head>
 <body class="chess-page">
     <main class="chess-lobby-shell">
@@ -53,6 +53,6 @@
         </section>
     </main>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/chess_lobby.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260815.4') }}"></script>
 </body>
 </html>

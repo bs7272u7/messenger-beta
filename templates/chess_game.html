@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='images/chess-favicon-knight.png', v='20260815') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260815.4') }}">
 </head>
 <body class="chess-page">
     <main class="chess-game-shell" data-game-id="{{ game_id }}" data-current-user-id="{{ session.get('user_id', '') }}">
@@ -29,6 +29,6 @@
     <div id="chess-invite-modal" class="game-result-modal" hidden><div class="chess-invite-modal-box"><button id="close-chess-invite" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button><i class="fa-solid fa-chess-knight"></i><h2>친구 초대</h2><p>친구에게 체스 대국 초대를 보냅니다.</p><div id="chess-invite-friends" class="chess-invite-friends">친구 목록을 불러오는 중…</div></div></div>
     <div id="chess-player-modal" class="game-result-modal" hidden><div class="chess-player-modal-box"><button id="close-chess-player" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button><img id="chess-player-avatar" src="/static/default_profile.png" alt=""><h2 id="chess-player-name">플레이어</h2><p id="chess-player-username"></p><div class="chess-player-stats"><span>레이팅 <strong id="chess-player-rating">1200</strong></span><span>전적 <strong id="chess-player-record">0승 0무 0패</strong></span></div><button id="chess-player-friend-btn" class="chess-primary" type="button" hidden><i class="fa-solid fa-user-plus"></i> 친구 추가</button></div></div>
     <div id="chess-emote-pop" class="chess-emote-pop" hidden></div>
-    <script src="{{ url_for('static', filename='js/chess_game.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_game.js', v='20260815.4') }}"></script>
 </body>
 </html>

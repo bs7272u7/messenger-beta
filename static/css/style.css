@@ -1590,6 +1590,8 @@
             border-radius: 9px;
             font-size: 13px;
         }
+        #settings-menu #theme-toggle-item.disabled { color:color-mix(in srgb, var(--text-color) 48%, transparent); cursor:not-allowed; }
+        #settings-menu #theme-toggle-item.disabled span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         #settings-menu > div:not(.settings-menu-section-title):not(.settings-menu-divider):hover {
             background: var(--friend-hover);
         }
