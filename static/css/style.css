@@ -3196,7 +3196,8 @@
             }
 
             #mobile-chat-actions-sheet.open { display: block; }
-            #mobile-chat-actions-sheet button {
+            #mobile-chat-actions-sheet button,
+            #mobile-chat-actions-sheet .mobile-chat-chess-link {
                 display: flex;
                 align-items: center;
                 width: 100%;
@@ -3210,8 +3211,10 @@
                 font: inherit;
                 font-size: 13px;
                 text-align: left;
+                text-decoration: none;
             }
-            #mobile-chat-actions-sheet button:active { background: var(--friend-hover); }
+            #mobile-chat-actions-sheet button:active,
+            #mobile-chat-actions-sheet .mobile-chat-chess-link:active { background: var(--friend-hover); }
             #mobile-chat-actions-sheet .group-only-action { display: none; }
             #mobile-chat-actions-sheet.group-chat .group-only-action { display: flex; }
 
