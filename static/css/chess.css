@@ -50,3 +50,7 @@ body.chess-page::before { content:""; position:fixed; inset:0; pointer-events:no
     grid-template-rows:repeat(8, minmax(0, 1fr));
 }
 .chess-square { min-width:0; min-height:0; aspect-ratio:1 / 1; }
+
+/* 종료 모달에서도 새 대국·로비·전적 정리를 한 번에 선택할 수 있게 한다. */
+.game-result-actions { display:grid; gap:8px; margin-top:20px; }
+.game-result-actions a { margin-top:0; }

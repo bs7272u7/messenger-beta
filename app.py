@@ -92,6 +92,8 @@ active_socket_ids = {}
 active_socket_ids_lock = Lock()
 chess_matchmaking_queue = []
 chess_matchmaking_lock = Lock()
+chess_ai_reply_pending = set()
+chess_ai_reply_lock = Lock()
 _rate_limit_buckets = {}
 _rate_limit_lock = Lock()
 
@@ -3807,13 +3809,39 @@ def submit_chess_move(conn, game, user_id, from_sq, to_sq, promotion=None):
         raise ValueError("현재 차례가 아닙니다.")
     move = board.find_move(from_sq, to_sq, promotion)
     game, _ = save_chess_move(conn, game, board, move)
-    # AI는 검증이 끝난 서버 보드만 보고 즉시 응수한다.
-    if game["mode"] == "ai" and game["status"] == "active":
-        ai_board = chess_board_for_game(conn, game)
-        ai_move = choose_move(ai_board, game["ai_difficulty"] or "medium")
-        if ai_move:
-            game, _ = save_chess_move(conn, game, ai_board, ai_move)
     return game
+
+
+def play_chess_ai_reply(game_id):
+    """AI가 바로 응수하지 않도록 짧은 생각 시간을 둔 뒤, 서버에서만 다음 수를 계산한다."""
+    try:
+        socketio.sleep(2.3)
+        state = None
+        with get_db() as conn:
+            game = conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
+            if game and game["mode"] == "ai" and game["status"] == "active":
+                board = chess_board_for_game(conn, game)
+                if board.turn == "b":
+                    ai_move = choose_move(board, game["ai_difficulty"] or "medium")
+                    if ai_move:
+                        game, _ = save_chess_move(conn, game, board, ai_move)
+                        state = chess_game_state(conn, game, game["white_player_id"])
+                        conn.commit()
+        if state:
+            socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+    finally:
+        with chess_ai_reply_lock:
+            chess_ai_reply_pending.discard(str(game_id))
+
+
+def schedule_chess_ai_reply(game_id):
+    """같은 대국에 AI 응수 작업이 중복 예약되지 않도록 보호한다."""
+    game_id = str(game_id)
+    with chess_ai_reply_lock:
+        if game_id in chess_ai_reply_pending:
+            return
+        chess_ai_reply_pending.add(game_id)
+    socketio.start_background_task(play_chess_ai_reply, game_id)
 
 
 def activate_chess_game(conn, game, joining_user_id):
@@ -3925,6 +3953,8 @@ def chess_delete_history_api(game_id):
             return jsonify({"success": False, "error": "본인 전적만 삭제할 수 있습니다."}), 403
         if game["status"] != "finished":
             return jsonify({"success": False, "error": "진행 중인 게임은 삭제할 수 없습니다."}), 400
+        # 초기 배포 DB에 CASCADE 제약이 누락돼 있어도 전적 삭제가 막히지 않게 기보부터 명시적으로 정리한다.
+        conn.execute("DELETE FROM chess_game_moves WHERE game_id = %s", (game_id,))
         conn.execute("DELETE FROM chess_games WHERE id = %s", (game_id,))
         conn.commit()
     return jsonify({"success": True})
@@ -3940,6 +3970,8 @@ def chess_move_api(game_id):
             game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
             state = chess_game_state(conn, game, session["user_id"])
             conn.commit()
+        if game["mode"] == "ai" and game["status"] == "active":
+            schedule_chess_ai_reply(game["id"])
         socketio.emit("game:state_update", state, room=f"chess_{game_id}")
         return jsonify({"success": True, "game": state})
     except ValueError as error:
@@ -4054,6 +4086,8 @@ def chess_socket_move(data):
             game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
             state = chess_game_state(conn, game, session["user_id"])
             conn.commit()
+        if game["mode"] == "ai" and game["status"] == "active":
+            schedule_chess_ai_reply(game["id"])
         socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
     except (ValueError, TypeError) as error:
         socketio.emit("game:error", {"error": str(error)}, room=f"user_{session['user_id']}")

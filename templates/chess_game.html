@@ -25,7 +25,7 @@
             <aside class="chess-side-panel"><div class="side-title"><span>기보</span><button id="flip-board" aria-label="보드 뒤집기"><i class="fa-solid fa-rotate"></i></button></div><ol id="move-history" class="move-history"></ol><div class="game-actions"><button id="draw-btn" class="chess-secondary">무승부 제안</button><button id="resign-btn" class="danger-button">기권</button></div></aside>
         </section>
     </main>
-    <div id="game-result-modal" class="game-result-modal" hidden><div><i class="fa-solid fa-trophy"></i><h2 id="result-title">게임 종료</h2><p id="result-description"></p><a class="chess-primary" href="/chess">다시 플레이</a></div></div>
+    <div id="game-result-modal" class="game-result-modal" hidden><div><i class="fa-solid fa-trophy"></i><h2 id="result-title">게임 종료</h2><p id="result-description"></p><div class="game-result-actions"><a class="chess-secondary" href="/chess">로비로 돌아가기</a><a class="chess-primary" href="/chess">다시 플레이</a><button id="result-delete-history" class="danger-button" type="button"><i class="fa-solid fa-trash"></i> 전적 삭제</button></div></div></div>
     <script src="{{ url_for('static', filename='js/chess_game.js') }}"></script>
 </body>
 </html>
