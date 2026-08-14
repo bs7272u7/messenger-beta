@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>체스 게임 · Cloud Chatting</title>
+    <link rel="icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css') }}">
+</head>
+<body class="chess-page">
+    <main class="chess-game-shell" data-game-id="{{ game_id }}">
+        <header class="chess-game-header"><a class="chess-back-link" href="/chess"><i class="fa-solid fa-chevron-left"></i> 체스 로비</a><div id="room-code" class="room-code"></div></header>
+        <section class="chess-game-layout">
+            <aside class="chess-player-card black-player"><div class="player-row"><i class="fa-solid fa-chess-king"></i><strong id="black-name">상대</strong><span id="black-clock" class="chess-clock">∞</span></div><div id="black-captured" class="captured-pieces"></div></aside>
+            <section class="chess-board-area">
+                <div id="game-status" class="game-status">게임을 불러오는 중…</div>
+                <div id="chess-board" class="chess-board" role="grid" aria-label="체스판"></div>
+                <div id="promotion-dialog" class="promotion-dialog" hidden><p>프로모션 기물을 선택하세요</p><div><button data-promotion="q">♕</button><button data-promotion="r">♖</button><button data-promotion="b">♗</button><button data-promotion="n">♘</button></div></div>
+            </section>
+            <aside class="chess-player-card white-player"><div class="player-row"><i class="fa-solid fa-chess-king"></i><strong id="white-name">나</strong><span id="white-clock" class="chess-clock">∞</span></div><div id="white-captured" class="captured-pieces"></div></aside>
+            <aside class="chess-side-panel"><div class="side-title"><span>기보</span><button id="flip-board" aria-label="보드 뒤집기"><i class="fa-solid fa-rotate"></i></button></div><ol id="move-history" class="move-history"></ol><div class="game-actions"><button id="draw-btn" class="chess-secondary">무승부 제안</button><button id="resign-btn" class="danger-button">기권</button></div></aside>
+        </section>
+    </main>
+    <div id="game-result-modal" class="game-result-modal" hidden><div><i class="fa-solid fa-trophy"></i><h2 id="result-title">게임 종료</h2><p id="result-description"></p><a class="chess-primary" href="/chess">다시 플레이</a></div></div>
+    <script src="{{ url_for('static', filename='js/chess_game.js') }}"></script>
+</body>
+</html>

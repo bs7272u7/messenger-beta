@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>체스 · Cloud Chatting</title>
+    <link rel="icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css') }}">
+</head>
+<body class="chess-page">
+    <main class="chess-lobby-shell">
+        <a class="chess-back-link" href="/"><i class="fa-solid fa-arrow-left"></i> 채팅으로 돌아가기</a>
+        <section class="chess-hero">
+            <span class="chess-eyebrow">CLOUD CHATTING PLAY</span>
+            <h1>체스 한 판, 시작할까요?</h1>
+            <p>모든 수는 서버가 검증합니다. 로컬·AI·온라인 대전을 하나의 화면에서 즐겨보세요.</p>
+        </section>
+        <section class="chess-mode-grid">
+            <article class="chess-mode-card" data-mode="local">
+                <div class="mode-icon"><i class="fa-solid fa-user-group"></i></div>
+                <h2>로컬 2인</h2><p>한 기기에서 번갈아 두는 대전입니다.</p>
+                <button class="chess-primary mode-start">로컬 게임 시작</button>
+            </article>
+            <article class="chess-mode-card" data-mode="ai">
+                <div class="mode-icon"><i class="fa-solid fa-robot"></i></div>
+                <h2>AI 대전</h2><p>서버가 계산하는 미니맥스 AI와 대결합니다.</p>
+                <label>난이도<select class="difficulty"><option value="easy">쉬움</option><option value="medium" selected>보통</option><option value="hard">어려움</option></select></label>
+                <button class="chess-primary mode-start">AI와 대전</button>
+            </article>
+            <article class="chess-mode-card" data-mode="online">
+                <div class="mode-icon"><i class="fa-solid fa-wifi"></i></div>
+                <h2>온라인 대전</h2><p>초대 코드로 친구와 실시간 대전을 시작합니다.</p>
+                <button class="chess-primary mode-start">방 만들기</button>
+                <button class="chess-secondary random-match">랜덤 매칭</button>
+                <div class="join-code"><input maxlength="6" placeholder="방 코드 입력"><button class="chess-secondary join-room">입장</button></div>
+            </article>
+        </section>
+        <section class="chess-settings-card">
+            <h2><i class="fa-regular fa-clock"></i> 시간 설정</h2>
+            <div class="time-control-options">
+                <label><input type="radio" name="timeControl" value="unlimited" checked> 무제한</label>
+                <label><input type="radio" name="timeControl" value="rapid10"> 래피드 10분</label>
+                <label><input type="radio" name="timeControl" value="blitz5"> 블리츠 5분</label>
+                <label><input type="radio" name="timeControl" value="blitz3"> 블리츠 3분</label>
+            </div>
+        </section>
+        <section class="chess-settings-card chess-history-card">
+            <h2><i class="fa-solid fa-clock-rotate-left"></i> 최근 전적</h2>
+            <div id="chess-history-list" class="chess-history-list">전적을 불러오는 중…</div>
+        </section>
+    </main>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chess_lobby.js') }}"></script>
+</body>
+</html>

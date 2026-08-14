@@ -14,6 +14,7 @@ import secrets
 import hmac
 import io
 from threading import Lock
+from collections import Counter
 import resend
 import ipaddress
 import socket
@@ -30,6 +31,9 @@ from dotenv import load_dotenv
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
+from chess_engine import ChessBoard, STARTING_FEN
+from chess_engine.board import opponent
+from chess_engine.ai import choose_move
 try:
     from pywebpush import webpush, WebPushException
 except ImportError:
@@ -86,6 +90,8 @@ VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY")
 VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL")
 active_socket_ids = {}
 active_socket_ids_lock = Lock()
+chess_matchmaking_queue = []
+chess_matchmaking_lock = Lock()
 _rate_limit_buckets = {}
 _rate_limit_lock = Lock()
 
@@ -524,6 +530,7 @@ def handle_socket_disconnect():
             return
         active_socket_ids.pop(user_id, None)
     socketio.emit("presence_updated", {"userId": user_id, "online": False})
+    mark_chess_disconnect(user_id)
 
 
 def is_user_online(user_id):
@@ -707,6 +714,7 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspension_reason TEXT")
         # 기기마다 언어가 달라지지 않도록 사용자 계정에 선택 언어를 함께 저장한다.
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'ko'")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_rating INT NOT NULL DEFAULT 1200")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 
         cur.execute("""
@@ -728,6 +736,42 @@ def init_db():
             )
         """)
         cur.execute("ALTER TABLE moderation_actions ADD COLUMN IF NOT EXISTS seen_at TEXT")
+
+        # 체스는 메신저 DB 연결 방식을 그대로 재사용해 배포 환경에서 ORM 이중화를 만들지 않는다.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chess_games (
+                id UUID PRIMARY KEY,
+                room_code VARCHAR(8) UNIQUE NOT NULL,
+                white_player_id INT REFERENCES users(id) ON DELETE SET NULL,
+                black_player_id INT REFERENCES users(id) ON DELETE SET NULL,
+                mode VARCHAR(12) NOT NULL,
+                ai_difficulty VARCHAR(12),
+                fen TEXT NOT NULL,
+                result TEXT,
+                status VARCHAR(16) NOT NULL DEFAULT 'waiting',
+                time_control VARCHAR(12) NOT NULL DEFAULT 'unlimited',
+                white_remaining_ms BIGINT,
+                black_remaining_ms BIGINT,
+                turn_started_ms BIGINT,
+                draw_offer_user_id INT REFERENCES users(id) ON DELETE SET NULL,
+                disconnected_user_id INT REFERENCES users(id) ON DELETE SET NULL,
+                disconnect_deadline_ms BIGINT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chess_game_moves (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES chess_games(id) ON DELETE CASCADE,
+                move_number INT NOT NULL,
+                san VARCHAR(32) NOT NULL,
+                fen TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_games_room ON chess_games(room_code)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_moves_game ON chess_game_moves(game_id, move_number)")
 
         # ADMIN_EMAIL과 일치하는 계정만 관리자 권한을 부여한다.
         # 권한은 화면이나 세션이 아닌 DB에서 다시 확인하므로 주소를 직접 입력해도 우회할 수 없다.
@@ -3642,6 +3686,411 @@ def read_conversation(conversation_id):
         )
         conn.commit()
     return jsonify({"success": True})
+
+
+# ----------------------------------------------------------------
+# 체스: 서버 권위 상태 관리 (클라이언트 FEN은 화면 표시용일 뿐, 수 판정에는 사용하지 않음)
+# ----------------------------------------------------------------
+CHESS_TIME_CONTROLS = {"unlimited": None, "blitz3": 3 * 60 * 1000, "blitz5": 5 * 60 * 1000, "rapid10": 10 * 60 * 1000}
+
+
+def chess_room_code(conn):
+    while True:
+        code = secrets.token_hex(3).upper()
+        if not conn.execute("SELECT 1 FROM chess_games WHERE room_code = %s", (code,)).fetchone():
+            return code
+
+
+def create_chess_game(conn, user_id, mode, time_control="unlimited", difficulty="medium"):
+    if mode not in {"local", "ai", "online"}:
+        raise ValueError("지원하지 않는 체스 모드입니다.")
+    if time_control not in CHESS_TIME_CONTROLS:
+        time_control = "unlimited"
+    game_id, room_code = str(uuid.uuid4()), chess_room_code(conn)
+    clock = CHESS_TIME_CONTROLS[time_control]
+    status = "waiting" if mode == "online" else "active"
+    conn.execute("""
+        INSERT INTO chess_games (
+            id, room_code, white_player_id, black_player_id, mode, ai_difficulty, fen, status, time_control,
+            white_remaining_ms, black_remaining_ms, turn_started_ms, created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        game_id, room_code, user_id, user_id if mode == "local" else None, mode,
+        difficulty if mode == "ai" else None, STARTING_FEN, status, time_control, clock, clock,
+        current_message_timestamp_ms() if status == "active" else None, now_str(), now_str(),
+    ))
+    return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
+
+
+def chess_player_name(conn, user_id):
+    if not user_id:
+        return "AI" if user_id is None else None
+    user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
+    return (user["display_name"] or user["username"]) if user else "알 수 없음"
+
+
+def refresh_chess_clock(conn, game):
+    """서버 시각으로만 남은 시간을 깎아 브라우저 시간 조작을 막는다."""
+    if game["status"] != "active" or game["time_control"] == "unlimited" or not game["turn_started_ms"]:
+        return game
+    now = current_message_timestamp_ms()
+    elapsed = max(0, now - game["turn_started_ms"])
+    key = "white_remaining_ms" if ChessBoard(game["fen"]).turn == "w" else "black_remaining_ms"
+    remaining = max(0, (game[key] or 0) - elapsed)
+    if remaining == 0:
+        winner = "b" if key == "white_remaining_ms" else "w"
+        result = {"status": "timeout", "winner": winner}
+        conn.execute("UPDATE chess_games SET %s = %%s, status = 'finished', result = %%s, updated_at = %%s WHERE id = %%s" % key, (0, json.dumps(result), now_str(), game["id"]))
+        socketio.emit("game:timeout", {"gameId": str(game["id"]), "winner": winner}, room=f"chess_{game['id']}")
+    else:
+        conn.execute("UPDATE chess_games SET %s = %%s, turn_started_ms = %%s, updated_at = %%s WHERE id = %%s" % key, (remaining, now, now_str(), game["id"]))
+    return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()
+
+
+def chess_board_for_game(conn, game):
+    board = ChessBoard(game["fen"])
+    rows = conn.execute("SELECT san, fen FROM chess_game_moves WHERE game_id = %s ORDER BY move_number", (game["id"],)).fetchall()
+    board.san_history = [row["san"] for row in rows]
+    # 재접속해도 3회 반복 판정이 초기화되지 않도록 각 수 뒤의 국면을 다시 센다.
+    board.position_counts = Counter({ChessBoard(STARTING_FEN).position_key(): 1})
+    for row in rows:
+        board.position_counts[ChessBoard(row["fen"]).position_key()] += 1
+    return board
+
+
+def chess_game_state(conn, game, user_id=None):
+    game = refresh_chess_clock(conn, game)
+    board = chess_board_for_game(conn, game)
+    move_rows = conn.execute("SELECT move_number, san, fen FROM chess_game_moves WHERE game_id = %s ORDER BY move_number", (game["id"],)).fetchall()
+    state = board.state()
+    state.update({
+        "id": str(game["id"]), "roomCode": game["room_code"], "mode": game["mode"], "status": game["status"],
+        "timeControl": game["time_control"], "whiteRemainingMs": game["white_remaining_ms"],
+        "blackRemainingMs": game["black_remaining_ms"], "turnStartedMs": game["turn_started_ms"],
+        "white": {"id": game["white_player_id"], "name": chess_player_name(conn, game["white_player_id"])},
+        "black": {"id": game["black_player_id"], "name": chess_player_name(conn, game["black_player_id"]) if game["black_player_id"] else ("AI" if game["mode"] == "ai" else "대기 중")},
+        "result": json.loads(game["result"]) if game["result"] else state["result"],
+        "moves": [{"number": row["move_number"], "san": row["san"], "fen": row["fen"]} for row in move_rows],
+        "myColor": "w" if user_id == game["white_player_id"] else ("b" if user_id == game["black_player_id"] and game["mode"] != "local" else None),
+        "canPlay": bool(user_id and (game["mode"] == "local" and user_id == game["white_player_id"] or user_id in {game["white_player_id"], game["black_player_id"]})),
+    })
+    return state
+
+
+def chess_can_control_turn(game, user_id, turn):
+    if game["mode"] == "local":
+        return user_id == game["white_player_id"]
+    if game["mode"] == "ai":
+        return turn == "w" and user_id == game["white_player_id"]
+    return user_id == (game["white_player_id"] if turn == "w" else game["black_player_id"])
+
+
+def save_chess_move(conn, game, board, move):
+    san = board.push(move)
+    move_number = len(board.san_history)
+    result = board.result()
+    status = "finished" if result["status"] != "active" else "active"
+    conn.execute("INSERT INTO chess_game_moves (game_id, move_number, san, fen, created_at) VALUES (%s, %s, %s, %s, %s)", (game["id"], move_number, san, board.fen(), now_str()))
+    conn.execute("""
+        UPDATE chess_games SET fen = %s, status = %s, result = %s, draw_offer_user_id = NULL,
+            turn_started_ms = %s, updated_at = %s WHERE id = %s
+    """, (board.fen(), status, json.dumps(result) if status == "finished" else None, current_message_timestamp_ms() if status == "active" else None, now_str(), game["id"]))
+    return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone(), san
+
+
+def submit_chess_move(conn, game, user_id, from_sq, to_sq, promotion=None):
+    game = refresh_chess_clock(conn, game)
+    if game["status"] != "active":
+        raise ValueError("진행 중인 게임이 아닙니다.")
+    board = chess_board_for_game(conn, game)
+    if not chess_can_control_turn(game, user_id, board.turn):
+        raise ValueError("현재 차례가 아닙니다.")
+    move = board.find_move(from_sq, to_sq, promotion)
+    game, _ = save_chess_move(conn, game, board, move)
+    # AI는 검증이 끝난 서버 보드만 보고 즉시 응수한다.
+    if game["mode"] == "ai" and game["status"] == "active":
+        ai_board = chess_board_for_game(conn, game)
+        ai_move = choose_move(ai_board, game["ai_difficulty"] or "medium")
+        if ai_move:
+            game, _ = save_chess_move(conn, game, ai_board, ai_move)
+    return game
+
+
+def activate_chess_game(conn, game, joining_user_id):
+    """대기 중인 온라인 방에 두 번째 사용자를 넣고 색상은 서버에서 무작위로 정한다."""
+    if game["mode"] != "online" or game["status"] != "waiting":
+        raise ValueError("입장할 수 있는 대기 방이 아닙니다.")
+    if game["white_player_id"] == joining_user_id:
+        raise ValueError("만든 방에는 다른 계정으로 입장해 주세요.")
+    owner_id = game["white_player_id"]
+    white_id, black_id = (owner_id, joining_user_id) if secrets.randbelow(2) == 0 else (joining_user_id, owner_id)
+    conn.execute("""
+        UPDATE chess_games SET white_player_id = %s, black_player_id = %s, status = 'active',
+            turn_started_ms = %s, disconnected_user_id = NULL, disconnect_deadline_ms = NULL, updated_at = %s WHERE id = %s
+    """, (white_id, black_id, current_message_timestamp_ms(), now_str(), game["id"]))
+    return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()
+
+
+def chess_game_or_404(conn, game_id):
+    game = conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
+    if not game:
+        abort(404)
+    return game
+
+
+def mark_chess_disconnect(user_id):
+    """마지막 브라우저 연결이 끊긴 온라인 참가자에게만 60초 재접속 유예를 둔다."""
+    deadline = current_message_timestamp_ms() + 60_000
+    with get_db() as conn:
+        games = conn.execute("""
+            SELECT * FROM chess_games WHERE mode = 'online' AND status = 'active'
+            AND (white_player_id = %s OR black_player_id = %s)
+        """, (user_id, user_id)).fetchall()
+        for game in games:
+            conn.execute("UPDATE chess_games SET disconnected_user_id = %s, disconnect_deadline_ms = %s WHERE id = %s", (user_id, deadline, game["id"]))
+            socketio.start_background_task(finalize_chess_disconnect, str(game["id"]), user_id, deadline)
+        conn.commit()
+
+
+def finalize_chess_disconnect(game_id, user_id, deadline):
+    socketio.sleep(60)
+    with get_db() as conn:
+        game = conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
+        if not game or game["status"] != "active" or game["disconnected_user_id"] != user_id or game["disconnect_deadline_ms"] != deadline:
+            return
+        color = "w" if game["white_player_id"] == user_id else "b"
+        result = {"status": "disconnect", "winner": opponent(color)}
+        conn.execute("UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s", (json.dumps(result), now_str(), game_id))
+        game = chess_game_or_404(conn, game_id)
+        state = chess_game_state(conn, game)
+        conn.commit()
+    socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+
+
+@app.route("/chess")
+@login_required_page
+def chess_lobby_page():
+    return render_template("chess_lobby.html")
+
+
+@app.route("/chess/game/<game_id>")
+@login_required_page
+def chess_game_page(game_id):
+    return render_template("chess_game.html", game_id=game_id)
+
+
+@app.route("/api/chess/games", methods=["POST"])
+@login_required_api
+def chess_create_game_api():
+    data = request.get_json() or {}
+    with get_db() as conn:
+        game = create_chess_game(conn, session["user_id"], data.get("mode", "local"), data.get("timeControl", "unlimited"), data.get("difficulty", "medium"))
+        state = chess_game_state(conn, game, session["user_id"])
+        conn.commit()
+    return jsonify({"success": True, "game": state})
+
+
+@app.route("/api/chess/games/<game_id>")
+@login_required_api
+def chess_game_state_api(game_id):
+    with get_db() as conn:
+        game = chess_game_or_404(conn, game_id)
+        if session["user_id"] not in {game["white_player_id"], game["black_player_id"]}:
+            return jsonify({"success": False, "error": "이 게임을 볼 권한이 없습니다."}), 403
+        state = chess_game_state(conn, game, session["user_id"])
+        conn.commit()
+    return jsonify({"success": True, "game": state})
+
+
+@app.route("/api/chess/history")
+@login_required_api
+def chess_history_api():
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, mode, result, status, created_at FROM chess_games
+            WHERE white_player_id = %s OR black_player_id = %s
+            ORDER BY created_at DESC LIMIT 20
+        """, (session["user_id"], session["user_id"])).fetchall()
+    return jsonify([{"id": str(row["id"]), "mode": row["mode"], "status": row["status"], "result": json.loads(row["result"]) if row["result"] else None, "createdAt": row["created_at"]} for row in rows])
+
+
+@app.route("/api/chess/games/<game_id>/move", methods=["POST"])
+@login_required_api
+def chess_move_api(game_id):
+    data = request.get_json() or {}
+    try:
+        with get_db() as conn:
+            game = chess_game_or_404(conn, game_id)
+            game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
+            state = chess_game_state(conn, game, session["user_id"])
+            conn.commit()
+        socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+        return jsonify({"success": True, "game": state})
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+
+
+@app.route("/api/chess/games/<game_id>/resign", methods=["POST"])
+@login_required_api
+def chess_resign_api(game_id):
+    with get_db() as conn:
+        game = chess_game_or_404(conn, game_id)
+        user_id = session["user_id"]
+        if user_id not in {game["white_player_id"], game["black_player_id"]}:
+            return jsonify({"success": False, "error": "참가자만 기권할 수 있습니다."}), 403
+        color = "w" if user_id == game["white_player_id"] else "b"
+        result = {"status": "resignation", "winner": opponent(color)}
+        conn.execute("UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s", (json.dumps(result), now_str(), game_id))
+        game = chess_game_or_404(conn, game_id); state = chess_game_state(conn, game, user_id); conn.commit()
+    socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+    return jsonify({"success": True, "game": state})
+
+
+@app.route("/api/chess/games/<game_id>/draw", methods=["POST"])
+@login_required_api
+def chess_draw_api(game_id):
+    with get_db() as conn:
+        game = chess_game_or_404(conn, game_id); user_id = session["user_id"]
+        if user_id not in {game["white_player_id"], game["black_player_id"]}:
+            return jsonify({"success": False, "error": "참가자만 무승부를 제안할 수 있습니다."}), 403
+        if game["draw_offer_user_id"] and game["draw_offer_user_id"] != user_id:
+            result = {"status": "draw_agreed", "winner": None}
+            conn.execute("UPDATE chess_games SET status = 'finished', result = %s, draw_offer_user_id = NULL, updated_at = %s WHERE id = %s", (json.dumps(result), now_str(), game_id))
+        else:
+            conn.execute("UPDATE chess_games SET draw_offer_user_id = %s, updated_at = %s WHERE id = %s", (user_id, now_str(), game_id))
+        game = chess_game_or_404(conn, game_id); state = chess_game_state(conn, game, user_id); conn.commit()
+    socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+    return jsonify({"success": True, "game": state})
+
+
+@app.route("/api/chess/join", methods=["POST"])
+@login_required_api
+def chess_join_game_api():
+    code = (request.get_json() or {}).get("roomCode", "").strip().upper()
+    with get_db() as conn:
+        game = conn.execute("SELECT * FROM chess_games WHERE room_code = %s", (code,)).fetchone()
+        if not game:
+            return jsonify({"success": False, "error": "입장할 수 있는 방 코드를 찾지 못했습니다."}), 404
+        try:
+            game = activate_chess_game(conn, game, session["user_id"])
+        except ValueError as error:
+            return jsonify({"success": False, "error": str(error)}), 400
+        state = chess_game_state(conn, game, session["user_id"]); conn.commit()
+    socketio.emit("game:start", state, room=f"chess_{game['id']}")
+    return jsonify({"success": True, "game": state})
+
+
+@socketio.on("room:join")
+def chess_socket_join(data):
+    if "user_id" not in session:
+        return
+    game_id = (data or {}).get("gameId")
+    if game_id:
+        join_room(f"chess_{game_id}")
+
+
+@socketio.on("room:create")
+def chess_socket_create(data):
+    if "user_id" not in session:
+        return
+    with get_db() as conn:
+        game = create_chess_game(conn, session["user_id"], "online", (data or {}).get("timeControl", "unlimited"))
+        state = chess_game_state(conn, game, session["user_id"])
+        conn.commit()
+    join_room(f"chess_{game['id']}")
+    socketio.emit("room:created", state, room=f"user_{session['user_id']}")
+
+
+@socketio.on("matchmaking:queue")
+def chess_matchmaking_queue(data):
+    if "user_id" not in session:
+        return
+    user_id = session["user_id"]
+    time_control = (data or {}).get("timeControl", "unlimited")
+    opponent_id = None
+    with chess_matchmaking_lock:
+        global chess_matchmaking_queue
+        chess_matchmaking_queue = [entry for entry in chess_matchmaking_queue if entry[0] != user_id]
+        if chess_matchmaking_queue:
+            opponent_id, opponent_time = chess_matchmaking_queue.pop(0)
+            time_control = opponent_time
+        else:
+            chess_matchmaking_queue.append((user_id, time_control))
+    if opponent_id is None:
+        socketio.emit("matchmaking:queued", {}, room=f"user_{user_id}")
+        return
+    with get_db() as conn:
+        game = create_chess_game(conn, opponent_id, "online", time_control)
+        game = activate_chess_game(conn, game, user_id)
+        for target_id in (user_id, opponent_id):
+            state = chess_game_state(conn, game, target_id)
+            socketio.emit("matchmaking:matched", state, room=f"user_{target_id}")
+        conn.commit()
+
+
+@socketio.on("game:move")
+def chess_socket_move(data):
+    if "user_id" not in session:
+        return
+    try:
+        with get_db() as conn:
+            game = chess_game_or_404(conn, (data or {}).get("gameId"))
+            game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
+            state = chess_game_state(conn, game, session["user_id"])
+            conn.commit()
+        socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+    except (ValueError, TypeError) as error:
+        socketio.emit("game:error", {"error": str(error)}, room=f"user_{session['user_id']}")
+
+
+@socketio.on("game:resign")
+def chess_socket_resign(data):
+    if "user_id" not in session:
+        return
+    with get_db() as conn:
+        game = chess_game_or_404(conn, (data or {}).get("gameId")); user_id = session["user_id"]
+        if user_id not in {game["white_player_id"], game["black_player_id"]}:
+            return
+        color = "w" if user_id == game["white_player_id"] else "b"
+        conn.execute("UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s", (json.dumps({"status": "resignation", "winner": opponent(color)}), now_str(), game["id"]))
+        game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, user_id); conn.commit()
+    socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+
+
+@socketio.on("game:offer_draw")
+def chess_socket_offer_draw(data):
+    if "user_id" not in session:
+        return
+    with get_db() as conn:
+        game = chess_game_or_404(conn, (data or {}).get("gameId")); user_id = session["user_id"]
+        if user_id not in {game["white_player_id"], game["black_player_id"]}:
+            return
+        if game["draw_offer_user_id"] and game["draw_offer_user_id"] != user_id:
+            conn.execute("UPDATE chess_games SET status = 'finished', result = %s, draw_offer_user_id = NULL, updated_at = %s WHERE id = %s", (json.dumps({"status": "draw_agreed", "winner": None}), now_str(), game["id"]))
+        else:
+            conn.execute("UPDATE chess_games SET draw_offer_user_id = %s, updated_at = %s WHERE id = %s", (user_id, now_str(), game["id"]))
+        game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, user_id); conn.commit()
+    socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+
+
+@socketio.on("game:reconnect")
+def chess_socket_reconnect(data):
+    if "user_id" not in session:
+        return
+    with get_db() as conn:
+        game = chess_game_or_404(conn, (data or {}).get("gameId"))
+        if session["user_id"] not in {game["white_player_id"], game["black_player_id"]}:
+            return
+        conn.execute("UPDATE chess_games SET disconnected_user_id = NULL, disconnect_deadline_ms = NULL WHERE id = %s", (game["id"],))
+        game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, session["user_id"]); conn.commit()
+    join_room(f"chess_{game['id']}")
+    socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+
+
+@socketio.on("room:leave")
+def chess_socket_leave(data):
+    # 실제 연결 종료 처리도 아래 disconnect 훅에서 동일하게 판정한다.
+    return
 
 
 # 서버 실행 시 DB 테이블 자동 생성
