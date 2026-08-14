@@ -865,7 +865,7 @@
         body.dark-mode .chat-theme-glass .input-area textarea { background: rgba(55, 103, 115, .70); border-color: rgba(176, 237, 243, .20); }
 
         .chat-theme-modal { width: 430px; max-width: 90vw; padding: 0; overflow: hidden; }
-        .chat-theme-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 18px; }
+        .chat-theme-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-height:min(68vh, 570px); padding: 18px; overflow-y:auto; }
         .chat-theme-option { min-height: 135px; padding: 12px 8px; border: 1px solid var(--input-border); border-radius: 14px; background: var(--panel-bg); color: var(--text-color); cursor: pointer; font: inherit; }
         .chat-theme-option.selected { border: 2px solid var(--brand-color); box-shadow: 0 0 0 3px rgba(74, 144, 226, .12); }
         .chat-theme-option strong, .chat-theme-option small { display: block; }
@@ -878,6 +878,10 @@
         .theme-preview-glass { background: linear-gradient(135deg, rgba(250, 255, 255, .95), #9ee2f1 54%, #77bddd); color: rgba(40, 115, 151, .9); border: 1px solid rgba(255, 255, 255, .8); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9); }
         .theme-preview-aurora { background: radial-gradient(circle at 12% 4%, rgba(80, 218, 186, .72), transparent 43%), radial-gradient(circle at 90% 30%, rgba(195, 93, 194, .64), transparent 45%), linear-gradient(135deg, #466ee1, #7d67d5); color: #fff; }
         .theme-preview-mono { background: linear-gradient(135deg, #f8f9fa 0 47%, #282d35 47%); color: #3571e7; border: 1px solid #dce0e5; }
+        .theme-preview-christmas { color:#f6d889; background:radial-gradient(circle at 16% 20%, rgba(255,255,255,.7) 0 2%, transparent 3%), radial-gradient(circle at 72% 72%, rgba(255,255,255,.45) 0 2%, transparent 3%), linear-gradient(135deg, #14364a, #1a625b 58%, #b89346); }
+        .theme-preview-halloween { color:#ffd18a; background:radial-gradient(circle at 75% 20%, rgba(255,194,101,.55) 0 9%, transparent 10%), linear-gradient(135deg, #211827, #4d315c 57%, #b85a30); }
+        .season-recommendation { display:none; margin-left:4px; padding:2px 5px; border-radius:999px; color:#fff; background:#d37842; font-size:9px; font-style:normal; font-weight:700; vertical-align:1px; }
+        .chat-theme-option.season-recommended .season-recommendation { display:inline-block; }
 
         .chat-bg-decor {
             position: absolute;
@@ -1067,6 +1071,66 @@
         body.dark-mode .chat-theme-mono .input-area { background: #202228; border-top-color: #343840; }
         body.dark-mode .chat-theme-mono .input-area textarea { background: #2a2d33; border-color: #444952; }
 
+        /* 크리스마스: 원색을 과하게 쓰지 않고 네이비·소나무 그린·골드로 정리한 시즌 테마. */
+        .chat-theme-christmas {
+            --chat-bg:#eef5f4;
+            --message-left-bg:rgba(255,255,255,.94);
+            --bubble-bg:linear-gradient(135deg, #1d6b60, #285274);
+            --bubble-text:#fff;
+            --bubble-reply-bg:rgba(255,255,255,.17);
+        }
+        .chat-theme-christmas .messages-wrap { background:radial-gradient(circle at 12% 10%, rgba(240, 205, 124, .20), transparent 28%), radial-gradient(circle at 88% 88%, rgba(43, 115, 102, .16), transparent 32%), linear-gradient(145deg, #f7fbfa, #e9f1f2 54%, #e8eee9); }
+        .chat-theme-christmas .bubble { background:var(--bubble-bg); box-shadow:0 7px 16px rgba(22, 83, 76, .19); }
+        .chat-theme-christmas .message-left { border:1px solid rgba(43, 106, 96, .14); box-shadow:0 4px 12px rgba(22, 63, 71, .07); }
+        .chat.chat-theme-christmas .chat-header { background:linear-gradient(110deg, #fdfefd, #f1f7f4 60%, #f6ecd6); }
+        .chat-theme-christmas .input-area { background:rgba(250,253,252,.94); border-top-color:rgba(35,103,91,.15); }
+        .chat-theme-christmas .input-area textarea { background:rgba(255,255,255,.92); border-color:rgba(36,105,94,.22); }
+        .chat-theme-christmas .chat-bg-decor .deco-bubble { width:auto; height:auto; filter:none; opacity:.17; }
+        .chat-theme-christmas .chat-bg-decor .deco-bubble svg { display:none; }
+        .chat-theme-christmas .chat-bg-decor .deco-bubble::after { content:"\f2dc"; color:#287267; font-family:"Font Awesome 6 Free"; font-size:1em; font-weight:900; text-shadow:0 5px 12px rgba(30,81,91,.10); }
+        .chat-theme-christmas .chat-bg-decor .deco-1 { font-size:42px; animation:christmas-float-a 12s ease-in-out infinite; }
+        .chat-theme-christmas .chat-bg-decor .deco-2 { font-size:27px; animation:christmas-float-b 10s ease-in-out infinite; }
+        .chat-theme-christmas .chat-bg-decor .deco-3 { font-size:34px; animation:christmas-float-a 14s ease-in-out infinite; }
+        .chat-theme-christmas .chat-bg-decor .deco-4 { font-size:48px; animation:christmas-float-b 16s ease-in-out infinite; }
+        .chat-theme-christmas .chat-bg-decor .deco-5 { font-size:22px; animation:christmas-float-a 9s ease-in-out infinite; }
+        body.dark-mode .chat-theme-christmas { --chat-bg:#132d35; --message-left-bg:#203b43; --bubble-bg:linear-gradient(135deg, #347a70, #335d7c); }
+        body.dark-mode .chat-theme-christmas .messages-wrap { background:radial-gradient(circle at 15% 10%, rgba(206,166,78,.13), transparent 30%), linear-gradient(145deg, #15333d, #10252d 57%, #173329); }
+        body.dark-mode .chat.chat-theme-christmas .chat-header { background:linear-gradient(110deg, #203a42, #18333b 58%, #3a3529); }
+        body.dark-mode .chat-theme-christmas .input-area { background:#18343a; border-top-color:rgba(205,221,207,.13); }
+        body.dark-mode .chat-theme-christmas .input-area textarea { background:#25464a; border-color:rgba(208,230,220,.17); }
+        body.dark-mode .chat-theme-christmas .chat-bg-decor .deco-bubble { opacity:.25; }
+        body.dark-mode .chat-theme-christmas .chat-bg-decor .deco-bubble::after { color:#9fcdb2; }
+
+        /* 할로윈: 읽기 쉬운 먹색·보라 기반 위에 오렌지 포인트만 남긴다. */
+        .chat-theme-halloween {
+            --chat-bg:#f5f0f7;
+            --message-left-bg:rgba(255,255,255,.94);
+            --bubble-bg:linear-gradient(135deg, #62447c, #a85454 58%, #c66c39);
+            --bubble-text:#fff;
+            --bubble-reply-bg:rgba(255,255,255,.17);
+        }
+        .chat-theme-halloween .messages-wrap { background:radial-gradient(circle at 87% 9%, rgba(245,181,89,.22), transparent 24%), radial-gradient(circle at 8% 86%, rgba(103,66,130,.16), transparent 33%), linear-gradient(145deg, #faf6fb, #eee7f1 52%, #f2e9e1); }
+        .chat-theme-halloween .bubble { background:var(--bubble-bg); box-shadow:0 7px 16px rgba(87, 51, 96, .20); }
+        .chat-theme-halloween .message-left { border:1px solid rgba(103,66,130,.14); box-shadow:0 4px 12px rgba(63,39,71,.07); }
+        .chat.chat-theme-halloween .chat-header { background:linear-gradient(110deg, #fff, #f6f0f7 58%, #f4e8d8); }
+        .chat-theme-halloween .input-area { background:rgba(252,248,252,.94); border-top-color:rgba(103,66,130,.16); }
+        .chat-theme-halloween .input-area textarea { background:rgba(255,255,255,.92); border-color:rgba(112,69,139,.22); }
+        .chat-theme-halloween .chat-bg-decor .deco-bubble { width:auto; height:auto; filter:none; opacity:.15; }
+        .chat-theme-halloween .chat-bg-decor .deco-bubble svg { display:none; }
+        .chat-theme-halloween .chat-bg-decor .deco-bubble::after { content:"\f6e2"; color:#74478a; font-family:"Font Awesome 6 Free"; font-size:1em; font-weight:900; text-shadow:0 5px 14px rgba(69,40,83,.12); }
+        .chat-theme-halloween .chat-bg-decor .deco-1 { font-size:44px; animation:halloween-float-a 12s ease-in-out infinite; }
+        .chat-theme-halloween .chat-bg-decor .deco-2 { font-size:28px; animation:halloween-float-b 11s ease-in-out infinite; }
+        .chat-theme-halloween .chat-bg-decor .deco-3 { font-size:38px; animation:halloween-float-a 15s ease-in-out infinite; }
+        .chat-theme-halloween .chat-bg-decor .deco-4 { font-size:49px; animation:halloween-float-b 16s ease-in-out infinite; }
+        .chat-theme-halloween .chat-bg-decor .deco-5 { font-size:23px; animation:halloween-float-a 9s ease-in-out infinite; }
+        body.dark-mode .chat-theme-halloween { --chat-bg:#241b2b; --message-left-bg:#33273d; --bubble-bg:linear-gradient(135deg, #76569b, #a85a62 58%, #bb6c3c); }
+        body.dark-mode .chat-theme-halloween .messages-wrap { background:radial-gradient(circle at 87% 10%, rgba(225,135,58,.16), transparent 25%), radial-gradient(circle at 6% 88%, rgba(105,68,139,.17), transparent 34%), linear-gradient(145deg, #2c2134, #1e1824 58%, #291c21); }
+        body.dark-mode .chat.chat-theme-halloween .chat-header { background:linear-gradient(110deg, #3a2c45, #2d2235 58%, #432b28); }
+        body.dark-mode .chat-theme-halloween .input-area { background:#2d2334; border-top-color:rgba(228,203,237,.14); }
+        body.dark-mode .chat-theme-halloween .input-area textarea { background:#413047; border-color:rgba(228,203,237,.18); }
+        body.dark-mode .chat-theme-halloween .chat-bg-decor .deco-bubble { opacity:.24; }
+        body.dark-mode .chat-theme-halloween .chat-bg-decor .deco-bubble::after { color:#c39ae0; }
+
         .chat-bg-decor .deco-1 { top: 6%;  left: 8%;  width: 130px; animation: chat-float-a 13s ease-in-out infinite; }
         .chat-bg-decor .deco-2 { top: 58%; left: -3%; width: 90px;  animation: chat-float-b 10.5s ease-in-out infinite; }
         .chat-bg-decor .deco-3 { top: 14%; right: 6%; width: 100px; animation: chat-float-b 11.5s ease-in-out infinite; }
@@ -1092,6 +1156,22 @@
         @keyframes heart-float-c {
             0%, 100% { transform: translate3d(0, 0, 0) rotate(-3deg); }
             50% { transform: translate3d(8px, 17px, 0) rotate(7deg); }
+        }
+        @keyframes christmas-float-a {
+            0%, 100% { transform:translate3d(0, 0, 0) rotate(-8deg); }
+            50% { transform:translate3d(8px, -18px, 0) rotate(8deg); }
+        }
+        @keyframes christmas-float-b {
+            0%, 100% { transform:translate3d(0, 0, 0) rotate(8deg); }
+            50% { transform:translate3d(-10px, 13px, 0) rotate(-7deg); }
+        }
+        @keyframes halloween-float-a {
+            0%, 100% { transform:translate3d(0, 0, 0) rotate(-4deg); }
+            50% { transform:translate3d(10px, -15px, 0) rotate(5deg); }
+        }
+        @keyframes halloween-float-b {
+            0%, 100% { transform:translate3d(0, 0, 0) rotate(5deg); }
+            50% { transform:translate3d(-8px, 14px, 0) rotate(-5deg); }
         }
         @keyframes teddy-float-a {
             0%, 100% { transform: translate3d(0, 0, 0) rotate(-3deg); }
@@ -3335,7 +3415,9 @@
         body.office-mode .chat-theme-teddy .chat-header,
         body.office-mode .chat-theme-glass .chat-header,
         body.office-mode .chat-theme-aurora .chat-header,
-        body.office-mode .chat-theme-mono .chat-header { background: linear-gradient(110deg, #262626, #20242b); }
+        body.office-mode .chat-theme-mono .chat-header,
+        body.office-mode .chat-theme-christmas .chat-header,
+        body.office-mode .chat-theme-halloween .chat-header { background: linear-gradient(110deg, #262626, #20242b); }
         body.office-mode ::-webkit-scrollbar-thumb { background: #4a4a4a; }
 
         body.office-mode #office-mode-item { background: rgba(111, 156, 255, .12); color: #b8ceff; }

@@ -529,13 +529,28 @@
         }
 
         function applyChatTheme(friend) {
-            chatPanel.classList.remove("chat-theme-heart", "chat-theme-teddy", "chat-theme-glass", "chat-theme-aurora", "chat-theme-mono");
+            chatPanel.classList.remove("chat-theme-heart", "chat-theme-teddy", "chat-theme-glass", "chat-theme-aurora", "chat-theme-mono", "chat-theme-christmas", "chat-theme-halloween");
             const theme = friend && friend.chatTheme ? friend.chatTheme : "default";
             if (theme !== "default") chatPanel.classList.add(`chat-theme-${theme}`);
             chatThemeOptions.forEach(function (option) {
                 option.classList.toggle("selected", option.dataset.theme === theme);
             });
         }
+
+        function updateSeasonalThemeRecommendations() {
+            const today = new Date();
+            const month = today.getMonth() + 1;
+            const day = today.getDate();
+            const christmasSeason = month === 12 || (month === 1 && day <= 6);
+            const halloweenSeason = month === 10 && day >= 15 && day <= 31;
+            chatThemeOptions.forEach(function (option) {
+                const isRecommended = (option.dataset.theme === "christmas" && christmasSeason)
+                    || (option.dataset.theme === "halloween" && halloweenSeason);
+                option.classList.toggle("season-recommended", isRecommended);
+            });
+        }
+
+        updateSeasonalThemeRecommendations();
 
         function closeMobileChatActions() {
             mobileChatActionsSheet.classList.remove("open");
