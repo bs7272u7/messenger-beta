@@ -3360,6 +3360,38 @@
         body.office-mode #settings-menu > div:hover { background:#333840; color:#fff; }
         body.office-mode .settings-menu-section-title { color:#9ea8b8; }
 
+        /* 업무 화면에서는 원색 이모지 대신 차분한 회색·블루 계열로 공감을 표현한다. */
+        body.office-mode .reaction-picker {
+            background: #25282d;
+            border-color: #42474f;
+            border-radius: 8px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, .34);
+        }
+        body.office-mode .reaction-picker span {
+            width: 30px;
+            height: 30px;
+            display: grid;
+            place-items: center;
+            border: 1px solid #3d434c;
+            border-radius: 6px;
+            background: #2d3239;
+            filter: grayscale(1) saturate(.35) brightness(1.15);
+        }
+        body.office-mode .reaction-picker span:hover {
+            background: #3b4653;
+            border-color: #6287b9;
+            filter: grayscale(.75) saturate(.6) brightness(1.2);
+            transform: scale(1.08);
+        }
+        body.office-mode .reactions-badge {
+            background: #2a2e35;
+            border-color: #414852;
+            border-radius: 5px;
+            color: #dce6f6;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, .18);
+            filter: grayscale(.82) saturate(.45) brightness(1.12);
+        }
+
         @media (max-width: 767px) {
             body.office-mode .friend-list,
             body.office-mode .chat { border-radius: 0; }
