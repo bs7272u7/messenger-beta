@@ -2132,7 +2132,7 @@ def create_group_conversation():
 def update_conversation_theme(conversation_id):
     """채팅 테마는 대화방 공용 설정으로 저장하고 모든 멤버에게 알린다."""
     theme = (request.get_json() or {}).get("theme", "default")
-    if theme not in {"default", "heart", "teddy", "glass", "aurora", "mono", "christmas", "halloween"}:
+    if theme not in {"default", "heart", "teddy", "glass", "aurora", "mono", "spring", "summer", "autumn", "winter", "christmas", "halloween"}:
         return jsonify({"success": False, "error": "지원하지 않는 채팅 테마입니다."}), 400
 
     user_id = session["user_id"]
@@ -2145,7 +2145,7 @@ def update_conversation_theme(conversation_id):
         conn.execute("UPDATE conversations SET chat_theme = %s WHERE id = %s", (theme, conversation_id))
         actor = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
         actor_name = actor["display_name"] or actor["username"]
-        theme_name = {"default": "기본", "heart": "하트", "teddy": "테디베어", "glass": "글라스", "aurora": "오로라", "mono": "모노", "christmas": "크리스마스", "halloween": "할로윈"}.get(theme, theme)
+        theme_name = {"default": "기본", "heart": "하트", "teddy": "테디베어", "glass": "글라스", "aurora": "오로라", "mono": "모노", "spring": "봄", "summer": "여름", "autumn": "가을", "winter": "겨울", "christmas": "크리스마스", "halloween": "할로윈"}.get(theme, theme)
         create_system_message(conn, conversation_id, f"{actor_name}님이 {theme_name} 테마로 변경했습니다.", user_id)
         conn.commit()
         broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})

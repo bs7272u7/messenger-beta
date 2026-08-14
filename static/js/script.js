@@ -487,6 +487,8 @@
         const chatThemeOverlay = document.querySelector("#chat-theme-overlay");
         const chatThemeCloseBtn = document.querySelector("#chat-theme-close-btn");
         const chatThemeOptions = document.querySelectorAll(".chat-theme-option");
+        const chatThemeCategories = document.querySelectorAll(".chat-theme-category");
+        const chatThemePanels = document.querySelectorAll(".chat-theme-panel");
         const mobileChatMoreBtn = document.querySelector("#mobile-chat-more-btn");
         const mobileChatActionsSheet = document.querySelector("#mobile-chat-actions-sheet");
         const mobileChatNavBtn = document.querySelector("#mobile-chat-nav-btn");
@@ -529,11 +531,30 @@
         }
 
         function applyChatTheme(friend) {
-            chatPanel.classList.remove("chat-theme-heart", "chat-theme-teddy", "chat-theme-glass", "chat-theme-aurora", "chat-theme-mono", "chat-theme-christmas", "chat-theme-halloween");
+            chatPanel.classList.remove("chat-theme-heart", "chat-theme-teddy", "chat-theme-glass", "chat-theme-aurora", "chat-theme-mono", "chat-theme-spring", "chat-theme-summer", "chat-theme-autumn", "chat-theme-winter", "chat-theme-christmas", "chat-theme-halloween");
             const theme = friend && friend.chatTheme ? friend.chatTheme : "default";
             if (theme !== "default") chatPanel.classList.add(`chat-theme-${theme}`);
             chatThemeOptions.forEach(function (option) {
                 option.classList.toggle("selected", option.dataset.theme === theme);
+            });
+        }
+
+        function getThemeCategory(theme) {
+            if (["spring", "summer", "autumn", "winter"].includes(theme)) return "season";
+            if (["christmas", "halloween"].includes(theme)) return "event";
+            return "basic";
+        }
+
+        function showThemeCategory(category) {
+            chatThemeCategories.forEach(function (button) {
+                const isActive = button.dataset.themeCategory === category;
+                button.classList.toggle("active", isActive);
+                button.setAttribute("aria-selected", String(isActive));
+            });
+            chatThemePanels.forEach(function (panel) {
+                const isActive = panel.dataset.themePanel === category;
+                panel.classList.toggle("active", isActive);
+                panel.hidden = !isActive;
             });
         }
 
@@ -543,9 +564,13 @@
             const day = today.getDate();
             const christmasSeason = month === 12 || (month === 1 && day <= 6);
             const halloweenSeason = month === 10 && day >= 15 && day <= 31;
+            const currentSeasonTheme = month >= 3 && month <= 5 ? "spring"
+                : month >= 6 && month <= 8 ? "summer"
+                : month >= 9 && month <= 11 ? "autumn" : "winter";
             chatThemeOptions.forEach(function (option) {
                 const isRecommended = (option.dataset.theme === "christmas" && christmasSeason)
-                    || (option.dataset.theme === "halloween" && halloweenSeason);
+                    || (option.dataset.theme === "halloween" && halloweenSeason)
+                    || option.dataset.theme === currentSeasonTheme;
                 option.classList.toggle("season-recommended", isRecommended);
             });
         }
@@ -2335,7 +2360,9 @@
                 showAlert("먼저 채팅방을 선택해주세요.");
                 return;
             }
-            applyChatTheme(getCurrentFriend());
+            const friend = getCurrentFriend();
+            applyChatTheme(friend);
+            showThemeCategory(getThemeCategory(friend && friend.chatTheme ? friend.chatTheme : "default"));
             chatThemeOverlay.style.display = "flex";
         });
 
@@ -2345,6 +2372,12 @@
 
         chatThemeOverlay.addEventListener("click", function (event) {
             if (event.target === chatThemeOverlay) chatThemeOverlay.style.display = "none";
+        });
+
+        chatThemeCategories.forEach(function (category) {
+            category.addEventListener("click", function () {
+                showThemeCategory(category.dataset.themeCategory);
+            });
         });
 
         chatThemeOptions.forEach(function (option) {

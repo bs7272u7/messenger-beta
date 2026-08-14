@@ -363,39 +363,36 @@
                 <h3>채팅방 테마</h3>
                 <button id="chat-theme-close-btn" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="chat-theme-options">
-                <button type="button" class="chat-theme-option" data-theme="default">
-                    <span class="chat-theme-preview theme-preview-default"></span>
-                    <strong>기본</strong><small>깔끔한 블루</small>
-                </button>
-                <button type="button" class="chat-theme-option" data-theme="heart">
-                    <span class="chat-theme-preview theme-preview-heart">♥</span>
-                    <strong>하트</strong><small>감성 핑크</small>
-                </button>
-                <button type="button" class="chat-theme-option" data-theme="teddy">
-                    <span class="chat-theme-preview theme-preview-teddy">🧸</span>
-                    <strong>테디베어</strong><small>포근한 베이지</small>
-                </button>
-                <button type="button" class="chat-theme-option" data-theme="glass">
-                    <span class="chat-theme-preview theme-preview-glass"><i class="fa-solid fa-droplet"></i></span>
-                    <strong>글라스</strong><small>맑은 블루 유리</small>
-                </button>
-                <button type="button" class="chat-theme-option" data-theme="aurora">
-                    <span class="chat-theme-preview theme-preview-aurora"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
-                    <strong>오로라</strong><small>은은한 북극빛</small>
-                </button>
-                <button type="button" class="chat-theme-option" data-theme="mono">
-                    <span class="chat-theme-preview theme-preview-mono"><i class="fa-solid fa-message"></i></span>
-                    <strong>모노</strong><small>차분한 모노톤</small>
-                </button>
-                <button type="button" class="chat-theme-option" data-theme="christmas">
-                    <span class="chat-theme-preview theme-preview-christmas"><i class="fa-solid fa-snowflake"></i></span>
-                    <strong>크리스마스 <em class="season-recommendation">시즌 추천</em></strong><small>딥 네이비 · 골드 포인트</small>
-                </button>
-                <button type="button" class="chat-theme-option" data-theme="halloween">
-                    <span class="chat-theme-preview theme-preview-halloween"><i class="fa-solid fa-ghost"></i></span>
-                    <strong>할로윈 <em class="season-recommendation">시즌 추천</em></strong><small>먹색 · 보라 · 오렌지</small>
-                </button>
+            <div class="chat-theme-category-tabs" role="tablist" aria-label="채팅 테마 분류">
+                <button type="button" class="chat-theme-category active" data-theme-category="basic" role="tab" aria-selected="true">기본 테마</button>
+                <button type="button" class="chat-theme-category" data-theme-category="season" role="tab" aria-selected="false">계절 테마</button>
+                <button type="button" class="chat-theme-category" data-theme-category="event" role="tab" aria-selected="false">시즌 테마</button>
+            </div>
+            <div class="chat-theme-panel active" data-theme-panel="basic" role="tabpanel">
+                <div class="chat-theme-options">
+                    <button type="button" class="chat-theme-option" data-theme="default"><span class="chat-theme-preview theme-preview-default"></span><strong>기본</strong><small>깔끔한 블루</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="heart"><span class="chat-theme-preview theme-preview-heart">♥</span><strong>하트</strong><small>감성 핑크</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="teddy"><span class="chat-theme-preview theme-preview-teddy">🧸</span><strong>테디베어</strong><small>포근한 베이지</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="glass"><span class="chat-theme-preview theme-preview-glass"><i class="fa-solid fa-droplet"></i></span><strong>글라스</strong><small>맑은 유리 질감</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="aurora"><span class="chat-theme-preview theme-preview-aurora"><i class="fa-solid fa-wand-magic-sparkles"></i></span><strong>오로라</strong><small>은은한 북극빛</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="mono"><span class="chat-theme-preview theme-preview-mono"><i class="fa-solid fa-message"></i></span><strong>모노</strong><small>차분한 모노톤</small></button>
+                </div>
+            </div>
+            <div class="chat-theme-panel" data-theme-panel="season" role="tabpanel" hidden>
+                <p class="chat-theme-panel-description">계절의 색감을 담은 차분한 채팅 배경이에요.</p>
+                <div class="chat-theme-options">
+                    <button type="button" class="chat-theme-option" data-theme="spring"><span class="chat-theme-preview theme-preview-spring"><i class="fa-solid fa-seedling"></i></span><strong>봄 <em class="season-recommendation">계절 추천</em></strong><small>벚꽃 · 새싹 그린</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="summer"><span class="chat-theme-preview theme-preview-summer"><i class="fa-solid fa-sun"></i></span><strong>여름 <em class="season-recommendation">계절 추천</em></strong><small>맑은 하늘 · 아쿠아</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="autumn"><span class="chat-theme-preview theme-preview-autumn"><i class="fa-solid fa-leaf"></i></span><strong>가을 <em class="season-recommendation">계절 추천</em></strong><small>앰버 · 단풍 브라운</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="winter"><span class="chat-theme-preview theme-preview-winter"><i class="fa-solid fa-snowflake"></i></span><strong>겨울 <em class="season-recommendation">계절 추천</em></strong><small>아이스 블루 · 실버</small></button>
+                </div>
+            </div>
+            <div class="chat-theme-panel" data-theme-panel="event" role="tabpanel" hidden>
+                <p class="chat-theme-panel-description">특별한 시즌에 어울리는 한정 분위기의 테마예요.</p>
+                <div class="chat-theme-options">
+                    <button type="button" class="chat-theme-option" data-theme="christmas"><span class="chat-theme-preview theme-preview-christmas"><i class="fa-solid fa-snowflake"></i></span><strong>크리스마스 <em class="season-recommendation">시즌 추천</em></strong><small>딥 네이비 · 골드 포인트</small></button>
+                    <button type="button" class="chat-theme-option" data-theme="halloween"><span class="chat-theme-preview theme-preview-halloween"><i class="fa-solid fa-ghost"></i></span><strong>할로윈 <em class="season-recommendation">시즌 추천</em></strong><small>먹색 · 보라 · 오렌지</small></button>
+                </div>
             </div>
         </div>
     </div>
