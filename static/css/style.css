@@ -66,7 +66,7 @@
 
             .desktop-quick-actions {
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) 34px;
+                grid-template-columns: minmax(0, 1fr) minmax(74px, .7fr) 34px;
                 gap: 8px;
                 padding-bottom: 15px;
                 border-bottom: 1px solid var(--border-color);
@@ -87,7 +87,9 @@
                 font-size: 12px;
                 font-weight: 650;
             }
+            #play-launch-btn { display:flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--border-color); border-radius:10px; background:var(--panel-bg); color:var(--text-color); font-size:12px; font-weight:650; text-decoration:none; }
             #friend-inbox-btn:hover,
+            #play-launch-btn:hover,
             .desktop-profile-card #edit-profile-btn:hover,
             .desktop-quick-actions .side-nav-settings:hover { background: var(--friend-hover); color: var(--brand-color); }
 
@@ -157,7 +159,7 @@
             #desktop-chat-info { display: none; }
             .desktop-profile-card { display: none; }
             .desktop-quick-actions { display: flex; justify-content: flex-end; padding-bottom: 10px; }
-            .desktop-quick-actions .side-nav-settings { display: none; }
+            .desktop-quick-actions .side-nav-settings, #play-launch-btn { display: none; }
             #friend-inbox-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--brand-color); font: inherit; font-size: 12px; font-weight: 700; }
             .friend-list-heading { display: flex; align-items: center; justify-content: space-between; }
             .friend-list-heading h2 { margin: 0; }
@@ -3262,7 +3264,7 @@
                 bottom: 0;
                 left: 0;
                 display: grid;
-                grid-template-columns: repeat(4, 1fr);
+                grid-template-columns: repeat(5, 1fr);
                 align-items: stretch;
                 min-height: 64px;
                 padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
@@ -3275,7 +3277,8 @@
                 z-index: 450;
             }
 
-            #mobile-bottom-nav button {
+            #mobile-bottom-nav button,
+            #mobile-bottom-nav a {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -3289,10 +3292,11 @@
                 cursor: pointer;
                 font: inherit;
                 opacity: .62;
+                text-decoration: none;
             }
 
-            #mobile-bottom-nav button i { font-size: 19px; }
-            #mobile-bottom-nav button span { font-size: 10px; font-weight: 650; }
+            #mobile-bottom-nav button i, #mobile-bottom-nav a i { font-size: 19px; }
+            #mobile-bottom-nav button span, #mobile-bottom-nav a span { font-size: 10px; font-weight: 650; }
             #mobile-bottom-nav button.active,
             #mobile-bottom-nav button:active {
                 background: var(--panel-tint-strong);
