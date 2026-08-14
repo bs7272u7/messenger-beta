@@ -152,6 +152,9 @@
 
     function t(key) {
         const text = String(key || "").trim();
+        // 한국어는 번역 사전이 아니라 화면의 원문 자체가 기준이다.
+        // 영어 등 다른 언어를 본 뒤 한국어로 돌아와도 원문으로 정확히 복원한다.
+        if (language === "ko") return text;
         return (dictionaries[language] && dictionaries[language][text]) || dictionaries.en[text] || text;
     }
 

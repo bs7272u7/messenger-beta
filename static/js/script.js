@@ -73,6 +73,39 @@
             return new Date().toISOString().split("T")[0];
         }
 
+        // 시스템 메시지는 이름처럼 번역하면 안 되는 값과 안내 문구가 한 문장에 섞여 있다.
+        // 저장된 원문은 유지하고, 화면에 표시할 때만 현재 언어의 문장 형태로 바꾼다.
+        function localizeSystemMessage(text) {
+            const original = String(text || "");
+            const i18n = window.CloudI18n;
+            const language = i18n ? i18n.getLanguage() : "ko";
+            const themeChanged = original.match(/^(.+?)님이 (.+) 테마로 변경했습니다\.$/);
+            if (themeChanged) {
+                const [, name, theme] = themeChanged;
+                const themeLabel = i18n ? i18n.t(theme) : theme;
+                const templates = {
+                    en: `${name} changed the chat theme to ${themeLabel}.`,
+                    zh: `${name} 将聊天主题更改为${themeLabel}。`,
+                    ja: `${name}さんがチャットテーマを${themeLabel}に変更しました。`,
+                    es: `${name} cambió el tema del chat a ${themeLabel}.`
+                };
+                return templates[language] || original;
+            }
+
+            const memberLeft = original.match(/^(.+?)님이 나갔습니다\.$/);
+            if (memberLeft) {
+                const name = memberLeft[1];
+                return ({ en: `${name} left the group.`, zh: `${name} 离开了群组。`, ja: `${name}さんがグループを退出しました。`, es: `${name} salió del grupo.` }[language]) || original;
+            }
+
+            const groupEnded = original.match(/^(.+?)님이 그룹 채팅을 종료했습니다\. 이전 대화는 계속 볼 수 있습니다\.$/);
+            if (groupEnded) {
+                const name = groupEnded[1];
+                return ({ en: `${name} ended the group chat. Previous messages remain available.`, zh: `${name} 结束了群聊。仍可查看历史消息。`, ja: `${name}さんがグループチャットを終了しました。過去のメッセージは引き続き閲覧できます。`, es: `${name} cerró el chat grupal. Los mensajes anteriores seguirán disponibles.` }[language]) || original;
+            }
+            return i18n ? i18n.t(original) : original;
+        }
+
         function getCurrentFriend() {
             return friends.find(function (friend) { return friend.id === currentConversationID; });
         }
@@ -794,6 +827,8 @@
 
         window.addEventListener("cloud-language-change", async function (event) {
             syncLanguageSetting();
+            // 이미 화면에 있던 시스템 메시지도 새 언어의 문장 형태로 다시 그린다.
+            await readMessages();
             try {
                 const response = await fetch("/api/account/language", {
                     method: "PATCH",
@@ -1111,7 +1146,7 @@
 
                 if (chat.messageType === "system") {
                     message.className = "message-system";
-                    message.textContent = chat.text || "채팅방 안내";
+                    message.textContent = localizeSystemMessage(chat.text || "채팅방 안내");
                     renderTarget.appendChild(message);
                     return;
                 }
