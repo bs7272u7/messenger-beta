@@ -22,3 +22,20 @@ body.chess-page::before { content:""; position:fixed; inset:0; pointer-events:no
     linear-gradient(180deg,transparent 0 28%,rgba(15,30,16,.33) 28% 31%,transparent 31%); filter:blur(1px); }
 .chess-lobby-shell,.chess-game-shell { position:relative; z-index:1; }.chess-hero h1,.chess-mode-card h2,.chess-settings-card h2,.side-title { font-family:Georgia,"Times New Roman",serif; letter-spacing:-.025em; }.chess-eyebrow { color:#e8c56c; }.chess-back-link { color:#efe1b8; }.chess-hero { text-shadow:0 2px 18px #0a170b; }.chess-hero p { color:#e0d6b4; max-width:570px; }.chess-mode-card,.chess-settings-card,.chess-player-card,.chess-side-panel { border:1px solid rgba(212,185,111,.58); background:linear-gradient(145deg,rgba(46,57,32,.93),rgba(25,34,22,.93)); box-shadow:0 18px 38px rgba(7,17,8,.42),inset 0 1px rgba(255,245,208,.09); border-radius:9px; }.chess-mode-card { border-top:3px solid #d2b267; }.mode-icon { background:linear-gradient(145deg,#b79145,#e4cd87); color:#2e2513; border-radius:7px; }.chess-mode-card select,.join-code input { background:#202b1b; color:#f4e9c9; border-color:#8f8054; }.chess-primary { background:linear-gradient(135deg,#8d6830,#d5b66a); color:#21180b; box-shadow:inset 0 1px #f4dda0,0 4px 0 #55401f; }.chess-primary:hover { filter:brightness(1.08); transform:translateY(-1px); }.chess-secondary { color:#f0e6c7; background:#40513a; border-color:#7f8e60; }.danger-button { color:#ffe5d7; background:#693f35; border-color:#a26750; }.room-code { color:#eed58d; }.chess-clock { color:#f2d680; }.game-status { color:#eee4bd; text-shadow:0 1px 3px #192216; }.chess-board-area { padding:14px; border-radius:18px; background:linear-gradient(145deg,rgba(24,45,23,.62),rgba(75,97,50,.42)); box-shadow:0 16px 45px rgba(3,15,5,.35); }.chess-board { border:clamp(8px,1.5vw,15px) solid #4e3219; border-radius:10px; outline:2px solid #b99048; box-shadow:0 5px 0 #28180b,0 20px 38px rgba(4,15,6,.55),inset 0 0 0 2px #d2b267; }.chess-square.light { background:#eeeed2; }.chess-square.dark { background:#769656; }.chess-square:hover { filter:brightness(1.06); }.chess-square.selected::after { border-color:#e4b74e; box-shadow:0 0 0 2px #67471288; }.chess-square.legal::after { background:rgba(49,82,39,.62); }.chess-square.last-move::after { background:rgba(245,209,87,.4); }.chess-piece.white { color:#fff7dc; text-shadow:0 2px 0 #836b3f,0 3px 2px #384124; }.chess-piece.black { color:#26331d; text-shadow:0 1px 0 #9da878,0 3px 2px #172010; }.promotion-dialog,.game-result-modal>div { background:linear-gradient(145deg,#35442a,#1c281b); border-color:#d4b56a; }.promotion-dialog button { background:#eee4c8; color:#334222; }.move-history button:hover { background:#596946; }.chess-history-row { background:rgba(24,36,21,.72); }.chess-history-row a { color:#e8ca79; }.game-result-modal { background:rgba(9,18,9,.74); }.game-result-modal i { color:#e5c15f; }
 .game-result-modal[hidden],.promotion-dialog[hidden] { display:none !important; }
+
+/* 보드가 잘리는 대신 주변 패널을 먼저 아래로 내린다. 체스판은 언제나 8열 전체가 보여야 한다. */
+.chess-game-shell { width:min(1460px,calc(100% - 40px)); }
+.chess-game-layout { grid-template-columns:160px minmax(540px,760px) 160px 210px; justify-content:center; }
+.chess-board-area { width:100%; }
+@media (max-width:1200px) {
+    .chess-game-shell { width:min(100% - 24px,900px); }
+    .chess-game-layout { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; }
+    .chess-board-area { grid-row:1 / span 2; grid-column:1 / span 2; max-width:780px; justify-self:center; }
+    .chess-player-card { grid-row:3; }
+    .chess-side-panel { grid-row:4; grid-column:1 / span 2; min-height:180px; }
+}
+@media (max-width:700px) {
+    .chess-game-shell { width:min(100% - 16px,600px); }
+    .chess-board-area { padding:8px; }
+    .chess-board { border-width:8px; }
+}
