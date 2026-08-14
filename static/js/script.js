@@ -146,9 +146,16 @@
          * 입력창/전송/첨부 버튼을 잠그고 안내 배너를 띄운다. */
         function updateBlockState() {
             const friend = getCurrentFriend();
-            const blocked = !!(friend && (!friend.isGroup && (friend.blockedByMe || friend.blockedMe) || friend.isDisabled));
+            const disabledGroup = !!(friend && friend.isGroup && friend.isDisabled);
+            const blockedDirectChat = !!(friend && !friend.isGroup && (friend.blockedByMe || friend.blockedMe));
+            const blocked = disabledGroup || blockedDirectChat;
 
             blockBanner.style.display = blocked ? "flex" : "none";
+            if (blocked) {
+                blockBanner.querySelector("span").textContent = disabledGroup
+                    ? "종료된 그룹 채팅방입니다. 이전 대화만 확인할 수 있습니다."
+                    : "차단된 사용자와는 메시지를 주고받을 수 없습니다.";
+            }
             input.disabled = blocked;
             button.disabled = blocked;
             plusBtn.disabled = blocked;

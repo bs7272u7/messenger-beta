@@ -1401,6 +1401,27 @@ def admin_reports():
     return jsonify([dict(row) for row in rows])
 
 
+@app.route("/api/admin/users/suspended", methods=["GET"])
+@admin_required_api
+def admin_suspended_users():
+    """신고 목록과 관계없이 현재 이용 제한 중인 계정을 관리자가 해제할 수 있게 제공한다."""
+    with get_db() as conn:
+        conn.execute(
+            """UPDATE users
+               SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL
+               WHERE is_suspended = TRUE AND suspended_until > 0 AND suspended_until <= %s""",
+            (time.time(),),
+        )
+        rows = conn.execute("""
+            SELECT id, username, display_name, profile_image, suspended_until, suspension_reason
+            FROM users
+            WHERE is_suspended = TRUE
+            ORDER BY CASE WHEN suspended_until = 0 THEN 0 ELSE 1 END, suspended_until ASC, id DESC
+        """).fetchall()
+        conn.commit()
+    return jsonify([dict(row) for row in rows])
+
+
 @app.route("/api/admin/reports/<int:report_id>", methods=["PATCH", "DELETE"])
 @admin_required_api
 def admin_report_detail(report_id):
@@ -1429,6 +1450,11 @@ def admin_user_suspension(user_id):
     """신고 검토 후 경고·기간 정지·영구 정지·해제를 서버 권한으로 처리한다."""
     data = request.get_json() or {}
     action = data.get("action")
+    report_id = data.get("report_id")
+    try:
+        report_id = int(report_id) if report_id is not None else None
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "신고 처리 정보를 확인할 수 없습니다."}), 400
     reason = (data.get("reason") or "관리자 운영 정책 위반").strip()
     durations = {"24h": 24 * 60 * 60, "7d": 7 * 24 * 60 * 60}
     if action not in {"warning", "24h", "7d", "permanent", "lift"}:
@@ -1455,6 +1481,17 @@ def admin_user_suspension(user_id):
             INSERT INTO moderation_actions (target_user_id, admin_user_id, action, reason, created_at)
             VALUES (%s, %s, %s, %s, %s)
         """, (user_id, session["user_id"], action, reason, now_str()))
+        if report_id and action != "lift":
+            report = conn.execute("""
+                SELECT r.id FROM reports r
+                JOIN messages m ON m.id = r.message_id
+                WHERE r.id = %s AND m.sender_id = %s
+            """, (report_id, user_id)).fetchone()
+            if report:
+                conn.execute(
+                    "UPDATE reports SET status = 'closed', handled_by = %s, handled_at = %s WHERE id = %s",
+                    (session["user_id"], now_str(), report_id),
+                )
         conn.commit()
 
     # 이미 열려 있는 탭도 다음 요청부터 차단되고, 실시간 연결도 끊어 온라인 표시가 남지 않는다.

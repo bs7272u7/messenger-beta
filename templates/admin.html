@@ -132,6 +132,10 @@
                 <div id="report-list" class="admin-list"><p>불러오는 중...</p></div>
             </article>
             <article class="admin-panel">
+                <h2><i class="fa-solid fa-user-lock"></i> 이용 제한 계정</h2>
+                <div id="suspended-user-list" class="admin-list"><p>불러오는 중...</p></div>
+            </article>
+            <article class="admin-panel">
                 <h2><i class="fa-solid fa-star"></i> 사용자 리뷰</h2>
                 <div id="review-list" class="admin-list"><p>불러오는 중...</p></div>
             </article>
@@ -142,6 +146,7 @@
         const noticeList = document.querySelector("#notice-list");
         const inquiryList = document.querySelector("#inquiry-list");
         const reportList = document.querySelector("#report-list");
+        const suspendedUserList = document.querySelector("#suspended-user-list");
         const reviewList = document.querySelector("#review-list");
 
         async function api(url, options) {
@@ -162,10 +167,17 @@
             const items = await api("/api/admin/reports");
             reportList.innerHTML = items.length ? items.map(r => {
                 const moderation = r.is_suspended
-                    ? `<button data-lift-user="${r.target_user_id}">정지 해제</button>`
-                    : `<button data-suspend-user="${r.target_user_id}" data-duration="24h">24시간 정지</button><button data-suspend-user="${r.target_user_id}" data-duration="7d">7일 정지</button><button data-suspend-user="${r.target_user_id}" data-duration="permanent" class="danger">영구 정지</button>`;
+                    ? `<button data-lift-user="${r.target_user_id}" data-report-id="${r.id}">정지 해제</button>`
+                    : `<button data-suspend-user="${r.target_user_id}" data-duration="warning" data-report-id="${r.id}">경고</button><button data-suspend-user="${r.target_user_id}" data-duration="24h" data-report-id="${r.id}">24시간 정지</button><button data-suspend-user="${r.target_user_id}" data-duration="7d" data-report-id="${r.id}">7일 정지</button><button data-suspend-user="${r.target_user_id}" data-duration="permanent" data-report-id="${r.id}" class="danger">영구 정지</button>`;
                 return `<article class="admin-item"><strong>${escapeHTML(r.reason)} · ${escapeHTML(r.status)}</strong><p>신고자: ${escapeHTML(r.reporter_username)} / 대상: ${escapeHTML(r.sender_username)}</p><p>${escapeHTML(r.message_text || "미디어 메시지")}</p><small>${r.created_at}</small><div class="admin-item-actions"><button data-close-report="${r.id}">검토 완료</button>${moderation}<button data-delete-report="${r.id}" class="danger">신고 삭제</button></div></article>`;
             }).join("") : "<p>신고가 없습니다.</p>";
+        }
+        async function loadSuspendedUsers() {
+            const users = await api("/api/admin/users/suspended");
+            suspendedUserList.innerHTML = users.length ? users.map(user => {
+                const until = user.suspended_until ? new Date(user.suspended_until * 1000).toLocaleString("ko-KR") : "영구 이용 제한";
+                return `<article class="admin-item"><strong>${escapeHTML(user.display_name || user.username)}</strong><p>${escapeHTML(user.username)} · ${escapeHTML(user.suspension_reason || "운영 정책 위반")}</p><small>${until}</small><div class="admin-item-actions"><button data-lift-user="${user.id}">이용 제한 해제</button></div></article>`;
+            }).join("") : "<p>이용 제한 중인 계정이 없습니다.</p>";
         }
         async function loadReviews() {
             const items = await api("/api/admin/reviews");
@@ -190,15 +202,22 @@
                 const action = liftUser ? "lift" : event.target.dataset.duration;
                 const reason = action === "lift" ? "관리자 정지 해제" : prompt("정지 처리 사유를 입력하세요.", "운영 정책 위반");
                 if (reason === null) return;
-                await api(`/api/admin/users/${suspendUser || liftUser}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action, reason})});
-                return loadReports();
+                await api(`/api/admin/users/${suspendUser || liftUser}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action, reason, report_id:Number(event.target.dataset.reportId) || null})});
+                await Promise.all([loadReports(), loadSuspendedUsers()]);
+                return;
             }
             if (!reportId) return;
             await api(`/api/admin/reports/${reportId}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"reviewed"})});
             loadReports();
         });
+        suspendedUserList.addEventListener("click", async event => {
+            const userId = event.target.dataset.liftUser;
+            if (!userId || !confirm("이 계정의 이용 제한을 해제할까요?")) return;
+            await api(`/api/admin/users/${userId}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"lift", reason:"관리자 이용 제한 해제"})});
+            await Promise.all([loadReports(), loadSuspendedUsers()]);
+        });
         reviewList.addEventListener("click", async event => { const id = event.target.dataset.replyReview || event.target.dataset.deleteReview; if (!id) return; if (event.target.dataset.deleteReview) { if (!confirm("리뷰를 삭제할까요?")) return; await api(`/api/admin/reviews/${id}`, {method:"DELETE"}); } else { const reply=prompt("관리자 답장을 입력하세요."); if(reply===null)return; await api(`/api/admin/reviews/${id}`, {method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({admin_reply:reply})}); } loadReviews(); });
-        Promise.all([loadNotices(), loadInquiries(), loadReports(), loadReviews()]).catch(error => alert(error.message));
+        Promise.all([loadNotices(), loadInquiries(), loadReports(), loadSuspendedUsers(), loadReviews()]).catch(error => alert(error.message));
     </script>
 </body>
 </html>
