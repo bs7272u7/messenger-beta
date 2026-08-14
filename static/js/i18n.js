@@ -39,6 +39,42 @@
         }
     };
 
+    // 화면을 만들면서 추가된 짧은 안내·확인 문구도 이 목록에 모아, 언어를 바꾼 뒤 일부만 한국어로 남지 않게 한다.
+    Object.assign(dictionaries.en, {
+        "계정이 없으신가요?": "Don't have an account?", "이미 계정이 있으신가요?": "Already have an account?", "그룹 사진을 삭제하시겠습니까?": "Remove the group photo?", "그룹 채팅을 종료할까요? 이전 대화는 남지만 새 메시지는 보낼 수 없습니다.": "End this group chat? Previous messages remain, but new messages cannot be sent.", "로그아웃 하시겠습니까?": "Log out?", "메시지를 삭제 하시겠습니까?": "Delete this message?", "채팅방을 삭제 하시겠습니까?": "Delete this chat?", "이 문의 내역을 삭제할까요?": "Delete this inquiry?", "프로필 사진을 삭제하시겠습니까?": "Remove the profile photo?", "정말 이 그룹에서 나가시겠습니까? 다시 들어오려면 초대를 받아야 합니다.": "Leave this group? You will need an invitation to rejoin.", "정말로 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.": "Delete your account? This cannot be undone.", "리뷰를 삭제할까요?": "Delete this review?", "이 공지를 삭제할까요?": "Delete this notice?", "이 신고 내역을 삭제할까요? 삭제한 신고는 복구할 수 없습니다.": "Delete this report? Deleted reports cannot be restored.", "이 계정의 이용 제한을 해제할까요?": "Lift this account restriction?", "사진 공유": "Share photo", "고정 메시지": "Pinned message", "사진 모아보기": "Media gallery", "채팅방 고정": "Pin chat", "알림 끄기": "Mute notifications", "그룹 관리": "Manage group"
+    });
+    Object.assign(dictionaries.zh, {
+        "계정이 없으신가요?": "还没有账户？", "이미 계정이 있으신가요?": "已有账户？", "그룹 사진을 삭제하시겠습니까?": "要删除群组照片吗？", "그룹 채팅을 종료할까요? 이전 대화는 남지만 새 메시지는 보낼 수 없습니다.": "要结束群聊吗？历史消息会保留，但不能发送新消息。", "로그아웃 하시겠습니까?": "要退出登录吗？", "메시지를 삭제 하시겠습니까?": "要删除这条消息吗？", "채팅방을 삭제 하시겠습니까?": "要删除此聊天吗？", "이 문의 내역을 삭제할까요?": "要删除此咨询记录吗？", "프로필 사진을 삭제하시겠습니까?": "要删除头像吗？", "정말 이 그룹에서 나가시겠습니까? 다시 들어오려면 초대를 받아야 합니다.": "要离开此群组吗？重新加入需要邀请。", "정말로 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.": "要删除账户吗？此操作无法撤销。", "리뷰를 삭제할까요?": "要删除这条评价吗？", "이 공지를 삭제할까요?": "要删除此公告吗？", "이 신고 내역을 삭제할까요? 삭제한 신고는 복구할 수 없습니다.": "要删除此举报记录吗？删除后无法恢复。", "이 계정의 이용 제한을 해제할까요?": "要解除该账户的限制吗？", "사진 공유": "分享照片", "고정 메시지": "置顶消息", "사진 모아보기": "媒体库", "채팅방 고정": "置顶聊天", "알림 끄기": "关闭通知", "그룹 관리": "管理群组"
+    });
+    Object.assign(dictionaries.ja, {
+        "계정이 없으신가요?": "アカウントをお持ちでないですか？", "이미 계정이 있으신가요?": "すでにアカウントをお持ちですか？", "그룹 사진을 삭제하시겠습니까?": "グループ写真を削除しますか？", "그룹 채팅을 종료할까요? 이전 대화는 남지만 새 메시지는 보낼 수 없습니다.": "グループチャットを終了しますか？履歴は残りますが、新しいメッセージは送れません。", "로그아웃 하시겠습니까?": "ログアウトしますか？", "메시지를 삭제 하시겠습니까?": "このメッセージを削除しますか？", "채팅방을 삭제 하시겠습니까?": "このチャットを削除しますか？", "이 문의 내역을 삭제할까요?": "このお問い合わせ履歴を削除しますか？", "프로필 사진을 삭제하시겠습니까?": "プロフィール写真を削除しますか？", "정말 이 그룹에서 나가시겠습니까? 다시 들어오려면 초대를 받아야 합니다.": "このグループから退出しますか？再参加には招待が必要です。", "정말로 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.": "アカウントを削除しますか？この操作は元に戻せません。", "리뷰를 삭제할까요?": "このレビューを削除しますか？", "이 공지를 삭제할까요?": "このお知らせを削除しますか？", "이 신고 내역을 삭제할까요? 삭제한 신고는 복구할 수 없습니다.": "この報告を削除しますか？削除した報告は復元できません。", "이 계정의 이용 제한을 해제할까요?": "このアカウントの利用制限を解除しますか？", "사진 공유": "写真を共有", "고정 메시지": "固定メッセージ", "사진 모아보기": "メディア一覧", "채팅방 고정": "チャットを固定", "알림 끄기": "通知をオフ", "그룹 관리": "グループ管理"
+    });
+    Object.assign(dictionaries.es, {
+        "계정이 없으신가요?": "¿No tienes cuenta?", "이미 계정이 있으신가요?": "¿Ya tienes una cuenta?", "그룹 사진을 삭제하시겠습니까?": "¿Eliminar la foto del grupo?", "그룹 채팅을 종료할까요? 이전 대화는 남지만 새 메시지는 보낼 수 없습니다.": "¿Cerrar este grupo? Los mensajes anteriores se conservarán, pero no se podrán enviar nuevos.", "로그아웃 하시겠습니까?": "¿Cerrar sesión?", "메시지를 삭제 하시겠습니까?": "¿Eliminar este mensaje?", "채팅방을 삭제 하시겠습니까?": "¿Eliminar este chat?", "이 문의 내역을 삭제할까요?": "¿Eliminar esta consulta?", "프로필 사진을 삭제하시겠습니까?": "¿Eliminar la foto de perfil?", "정말 이 그룹에서 나가시겠습니까? 다시 들어오려면 초대를 받아야 합니다.": "¿Salir de este grupo? Necesitarás una invitación para volver.", "정말로 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.": "¿Eliminar tu cuenta? Esta acción no se puede deshacer.", "리뷰를 삭제할까요?": "¿Eliminar esta reseña?", "이 공지를 삭제할까요?": "¿Eliminar este aviso?", "이 신고 내역을 삭제할까요? 삭제한 신고는 복구할 수 없습니다.": "¿Eliminar este reporte? No se puede restaurar.", "이 계정의 이용 제한을 해제할까요?": "¿Quitar la restricción de esta cuenta?", "사진 공유": "Compartir foto", "고정 메시지": "Mensaje fijado", "사진 모아보기": "Galería multimedia", "채팅방 고정": "Fijar chat", "알림 끄기": "Silenciar notificaciones", "그룹 관리": "Administrar grupo"
+    });
+
+    // 테마 이름과 설명은 버튼을 열었을 때 처음 보이는 문구라 별도 묶음으로 관리한다.
+    Object.assign(dictionaries.en, {
+        "하트": "Heart", "감성 핑크": "Soft pink", "테디베어": "Teddy bear", "포근한 베이지": "Warm beige",
+        "글라스": "Glass", "맑은 유리 질감": "Clear glass texture", "오로라": "Aurora", "은은한 북극빛": "Soft polar glow",
+        "모노": "Mono", "차분한 모노톤": "Calm monotone", "특별한 시즌에 어울리는 한정 분위기의 테마예요.": "Limited themes for special seasons."
+    });
+    Object.assign(dictionaries.zh, {
+        "하트": "爱心", "감성 핑크": "柔和粉色", "테디베어": "泰迪熊", "포근한 베이지": "温暖米色",
+        "글라스": "玻璃", "맑은 유리 질감": "通透玻璃质感", "오로라": "极光", "은은한 북극빛": "柔和极光",
+        "모노": "单色", "차분한 모노톤": "沉静单色调", "특별한 시즌에 어울리는 한정 분위기의 테마예요.": "适合特别季节的限定主题。"
+    });
+    Object.assign(dictionaries.ja, {
+        "하트": "ハート", "감성 핑크": "やさしいピンク", "테디베어": "テディベア", "포근한 베이지": "あたたかいベージュ",
+        "글라스": "グラス", "맑은 유리 질감": "透明なガラスの質感", "오로라": "オーロラ", "은은한 북극빛": "やわらかな極光",
+        "모노": "モノ", "차분한 모노톤": "落ち着いたモノトーン", "특별한 시즌에 어울리는 한정 분위기의 테마예요.": "特別な季節に合う限定テーマです。"
+    });
+    Object.assign(dictionaries.es, {
+        "하트": "Corazón", "감성 핑크": "Rosa suave", "테디베어": "Oso de peluche", "포근한 베이지": "Beige cálido",
+        "글라스": "Cristal", "맑은 유리 질감": "Textura de cristal claro", "오로라": "Aurora", "은은한 북극빛": "Suave luz polar",
+        "모노": "Mono", "차분한 모노톤": "Monocromo sereno", "특별한 시즌에 어울리는 한정 분위기의 테마예요.": "Temas limitados para temporadas especiales."
+    });
+
     function t(key) {
         const text = String(key || "").trim();
         return (dictionaries[language] && dictionaries[language][text]) || text;
@@ -58,7 +94,8 @@
             const original = parent.dataset.i18nText || node.nodeValue.trim();
             if (!dictionaries.en[original]) return;
             parent.dataset.i18nText = original;
-            node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), t(original));
+            const localized = t(original);
+            if (node.nodeValue.trim() !== localized) node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), localized);
         });
     }
 
@@ -104,6 +141,30 @@
     });
 
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => translatePage());
-    else translatePage();
+    function startTranslation() {
+        translatePage();
+        // 채팅 목록·모달처럼 JavaScript가 나중에 그리는 UI도 같은 번역 사전을 통과시킨다.
+        // 새로 생긴 영역만 다음 화면 프레임에 번역한다. 메시지가 추가될 때마다 전체 페이지를
+        // 다시 훑지 않아 채팅 중 화면이 무거워지지 않도록 한다.
+        let translationQueued = false;
+        const pendingRoots = new Set();
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) pendingRoots.add(node);
+                    else if (node.nodeType === Node.TEXT_NODE && node.parentElement) pendingRoots.add(node.parentElement);
+                });
+            });
+            if (!pendingRoots.size || translationQueued) return;
+            translationQueued = true;
+            window.requestAnimationFrame(() => {
+                pendingRoots.forEach((root) => translatePage(root));
+                pendingRoots.clear();
+                translationQueued = false;
+            });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startTranslation);
+    else startTranslation();
 }());
