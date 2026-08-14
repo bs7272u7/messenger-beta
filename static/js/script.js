@@ -509,7 +509,7 @@
         }
 
         function applyChatTheme(friend) {
-            chatPanel.classList.remove("chat-theme-heart", "chat-theme-teddy", "chat-theme-glass");
+            chatPanel.classList.remove("chat-theme-heart", "chat-theme-teddy", "chat-theme-glass", "chat-theme-aurora", "chat-theme-mono");
             const theme = friend && friend.chatTheme ? friend.chatTheme : "default";
             if (theme !== "default") chatPanel.classList.add(`chat-theme-${theme}`);
             chatThemeOptions.forEach(function (option) {
