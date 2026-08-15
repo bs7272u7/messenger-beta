@@ -4,9 +4,6 @@
  * 보드 색상(--light-square/--dark-square)은 chess.com 표준을 그대로 유지한다.
  * ====================================================== */
 :root {
-    --chess-bg-top:#bfe7ff;
-    --chess-bg-mid:#8fe07a;
-    --chess-bg-bottom:#4fa84a;
     --chess-card:#fffdf6;
     --chess-card-soft:#fbf5e2;
     --chess-line:#dfc98a;
@@ -30,21 +27,18 @@ body.chess-page {
     color:var(--chess-text);
     font-family:"Pretendard", Inter, system-ui, sans-serif;
     background:
-        radial-gradient(ellipse 70% 40% at 50% 0%, #eaf7ff 0%, transparent 60%),
-        linear-gradient(180deg, var(--chess-bg-top) 0%, var(--chess-bg-mid) 32%, var(--chess-bg-bottom) 100%);
-    background-attachment:fixed;
+        linear-gradient(rgba(18,35,16,.16),rgba(12,24,12,.32)),
+        url("/static/images/chess-forest-castle-bg.png") center / cover fixed no-repeat,
+        linear-gradient(180deg,#3d6a30 0%,#6fae5e 42%,#356630 100%);
 }
-/* 화면 가장자리에 낮은 언덕/나무 캐노피를 겹쳐 "공원 속에서" 두는 느낌을 준다. 어두운 실루엣 대신 밝은 톤으로 처리한다. */
 body.chess-page::before {
-    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.4;
     background:
-        radial-gradient(ellipse 42% 22% at 6% 100%, #6fcf5e 0%, transparent 70%),
-        radial-gradient(ellipse 30% 18% at 18% 100%, #8adf6e 0%, transparent 70%),
-        radial-gradient(ellipse 42% 22% at 96% 100%, #6fcf5e 0%, transparent 70%),
-        radial-gradient(ellipse 30% 18% at 84% 100%, #8adf6e 0%, transparent 70%),
-        radial-gradient(circle 60px at 12% 12%, rgba(255,255,255,.75) 0%, transparent 70%),
-        radial-gradient(circle 40px at 85% 18%, rgba(255,255,255,.65) 0%, transparent 70%);
-    opacity:.55;
+        radial-gradient(ellipse at 5% 70%,#2c4d29 0 8%,transparent 8.4%),radial-gradient(ellipse at 12% 65%,#3f7a3a 0 10%,transparent 10.4%),
+        radial-gradient(ellipse at 92% 72%,#2a5629 0 11%,transparent 11.4%),radial-gradient(ellipse at 84% 60%,#4d8e46 0 12%,transparent 12.4%),
+        linear-gradient(90deg,transparent 0 44%,rgba(40,58,32,.3) 44% 45%,transparent 45% 55%,rgba(40,58,32,.3) 55% 56%,transparent 56%),
+        linear-gradient(180deg,transparent 0 28%,rgba(20,40,20,.18) 28% 31%,transparent 31%);
+    filter:blur(1px);
 }
 .chess-lobby-shell,.chess-game-shell { position:relative; z-index:1; }
 
@@ -52,14 +46,14 @@ body.chess-page::before {
  * 공통 셸 · 헤더 · 히어로
  * ====================================================== */
 .chess-lobby-shell,.chess-game-shell { width:min(1120px,calc(100% - 32px)); margin:auto; padding:26px 0 48px; }
-.chess-back-link { display:inline-flex; align-items:center; gap:6px; color:#1c3a17; text-decoration:none; font-size:14px; font-weight:700; }
+.chess-back-link { display:inline-flex; align-items:center; gap:6px; color:#efe1b8; text-decoration:none; font-size:14px; font-weight:700; }
 .chess-back-link:hover { text-decoration:underline; }
 .chess-lobby-header,.chess-game-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
 
-.chess-hero { padding:38px 0 28px; max-width:640px; }
+.chess-hero { padding:38px 0 28px; max-width:640px; text-shadow:0 2px 18px #0a170b; }
 .chess-eyebrow { display:inline-block; padding:5px 12px; border-radius:999px; color:#fff; background:var(--chess-accent-dark); letter-spacing:.1em; font-size:11px; font-weight:800; }
-.chess-hero h1 { margin:14px 0 8px; font-size:clamp(30px,5.2vw,52px); line-height:1.08; letter-spacing:-.02em; font-weight:900; color:#183914; text-shadow:0 2px 0 rgba(255,255,255,.55); }
-.chess-hero p { margin:0; color:#2f4a2a; line-height:1.7; font-weight:600; }
+.chess-hero h1 { margin:14px 0 8px; font-size:clamp(30px,5.2vw,52px); line-height:1.08; letter-spacing:-.02em; font-weight:900; color:#fff8e2; }
+.chess-hero p { margin:0; color:#e0d6b4; line-height:1.7; font-weight:600; max-width:570px; }
 
 /* ======================================================
  * 버튼 — Chess in the Park의 두툼하고 눌리는 버튼 질감
@@ -134,7 +128,7 @@ body.chess-page::before {
 /* ======================================================
  * 체스 게임 페이지 — 헤더 · 레이아웃 · 플레이어 카드
  * ====================================================== */
-.room-code { color:#1c3a17; font-size:13px; font-weight:700; letter-spacing:.06em; }
+.room-code { color:#eed58d; font-size:13px; font-weight:700; letter-spacing:.06em; text-shadow:0 1px 4px rgba(0,0,0,.4); }
 .chess-game-layout { display:grid; grid-template-columns:180px minmax(540px,760px) 180px 230px; gap:16px; align-items:start; justify-content:center; }
 .chess-game-shell { width:min(1460px,calc(100% - 40px)); }
 .chess-player-card { padding:16px; min-height:92px; }
