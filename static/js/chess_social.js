@@ -1,6 +1,6 @@
 (function () {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
-    const shell = document.querySelector(".chess-game-shell");
+    const shell = document.querySelector(".chess-lobby-shell");
     if (!shell) return;
     const currentUserId = Number(shell.dataset.currentUserId || 0);
 
@@ -208,4 +208,45 @@
         socket.on("friend_updated", () => { refreshInboxBadge(); if (!friendsModal.hidden) loadFriendList(); if (!inboxModal.hidden) loadInbox(); });
         socket.on("chess_invite", () => { refreshInboxBadge(); if (!inboxModal.hidden) loadInbox(); });
     }
+
+    /* ======================================================
+     * 내 정보 — 체스게임(로비)에서 자신의 레이팅·전적을 확인할 수 있게 한다.
+     * ====================================================== */
+    const playerModal = document.querySelector("#chess-player-modal");
+    const myInfoCard = document.querySelector("#chess-my-info-card");
+    function closePlayerModal() { playerModal.hidden = true; }
+    document.querySelector("#close-chess-player").addEventListener("click", closePlayerModal);
+    playerModal.addEventListener("click", event => { if (event.target === playerModal) closePlayerModal(); });
+    document.querySelector("#chess-player-friend-btn").hidden = true;
+
+    async function loadMyInfo() {
+        if (!currentUserId) return;
+        try {
+            const data = await api(`/api/chess/players/${currentUserId}`);
+            const player = data.player;
+            document.querySelector("#chess-my-info-avatar").src = player.profileImage || "/static/default_profile.png";
+            document.querySelector("#chess-my-info-name").textContent = player.name;
+            const record = player.record || {};
+            document.querySelector("#chess-my-info-record").textContent = `@${player.username} · ${record.wins || 0}승 ${record.draws || 0}무 ${record.losses || 0}패`;
+            document.querySelector("#chess-my-info-rating").textContent = `RATING ${player.rating ?? "-"}`;
+            myInfoCard.dataset.loaded = "1";
+            return player;
+        } catch (error) {
+            document.querySelector("#chess-my-info-record").textContent = "정보를 불러오지 못했습니다.";
+        }
+    }
+
+    myInfoCard.addEventListener("click", async () => {
+        const player = await loadMyInfo();
+        if (!player) return;
+        document.querySelector("#chess-player-avatar").src = player.profileImage || "/static/default_profile.png";
+        document.querySelector("#chess-player-name").textContent = player.name;
+        document.querySelector("#chess-player-username").textContent = `@${player.username}`;
+        document.querySelector("#chess-player-rating").textContent = player.rating ?? "-";
+        const record = player.record || {};
+        document.querySelector("#chess-player-record").textContent = `${record.wins || 0}승 ${record.draws || 0}무 ${record.losses || 0}패`;
+        playerModal.hidden = false;
+    });
+
+    loadMyInfo();
 }());

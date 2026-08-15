@@ -8,16 +8,30 @@
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/chess-favicon-knight.ico', v='20260815') }}">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='images/chess-favicon-knight.png', v='20260815') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260815.4') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260815.6') }}">
 </head>
 <body class="chess-page">
-    <main class="chess-lobby-shell">
-        <a class="chess-back-link" href="/"><i class="fa-solid fa-arrow-left"></i> 채팅으로 돌아가기</a>
+    <main class="chess-lobby-shell" data-current-user-id="{{ session.get('user_id', '') }}">
+        <header class="chess-lobby-header">
+            <a class="chess-back-link" href="/"><i class="fa-solid fa-arrow-left"></i> 채팅으로 돌아가기</a>
+            <div class="chess-header-actions">
+                <button id="chess-friends-btn" type="button" class="chess-header-btn" title="친구 관리" aria-label="친구 관리"><i class="fa-solid fa-user-group"></i></button>
+                <button id="chess-inbox-btn" type="button" class="chess-header-btn" title="메시지함" aria-label="메시지함"><i class="fa-regular fa-envelope"></i><span id="chess-inbox-badge" class="chess-inbox-badge" hidden>0</span></button>
+            </div>
+        </header>
         <section class="chess-hero">
             <span class="chess-eyebrow">CLOUD CHATTING PLAY</span>
             <h1>오늘의 승부를 시작해 볼까요?</h1>
             <p>모든 수는 서버가 검증합니다. 친구를 초대해 온라인으로 실시간 대전을 즐겨보세요.</p>
         </section>
+        <button type="button" id="chess-my-info-card" class="chess-my-info-card">
+            <img id="chess-my-info-avatar" src="/static/default_profile.png" alt="">
+            <span class="chess-my-info-text">
+                <strong id="chess-my-info-name">내 정보</strong>
+                <small id="chess-my-info-record">전적을 불러오는 중…</small>
+            </span>
+            <span id="chess-my-info-rating" class="chess-my-info-rating">RATING 400</span>
+        </button>
         <section class="chess-mode-grid chess-mode-grid-single">
             <article class="chess-mode-card" data-mode="online">
                 <div class="mode-icon"><i class="fa-solid fa-wifi"></i></div>
@@ -41,7 +55,40 @@
             <div id="chess-history-list" class="chess-history-list">전적을 불러오는 중…</div>
         </section>
     </main>
+
+    <div id="chess-player-modal" class="game-result-modal" hidden><div class="chess-player-modal-box"><button id="close-chess-player" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button><img id="chess-player-avatar" src="/static/default_profile.png" alt=""><h2 id="chess-player-name">플레이어</h2><p id="chess-player-username"></p><div class="chess-player-stats"><span>레이팅 <strong id="chess-player-rating">400</strong></span><span>전적 <strong id="chess-player-record">0승 0무 0패</strong></span></div><button id="chess-player-friend-btn" class="chess-primary" type="button" hidden><i class="fa-solid fa-user-plus"></i> 친구 추가</button></div></div>
+
+    <div id="chess-friends-modal" class="game-result-modal" hidden>
+        <div class="chess-social-modal-box">
+            <button id="close-chess-friends" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
+            <h2><i class="fa-solid fa-user-group"></i> 친구 관리</h2>
+            <p class="chess-social-hint">채팅 친구 목록을 그대로 불러옵니다. 여기서 추가·차단·삭제하면 채팅 화면에도 함께 반영돼요.</p>
+            <div class="chess-friend-add">
+                <input type="text" id="chess-friend-search-input" placeholder="아이디로 친구 찾기">
+                <button id="chess-friend-search-btn" type="button" aria-label="친구 찾기"><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+            <div id="chess-friend-search-result" class="chess-friend-search-result"></div>
+            <h3 class="chess-social-subheading">친구 목록</h3>
+            <div id="chess-friend-list" class="chess-friend-list">불러오는 중…</div>
+        </div>
+    </div>
+
+    <div id="chess-inbox-modal" class="game-result-modal" hidden>
+        <div class="chess-social-modal-box">
+            <button id="close-chess-inbox" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
+            <h2><i class="fa-regular fa-envelope"></i> 메시지함</h2>
+            <p class="chess-social-hint">대국 초대와 친구 요청을 한 곳에서 확인하고 응답할 수 있어요.</p>
+            <div class="chess-inbox-tabs" role="tablist">
+                <button type="button" class="active" data-chess-inbox-tab="incoming">받은 요청 <span id="chess-incoming-count">0</span></button>
+                <button type="button" data-chess-inbox-tab="outgoing">보낸 요청 <span id="chess-outgoing-count">0</span></button>
+            </div>
+            <div id="chess-inbox-incoming" class="chess-inbox-list"></div>
+            <div id="chess-inbox-outgoing" class="chess-inbox-list" hidden></div>
+        </div>
+    </div>
+
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260815.4') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260815.5') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_social.js', v='20260815.6') }}"></script>
 </body>
 </html>
