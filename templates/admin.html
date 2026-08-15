@@ -206,7 +206,12 @@
         document.querySelector("#notice-submit").addEventListener("click", async () => {
             try { await api("/api/admin/notices", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:document.querySelector("#notice-title").value, content:document.querySelector("#notice-content").value, is_published:document.querySelector("#notice-published").checked})}); document.querySelector("#notice-title").value=""; document.querySelector("#notice-content").value=""; await loadNotices(); alert("공지를 등록했습니다."); } catch (error) { alert(error.message); }
         });
-        noticeList.addEventListener("click", async event => { const id = event.target.dataset.deleteNotice; if (!id || !confirm("이 공지를 삭제할까요?")) return; await api(`/api/admin/notices/${id}`, {method:"DELETE"}); loadNotices(); });
+        noticeList.addEventListener("click", async event => {
+            const id = event.target.dataset.deleteNotice;
+            if (!id || !confirm("이 공지를 삭제할까요?")) return;
+            try { await api(`/api/admin/notices/${id}`, {method:"DELETE"}); await loadNotices(); }
+            catch (error) { alert(error.message); }
+        });
         inquiryList.addEventListener("click", async event => {
             const answerId = event.target.dataset.answerInquiry;
             const deleteId = event.target.dataset.deleteInquiry;
@@ -214,49 +219,70 @@
                 inquiryList.querySelectorAll(".inquiry-select").forEach(box => box.checked = event.target.checked);
                 return;
             }
-            if (event.target.id === "bulk-delete-inquiries") {
-                const ids = [...inquiryList.querySelectorAll(".inquiry-select:checked")].map(box => Number(box.value));
-                if (!ids.length || !confirm(`${ids.length}개의 문의를 삭제할까요?`)) return;
-                await api("/api/admin/inquiries/bulk-delete", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ids})});
-                return loadInquiries();
-            }
-            if (deleteId) {
-                if (confirm("이 문의를 삭제할까요?")) { await api(`/api/admin/inquiries/${deleteId}`, {method:"DELETE"}); await loadInquiries(); }
-                return;
-            }
-            if (!answerId) return;
-            const reply = prompt("답변 또는 처리 메모를 입력하세요."); if (reply === null) return;
-            await api(`/api/admin/inquiries/${answerId}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"answered", admin_reply:reply})}); loadInquiries();
+            try {
+                if (event.target.id === "bulk-delete-inquiries") {
+                    const ids = [...inquiryList.querySelectorAll(".inquiry-select:checked")].map(box => Number(box.value));
+                    if (!ids.length || !confirm(`${ids.length}개의 문의를 삭제할까요?`)) return;
+                    await api("/api/admin/inquiries/bulk-delete", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ids})});
+                    return await loadInquiries();
+                }
+                if (deleteId) {
+                    if (!confirm("이 문의를 삭제할까요?")) return;
+                    await api(`/api/admin/inquiries/${deleteId}`, {method:"DELETE"});
+                    return await loadInquiries();
+                }
+                if (!answerId) return;
+                const reply = prompt("답변 또는 처리 메모를 입력하세요."); if (reply === null) return;
+                await api(`/api/admin/inquiries/${answerId}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"answered", admin_reply:reply})});
+                await loadInquiries();
+            } catch (error) { alert(error.message); }
         });
         reportList.addEventListener("click", async event => {
             const suspendUser = event.target.dataset.suspendUser;
             const liftUser = event.target.dataset.liftUser;
             const reportId = event.target.dataset.closeReport;
             const deleteReport = event.target.dataset.deleteReport;
-            if (deleteReport) {
-                if (!confirm("이 신고 내역을 삭제할까요? 삭제한 신고는 복구할 수 없습니다.")) return;
-                await api(`/api/admin/reports/${deleteReport}`, {method:"DELETE"});
-                return loadReports();
-            }
-            if (suspendUser || liftUser) {
-                const action = liftUser ? "lift" : event.target.dataset.duration;
-                const reason = action === "lift" ? "관리자 정지 해제" : prompt("정지 처리 사유를 입력하세요.", "운영 정책 위반");
-                if (reason === null) return;
-                await api(`/api/admin/users/${suspendUser || liftUser}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action, reason, report_id:Number(event.target.dataset.reportId) || null})});
-                await Promise.all([loadReports(), loadSuspendedUsers()]);
-                return;
-            }
-            if (!reportId) return;
-            await api(`/api/admin/reports/${reportId}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"reviewed"})});
-            loadReports();
+            try {
+                if (deleteReport) {
+                    if (!confirm("이 신고 내역을 삭제할까요? 삭제한 신고는 복구할 수 없습니다.")) return;
+                    await api(`/api/admin/reports/${deleteReport}`, {method:"DELETE"});
+                    return await loadReports();
+                }
+                if (suspendUser || liftUser) {
+                    const action = liftUser ? "lift" : event.target.dataset.duration;
+                    const reason = action === "lift" ? "관리자 정지 해제" : prompt("정지 처리 사유를 입력하세요.", "운영 정책 위반");
+                    if (reason === null) return;
+                    await api(`/api/admin/users/${suspendUser || liftUser}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action, reason, report_id:Number(event.target.dataset.reportId) || null})});
+                    await Promise.all([loadReports(), loadSuspendedUsers()]);
+                    return;
+                }
+                if (!reportId) return;
+                await api(`/api/admin/reports/${reportId}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"reviewed"})});
+                await loadReports();
+            } catch (error) { alert(error.message); }
         });
         suspendedUserList.addEventListener("click", async event => {
             const userId = event.target.dataset.liftUser;
             if (!userId || !confirm("이 계정의 이용 제한을 해제할까요?")) return;
-            await api(`/api/admin/users/${userId}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"lift", reason:"관리자 이용 제한 해제"})});
-            await Promise.all([loadReports(), loadSuspendedUsers()]);
+            try {
+                await api(`/api/admin/users/${userId}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"lift", reason:"관리자 이용 제한 해제"})});
+                await Promise.all([loadReports(), loadSuspendedUsers()]);
+            } catch (error) { alert(error.message); }
         });
-        reviewList.addEventListener("click", async event => { const id = event.target.dataset.replyReview || event.target.dataset.deleteReview; if (!id) return; if (event.target.dataset.deleteReview) { if (!confirm("리뷰를 삭제할까요?")) return; await api(`/api/admin/reviews/${id}`, {method:"DELETE"}); } else { const reply=prompt("관리자 답장을 입력하세요."); if(reply===null)return; await api(`/api/admin/reviews/${id}`, {method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({admin_reply:reply})}); } loadReviews(); });
+        reviewList.addEventListener("click", async event => {
+            const id = event.target.dataset.replyReview || event.target.dataset.deleteReview;
+            if (!id) return;
+            try {
+                if (event.target.dataset.deleteReview) {
+                    if (!confirm("리뷰를 삭제할까요?")) return;
+                    await api(`/api/admin/reviews/${id}`, {method:"DELETE"});
+                } else {
+                    const reply = prompt("관리자 답장을 입력하세요."); if (reply === null) return;
+                    await api(`/api/admin/reviews/${id}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({admin_reply:reply})});
+                }
+                await loadReviews();
+            } catch (error) { alert(error.message); }
+        });
         Promise.all([loadNotices(), loadInquiries(), loadReports(), loadSuspendedUsers(), loadReviews()]).catch(error => alert(error.message));
     </script>
 </body>
