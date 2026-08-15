@@ -81,8 +81,8 @@ ADMIN_ACCESS_LOCK_SECONDS = 15 * 60
 SUPPORTED_LANGUAGES = {"ko", "en", "zh", "ja", "es"}
 SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "webm", "mov"}
-SUPPORT_INQUIRY_MAX_PER_USER = 5
-REVIEW_MAX_PER_USER = 5
+SUPPORT_INQUIRY_MAX_PER_USER = 1
+REVIEW_MAX_PER_USER = 1
 CHAT_FILE_MAX_BYTES = 20 * 1024 * 1024
 CHAT_FILE_EXTENSIONS = {"pdf", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "mp3", "wav", "m4a"}
 IMAGE_MAX_BYTES = 10 * 1024 * 1024
@@ -718,7 +718,8 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspension_reason TEXT")
         # 기기마다 언어가 달라지지 않도록 사용자 계정에 선택 언어를 함께 저장한다.
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'ko'")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_rating INT NOT NULL DEFAULT 1200")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_rating INT NOT NULL DEFAULT 400")
+        cur.execute("ALTER TABLE users ALTER COLUMN chess_rating SET DEFAULT 400")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 
         cur.execute("""
@@ -1374,14 +1375,15 @@ def send_support_inquiry():
     if len(message) > 3000:
         return jsonify({"success": False, "error": "문의 내용은 3,000자 이하로 입력해주세요."}), 400
 
-    # 첨부 업로드·이메일 발송 전에 계정별 총 문의 수를 확인해 서버 자원을 보호한다.
+    # 첨부 업로드·이메일 발송 전에 오늘(KST) 이미 보낸 문의가 있는지 확인해 서버 자원을 보호한다.
     user_id = session["user_id"]
+    today_start = datetime.now(KST).strftime("%Y-%m-%d 00:00:00")
     with get_db() as conn:
-        inquiry_count = conn.execute(
-            "SELECT COUNT(*) AS count FROM support_inquiries WHERE user_id = %s", (user_id,)
+        inquiry_count_today = conn.execute(
+            "SELECT COUNT(*) AS count FROM support_inquiries WHERE user_id = %s AND created_at >= %s", (user_id, today_start)
         ).fetchone()["count"]
-    if inquiry_count >= SUPPORT_INQUIRY_MAX_PER_USER:
-        return jsonify({"success": False, "error": "문의는 계정당 최대 5개까지 등록할 수 있습니다. 기존 문의를 삭제한 뒤 다시 시도해주세요."}), 429
+    if inquiry_count_today >= SUPPORT_INQUIRY_MAX_PER_USER:
+        return jsonify({"success": False, "error": "문의는 하루에 1개까지 등록할 수 있습니다. 내일 다시 시도해주세요."}), 429
 
     attachment = request.files.get("attachment")
     attachment_data = None
@@ -1414,11 +1416,6 @@ def send_support_inquiry():
         session.clear()
         return jsonify({"success": False, "error": "로그인 정보를 확인할 수 없습니다."}), 401
 
-    now = time.time()
-    # 문의 메일 발송 기능이 스팸 발송 통로가 되지 않도록 계정별 전송 간격을 둔다.
-    if now - session.get("last_support_inquiry_at", 0) < 60:
-        return jsonify({"success": False, "error": "문의는 1분에 한 번만 보낼 수 있습니다."}), 429
-
     display_name = user["display_name"] or user["username"]
     if SUPPORT_EMAIL:
         email_params = {
@@ -1444,7 +1441,6 @@ def send_support_inquiry():
             app.logger.exception("문의사항 이메일 발송 실패")
     else:
         app.logger.warning("SUPPORT_EMAIL 미설정: 문의는 관리자 페이지에만 저장됩니다.")
-    session["last_support_inquiry_at"] = now
 
     with get_db() as conn:
         conn.execute(
@@ -1570,21 +1566,46 @@ def reviews():
                 SELECT r.*, u.display_name, u.username, u.profile_image FROM reviews r
                 JOIN users u ON u.id = r.user_id ORDER BY r.id DESC LIMIT 100
             """).fetchall()
-        return jsonify([dict(row) for row in rows])
+        return jsonify([{**dict(row), "isMine": row["user_id"] == session["user_id"]} for row in rows])
     data = request.get_json() or {}
     rating = data.get("rating")
     content = (data.get("content") or "").strip()
     if not isinstance(rating, int) or rating not in range(1, 6) or len(content) < 5 or len(content) > 1000:
         return jsonify({"success": False, "error": "별점(1~5점)과 5자 이상 후기를 입력해주세요."}), 400
     with get_db() as conn:
-        # 같은 계정의 동시 요청도 사용자 행 잠금으로 직렬화해 5개 제한을 우회하지 못하게 한다.
+        # 같은 계정의 동시 요청도 사용자 행 잠금으로 직렬화해 중복 작성을 우회하지 못하게 한다.
         conn.execute("SELECT id FROM users WHERE id = %s FOR UPDATE", (session["user_id"],)).fetchone()
         review_count = conn.execute(
             "SELECT COUNT(*) AS count FROM reviews WHERE user_id = %s", (session["user_id"],)
         ).fetchone()["count"]
         if review_count >= REVIEW_MAX_PER_USER:
-            return jsonify({"success": False, "error": "리뷰는 계정당 최대 5개까지 작성할 수 있습니다."}), 429
+            return jsonify({"success": False, "error": "리뷰는 계정당 하나만 작성할 수 있습니다. 기존 리뷰를 수정하거나 삭제한 뒤 다시 시도해주세요."}), 429
         conn.execute("INSERT INTO reviews (user_id, rating, content, created_at) VALUES (%s, %s, %s, %s)", (session["user_id"], rating, content, now_str()))
+        conn.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/reviews/<int:review_id>", methods=["PATCH", "DELETE"])
+@login_required_api
+def update_or_delete_my_review(review_id):
+    """본인이 작성한 리뷰만 수정하거나 삭제할 수 있다."""
+    with get_db() as conn:
+        review = conn.execute("SELECT id FROM reviews WHERE id = %s AND user_id = %s", (review_id, session["user_id"])).fetchone()
+        if not review:
+            return jsonify({"success": False, "error": "본인 리뷰만 수정하거나 삭제할 수 있습니다."}), 404
+        if request.method == "DELETE":
+            conn.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
+            conn.commit()
+            return jsonify({"success": True})
+        data = request.get_json() or {}
+        rating = data.get("rating")
+        content = (data.get("content") or "").strip()
+        if not isinstance(rating, int) or rating not in range(1, 6) or len(content) < 5 or len(content) > 1000:
+            return jsonify({"success": False, "error": "별점(1~5점)과 5자 이상 후기를 입력해주세요."}), 400
+        conn.execute(
+            "UPDATE reviews SET rating = %s, content = %s, admin_reply = NULL, replied_at = NULL, created_at = %s WHERE id = %s",
+            (rating, content, now_str(), review_id),
+        )
         conn.commit()
     return jsonify({"success": True})
 
@@ -3775,8 +3796,8 @@ def chess_room_code(conn):
 
 
 def create_chess_game(conn, user_id, mode, time_control="unlimited", difficulty="medium"):
-    if mode not in {"local", "ai", "online"}:
-        raise ValueError("지원하지 않는 체스 모드입니다.")
+    if mode != "online":
+        raise ValueError("온라인 대전만 지원합니다.")
     if time_control not in CHESS_TIME_CONTROLS:
         time_control = "unlimited"
     game_id, room_code = str(uuid.uuid4()), chess_room_code(conn)
@@ -3812,7 +3833,7 @@ def chess_player_summary(conn, user_id):
     ).fetchone()
     if not user:
         return {"id": user_id, "name": "알 수 없음", "username": "", "profileImage": DEFAULT_PROFILE_IMAGE,
-                "rating": 1200, "record": {"wins": 0, "draws": 0, "losses": 0}}
+                "rating": 400, "record": {"wins": 0, "draws": 0, "losses": 0}}
     games = conn.execute("""
         SELECT result, white_player_id FROM chess_games
         WHERE status = 'finished' AND mode = 'online'
@@ -3831,7 +3852,7 @@ def chess_player_summary(conn, user_id):
             losses += 1
     return {
         "id": user["id"], "name": user["display_name"] or user["username"], "username": user["username"],
-        "profileImage": user["profile_image"] or DEFAULT_PROFILE_IMAGE, "rating": user["chess_rating"] or 1200,
+        "profileImage": user["profile_image"] or DEFAULT_PROFILE_IMAGE, "rating": user["chess_rating"] or 400,
         "record": {"wins": wins, "draws": draws, "losses": losses},
     }
 
@@ -3883,6 +3904,9 @@ def chess_game_state(conn, game, user_id=None):
         "moves": [{"number": row["move_number"], "san": row["san"], "fen": row["fen"]} for row in move_rows],
         "myColor": "w" if user_id == game["white_player_id"] else ("b" if user_id == game["black_player_id"] and game["mode"] != "local" else None),
         "canPlay": bool(user_id and (game["mode"] == "local" and user_id == game["white_player_id"] or user_id in {game["white_player_id"], game["black_player_id"]})),
+        # 방 전체로 방송되는 상태이므로 "누가 제안했는지"는 순수 id로만 보내고,
+        # 나 기준 판단(내가 걸었는지/상대가 걸었는지)은 각 클라이언트가 currentUserId와 비교해 계산한다.
+        "drawOfferedBy": game["draw_offer_user_id"],
     })
     chats = conn.execute("SELECT chat.sender_id, users.display_name, users.username, chat.text FROM chess_game_chat_messages chat JOIN users ON users.id = chat.sender_id WHERE chat.game_id = %s ORDER BY chat.id DESC LIMIT 40", (game["id"],)).fetchall()
     state["chatMessages"] = [dict(row) for row in reversed(chats)]
@@ -4206,7 +4230,7 @@ def chess_send_friend_request_api(player_id):
 def chess_create_game_api():
     data = request.get_json() or {}
     with get_db() as conn:
-        game = create_chess_game(conn, session["user_id"], data.get("mode", "local"), data.get("timeControl", "unlimited"), data.get("difficulty", "medium"))
+        game = create_chess_game(conn, session["user_id"], data.get("mode", "online"), data.get("timeControl", "unlimited"), data.get("difficulty", "medium"))
         state = chess_game_state(conn, game, session["user_id"])
         conn.commit()
     return jsonify({"success": True, "game": state})
@@ -4404,14 +4428,19 @@ def chess_resign_api(game_id):
     return jsonify({"success": True, "game": state})
 
 
-@app.route("/api/chess/games/<game_id>/draw", methods=["POST"])
+@app.route("/api/chess/games/<game_id>/draw", methods=["POST", "DELETE"])
 @login_required_api
 def chess_draw_api(game_id):
     with get_db() as conn:
         game = chess_game_or_404(conn, game_id); user_id = session["user_id"]
         if user_id not in {game["white_player_id"], game["black_player_id"]}:
             return jsonify({"success": False, "error": "참가자만 무승부를 제안할 수 있습니다."}), 403
-        if game["draw_offer_user_id"] and game["draw_offer_user_id"] != user_id:
+        if game["status"] != "active":
+            return jsonify({"success": False, "error": "진행 중인 게임에서만 무승부를 제안할 수 있습니다."}), 400
+        if request.method == "DELETE":
+            # 내가 건 제안은 취소하고, 상대가 건 제안은 거절한다. 어느 쪽이든 제안을 지운다.
+            conn.execute("UPDATE chess_games SET draw_offer_user_id = NULL, updated_at = %s WHERE id = %s", (now_str(), game_id))
+        elif game["draw_offer_user_id"] and game["draw_offer_user_id"] != user_id:
             result = {"status": "draw_agreed", "winner": None}
             conn.execute("UPDATE chess_games SET status = 'finished', result = %s, draw_offer_user_id = NULL, updated_at = %s WHERE id = %s", (json.dumps(result), now_str(), game_id))
         else:

@@ -1,14 +1,14 @@
 (function () {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
     const selectedTime = () => document.querySelector('input[name="timeControl"]:checked').value;
-    async function create(mode, difficulty) {
-        const response = await fetch("/api/chess/games", { method:"POST", headers:{"Content-Type":"application/json", "X-CSRF-Token":csrf}, body:JSON.stringify({mode, timeControl:selectedTime(), difficulty}) });
+    async function create(mode) {
+        const response = await fetch("/api/chess/games", { method:"POST", headers:{"Content-Type":"application/json", "X-CSRF-Token":csrf}, body:JSON.stringify({mode, timeControl:selectedTime()}) });
         const data = await response.json();
         if (!response.ok || !data.success) return alert(data.error || "게임 생성에 실패했습니다.");
         location.href = `/chess/game/${data.game.id}`;
     }
     document.querySelectorAll(".mode-start").forEach(button => button.addEventListener("click", () => {
-        const card = button.closest(".chess-mode-card"); create(card.dataset.mode, card.querySelector(".difficulty")?.value || "medium");
+        const card = button.closest(".chess-mode-card"); create(card.dataset.mode);
     }));
     document.querySelector(".join-room").addEventListener("click", async () => {
         const input = document.querySelector(".join-code input"); const roomCode = input.value.trim();

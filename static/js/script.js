@@ -488,6 +488,8 @@
         const reviewRating = document.querySelector("#review-rating");
         const reviewContent = document.querySelector("#review-content");
         const reviewSubmitBtn = document.querySelector("#review-submit-btn");
+        const reviewDeleteBtn = document.querySelector("#review-delete-btn");
+        const reviewComposeHint = document.querySelector("#review-compose-hint");
         const reviewList = document.querySelector("#review-list");
         const accountSettingsOverlay = document.querySelector("#account-settings-overlay");
         const accountSettingsCloseBtn = document.querySelector("#account-settings-close-btn");
@@ -3310,17 +3312,40 @@ async function loadPublicNotices() {
     }
 }
 
+let myReviewId = null;
+function setReviewComposeMode(myReview) {
+    myReviewId = myReview ? myReview.id : null;
+    reviewComposeHint.hidden = !myReview;
+    reviewDeleteBtn.hidden = !myReview;
+    reviewSubmitBtn.textContent = myReview ? "리뷰 수정" : "리뷰 등록";
+    if (myReview) {
+        reviewRating.value = String(myReview.rating);
+        reviewContent.value = myReview.content;
+    }
+}
 async function loadReviews() {
     try {
         const reviews = await fetch("/api/reviews").then(response => response.json());
-        reviewList.innerHTML = reviews.length ? reviews.map(review => `<article class="update-history-item"><div><strong>${"★".repeat(review.rating)}${"☆".repeat(5-review.rating)} · ${escapeHTML(review.display_name || review.username)}</strong><span>${escapeHTML(review.created_at.slice(0,10))}</span></div><p>${escapeHTML(review.content)}</p>${review.admin_reply ? `<p><strong>관리자 답장</strong><br>${escapeHTML(review.admin_reply)}</p>` : ""}</article>`).join("") : "<p>첫 번째 리뷰를 남겨주세요.</p>";
+        reviewList.innerHTML = reviews.length ? reviews.map(review => `<article class="update-history-item${review.isMine ? " review-list-item-mine" : ""}"><div><strong>${"★".repeat(review.rating)}${"☆".repeat(5-review.rating)} · ${escapeHTML(review.display_name || review.username)}${review.isMine ? " (나)" : ""}</strong><span>${escapeHTML(review.created_at.slice(0,10))}</span></div><p>${escapeHTML(review.content)}</p>${review.admin_reply ? `<p><strong>관리자 답장</strong><br>${escapeHTML(review.admin_reply)}</p>` : ""}</article>`).join("") : "<p>첫 번째 리뷰를 남겨주세요.</p>";
+        setReviewComposeMode(reviews.find(review => review.isMine) || null);
     } catch (error) { reviewList.innerHTML=""; }
 }
 reviewSubmitBtn.addEventListener("click", async function () {
-    const response = await fetch("/api/reviews", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({rating:Number(reviewRating.value), content:reviewContent.value.trim()})});
+    const rating = Number(reviewRating.value);
+    const content = reviewContent.value.trim();
+    const response = myReviewId
+        ? await fetch(`/api/reviews/${myReviewId}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({rating, content})})
+        : await fetch("/api/reviews", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({rating, content})});
     const result = await response.json();
-    if (!response.ok || !result.success) return showToast(result.error || "리뷰 등록에 실패했습니다.", "error");
-    reviewRating.value=""; reviewContent.value=""; loadReviews(); showToast("리뷰를 등록했습니다.");
+    if (!response.ok || !result.success) return showToast(result.error || "리뷰 저장에 실패했습니다.", "error");
+    loadReviews(); showToast(myReviewId ? "리뷰를 수정했습니다." : "리뷰를 등록했습니다.");
+});
+reviewDeleteBtn.addEventListener("click", async function () {
+    if (!myReviewId || !confirm("작성한 리뷰를 삭제할까요?")) return;
+    const response = await fetch(`/api/reviews/${myReviewId}`, {method:"DELETE"});
+    const result = await response.json();
+    if (!response.ok || !result.success) return showToast(result.error || "리뷰 삭제에 실패했습니다.", "error");
+    reviewRating.value=""; reviewContent.value=""; loadReviews(); showToast("리뷰를 삭제했습니다.");
 });
 
         helpItem.addEventListener("click", function () {

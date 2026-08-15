@@ -126,6 +126,13 @@
                     : "게임 종료";
 
         document.querySelector("#game-status").textContent = status;
+        const drawOfferedByMe = game.drawOfferedBy === currentUserId;
+        const drawOfferedByOpponent = Boolean(game.drawOfferedBy) && !drawOfferedByMe;
+        drawBtn.hidden = game.mode !== "online" || game.status !== "active";
+        drawBtn.classList.toggle("draw-offered", drawOfferedByOpponent);
+        drawBtn.textContent = drawOfferedByOpponent ? "무승부 수락" : drawOfferedByMe ? "무승부 제안 취소" : "무승부 제안";
+        if (drawOfferedByOpponent) document.querySelector("#game-status").textContent = "상대가 무승부를 제안했습니다.";
+        else if (drawOfferedByMe) document.querySelector("#game-status").textContent = "무승부를 제안했습니다. 상대의 응답을 기다리는 중…";
         const history = document.querySelector("#move-history"); history.innerHTML = "";
         (game.moves || []).forEach((move, index) => {
             const item = document.createElement("li"); const button = document.createElement("button");
@@ -252,7 +259,18 @@
     });
     document.querySelector("#flip-board").addEventListener("click", () => { flipped = !flipped; renderBoard(); });
     document.querySelector("#resign-btn").addEventListener("click", async () => { if (!confirm("정말 기권할까요?")) return; const response = await fetch(`/api/chess/games/${gameId}/resign`, {method:"POST", headers:{"X-CSRF-Token":csrf}}); const data = await response.json(); if (data.success) applyState(data.game); else alert(data.error); });
-    document.querySelector("#draw-btn").addEventListener("click", async () => { const response = await fetch(`/api/chess/games/${gameId}/draw`, {method:"POST", headers:{"X-CSRF-Token":csrf}}); const data = await response.json(); if (data.success) applyState(data.game); else alert(data.error); });
+    const drawBtn = document.querySelector("#draw-btn");
+    drawBtn.addEventListener("click", async () => {
+        const offeredByMe = game?.drawOfferedBy === currentUserId;
+        const method = offeredByMe ? "DELETE" : "POST";
+        if (method === "POST" && !game?.drawOfferedBy && !confirm("무승부를 제안할까요?")) return;
+        drawBtn.disabled = true;
+        try {
+            const response = await fetch(`/api/chess/games/${gameId}/draw`, {method, headers:{"X-CSRF-Token":csrf}});
+            const data = await response.json();
+            if (data.success) applyState(data.game); else alert(data.error);
+        } finally { drawBtn.disabled = false; }
+    });
     document.querySelector("#chess-chat-form").addEventListener("submit", event => { event.preventDefault(); const input = document.querySelector("#chess-chat-input"), text = input.value.trim(); if (text && socket) { socket.emit("chat:message", {gameId, text}); input.value = ""; } });
     document.querySelectorAll("#chess-emote-tray [data-emote]").forEach(button => button.addEventListener("click", () => { prepareChessAudio(); socket?.emit("emote:send", {gameId, emote:button.dataset.emote}); }));
     function showEmote(data) { const pop = document.querySelector("#chess-emote-pop"); pop.textContent = `${data.emoji} ${data.sender} · ${data.label}`; pop.hidden = false; clearTimeout(showEmote.timer); showEmote.timer = setTimeout(() => pop.hidden = true, 2400); prepareChessAudio(); if (chessAudioContext) playChessMoveSound(); }

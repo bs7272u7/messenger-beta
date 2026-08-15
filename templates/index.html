@@ -729,7 +729,7 @@
                             <i class="fa-solid fa-paper-plane"></i>
                             <span>문의 보내기</span>
                         </div>
-                        <p>문의 내용은 10자 이상 작성해주세요. 사진 또는 동영상은 선택 사항입니다.</p>
+                        <p>문의 내용은 10자 이상 작성해주세요. 사진 또는 동영상은 선택 사항입니다. 문의는 하루에 1개까지 등록할 수 있습니다.</p>
                         <form id="support-inquiry-form">
                             <textarea id="support-message" maxlength="3000" placeholder="어떤 점이 불편했는지 자세히 알려주세요." required></textarea>
                             <div class="support-form-meta">
@@ -778,10 +778,14 @@
             </div>
             <div class="settings-modal-body">
                 <section class="review-compose-card">
-                    <div class="review-compose-title"><i class="fa-solid fa-pen-to-square"></i><strong>리뷰 작성</strong></div>
+                    <div class="review-compose-title"><i class="fa-solid fa-pen-to-square"></i><strong id="review-compose-heading">리뷰 작성</strong></div>
+                    <p id="review-compose-hint" class="review-compose-hint" hidden>리뷰는 계정당 하나만 작성할 수 있습니다. 이미 작성한 리뷰를 수정하고 있어요.</p>
                     <select id="review-rating" class="settings-input"><option value="">별점 선택</option><option value="5">★★★★★ 아주 좋아요</option><option value="4">★★★★ 좋아요</option><option value="3">★★★ 보통이에요</option><option value="2">★★ 아쉬워요</option><option value="1">★ 불편해요</option></select>
                     <textarea id="review-content" class="settings-input" maxlength="1000" placeholder="후기 5자 이상"></textarea>
-                    <button id="review-submit-btn" type="button" class="settings-btn">리뷰 등록</button>
+                    <div class="review-compose-actions">
+                        <button id="review-submit-btn" type="button" class="settings-btn">리뷰 등록</button>
+                        <button id="review-delete-btn" type="button" class="settings-btn-danger" hidden>리뷰 삭제</button>
+                    </div>
                 </section>
                 <section class="review-feed-section">
                     <div class="review-feed-title"><strong>모든 리뷰</strong><span>관리자 답변을 확인할 수 있어요.</span></div>
