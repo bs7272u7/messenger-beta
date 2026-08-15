@@ -168,6 +168,8 @@
         const reportList = document.querySelector("#report-list");
         const suspendedUserList = document.querySelector("#suspended-user-list");
         const reviewList = document.querySelector("#review-list");
+        let lastInquiries = [];
+        let lastReviews = [];
 
         async function api(url, options) {
             const response = await fetch(url, options);
@@ -179,9 +181,11 @@
             const notices = await api("/api/admin/notices");
             noticeList.innerHTML = notices.length ? notices.map(n => `<article class="admin-item"><strong>${escapeHTML(n.title)}</strong><p>${escapeHTML(n.content)}</p><small>${n.created_at} · ${n.is_published ? "게시 중" : "비공개"}</small><div class="admin-item-actions"><button data-delete-notice="${n.id}" class="danger">삭제</button></div></article>`).join("") : "<p>등록된 공지가 없습니다.</p>";
         }
+        const inquiryStatusLabel = {pending:"답변 대기", answered:"답변 완료", closed:"처리 완료"};
         async function loadInquiries() {
             const items = await api("/api/admin/inquiries");
-            inquiryList.innerHTML = items.length ? `<div class="admin-bulk-actions"><label><input id="select-all-inquiries" type="checkbox"> 전체 선택</label><button id="bulk-delete-inquiries" class="danger" type="button">선택 삭제</button></div>` + items.map(i => `<article class="admin-item"><label class="admin-item-check"><input type="checkbox" class="inquiry-select" value="${i.id}" aria-label="문의 선택"></label><strong>${escapeHTML(i.display_name || i.username)} · ${escapeHTML(i.status)}</strong><p>${escapeHTML(i.message)}</p>${i.attachment_url ? `<p><a href="${escapeHTML(i.attachment_url)}" target="_blank">첨부 파일 열기</a></p>` : ""}<small>${i.email || "이메일 없음"} · ${i.created_at}</small><div class="admin-item-actions"><button data-answer-inquiry="${i.id}">답변/처리</button><button data-delete-inquiry="${i.id}" class="danger">삭제</button></div></article>`).join("") : "<p>문의가 없습니다.</p>";
+            lastInquiries = items;
+            inquiryList.innerHTML = items.length ? `<div class="admin-bulk-actions"><label><input id="select-all-inquiries" type="checkbox"> 전체 선택</label><button id="bulk-delete-inquiries" class="danger" type="button">선택 삭제</button></div>` + items.map(i => `<article class="admin-item"><label class="admin-item-check"><input type="checkbox" class="inquiry-select" value="${i.id}" aria-label="문의 선택"></label><strong>${escapeHTML(i.display_name || i.username)} · ${inquiryStatusLabel[i.status] || escapeHTML(i.status)}</strong><p>${escapeHTML(i.message)}</p>${i.attachment_url ? `<p><a href="${escapeHTML(i.attachment_url)}" target="_blank">첨부 파일 열기</a></p>` : ""}${i.admin_reply ? `<p><strong>관리자 답변</strong> (${escapeHTML((i.answered_at || "").slice(0,16))})<br>${escapeHTML(i.admin_reply)}</p>` : ""}<small>${i.email || "이메일 없음"} · ${i.created_at}</small><div class="admin-item-actions"><button data-answer-inquiry="${i.id}">${i.admin_reply ? "답변 수정" : "답변/처리"}</button><button data-delete-inquiry="${i.id}" class="danger">삭제</button></div></article>`).join("") : "<p>문의가 없습니다.</p>";
         }
         async function loadReports() {
             const items = await api("/api/admin/reports");
@@ -201,7 +205,8 @@
         }
         async function loadReviews() {
             const items = await api("/api/admin/reviews");
-            reviewList.innerHTML = items.length ? items.map(r => `<article class="admin-item"><strong>${"★".repeat(r.rating)} · ${escapeHTML(r.display_name || r.username)}</strong><p>${escapeHTML(r.content)}</p>${r.admin_reply ? `<p><strong>답장:</strong> ${escapeHTML(r.admin_reply)}</p>` : ""}<div class="admin-item-actions"><button data-reply-review="${r.id}">답장</button><button data-delete-review="${r.id}" class="danger">삭제</button></div></article>`).join("") : "<p>리뷰가 없습니다.</p>";
+            lastReviews = items;
+            reviewList.innerHTML = items.length ? `<div class="admin-bulk-actions"><label><input id="select-all-reviews" type="checkbox"> 전체 선택</label><button id="bulk-delete-reviews" class="danger" type="button">선택 삭제</button></div>` + items.map(r => `<article class="admin-item"><label class="admin-item-check"><input type="checkbox" class="review-select" value="${r.id}" aria-label="리뷰 선택"></label><strong>${"★".repeat(r.rating)} · ${escapeHTML(r.display_name || r.username)}</strong><p>${escapeHTML(r.content)}</p>${r.admin_reply ? `<p><strong>답장:</strong> ${escapeHTML(r.admin_reply)}</p>` : ""}<div class="admin-item-actions"><button data-reply-review="${r.id}">${r.admin_reply ? "답장 수정" : "답장"}</button><button data-delete-review="${r.id}" class="danger">삭제</button></div></article>`).join("") : "<p>리뷰가 없습니다.</p>";
         }
         document.querySelector("#notice-submit").addEventListener("click", async () => {
             try { await api("/api/admin/notices", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:document.querySelector("#notice-title").value, content:document.querySelector("#notice-content").value, is_published:document.querySelector("#notice-published").checked})}); document.querySelector("#notice-title").value=""; document.querySelector("#notice-content").value=""; await loadNotices(); alert("공지를 등록했습니다."); } catch (error) { alert(error.message); }
@@ -232,7 +237,8 @@
                     return await loadInquiries();
                 }
                 if (!answerId) return;
-                const reply = prompt("답변 또는 처리 메모를 입력하세요."); if (reply === null) return;
+                const existingInquiry = lastInquiries.find(item => String(item.id) === String(answerId));
+                const reply = prompt("답변 또는 처리 메모를 입력하세요.", existingInquiry?.admin_reply || ""); if (reply === null) return;
                 await api(`/api/admin/inquiries/${answerId}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"answered", admin_reply:reply})});
                 await loadInquiries();
             } catch (error) { alert(error.message); }
@@ -270,14 +276,25 @@
             } catch (error) { alert(error.message); }
         });
         reviewList.addEventListener("click", async event => {
+            if (event.target.id === "select-all-reviews") {
+                reviewList.querySelectorAll(".review-select").forEach(box => box.checked = event.target.checked);
+                return;
+            }
             const id = event.target.dataset.replyReview || event.target.dataset.deleteReview;
-            if (!id) return;
             try {
+                if (event.target.id === "bulk-delete-reviews") {
+                    const ids = [...reviewList.querySelectorAll(".review-select:checked")].map(box => Number(box.value));
+                    if (!ids.length || !confirm(`${ids.length}개의 리뷰를 삭제할까요?`)) return;
+                    await api("/api/admin/reviews/bulk-delete", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ids})});
+                    return await loadReviews();
+                }
+                if (!id) return;
                 if (event.target.dataset.deleteReview) {
                     if (!confirm("리뷰를 삭제할까요?")) return;
                     await api(`/api/admin/reviews/${id}`, {method:"DELETE"});
                 } else {
-                    const reply = prompt("관리자 답장을 입력하세요."); if (reply === null) return;
+                    const existingReview = lastReviews.find(item => String(item.id) === String(id));
+                    const reply = prompt("관리자 답장을 입력하세요.", existingReview?.admin_reply || ""); if (reply === null) return;
                     await api(`/api/admin/reviews/${id}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({admin_reply:reply})});
                 }
                 await loadReviews();

@@ -1663,6 +1663,25 @@ def admin_review_detail(review_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/admin/reviews/bulk-delete", methods=["POST"])
+@admin_required_api
+def admin_bulk_delete_reviews():
+    """체크된 리뷰만 삭제하며 빈 목록은 전체 삭제로 해석하지 않는다."""
+    raw_ids = (request.get_json() or {}).get("ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return jsonify({"success": False, "error": "삭제할 리뷰를 선택해주세요."}), 400
+    try:
+        review_ids = list({int(item) for item in raw_ids if int(item) > 0})
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "리뷰 선택 정보가 올바르지 않습니다."}), 400
+    if not review_ids:
+        return jsonify({"success": False, "error": "삭제할 리뷰를 선택해주세요."}), 400
+    with get_db() as conn:
+        deleted = conn.execute("DELETE FROM reviews WHERE id = ANY(%s::int[])", (review_ids,)).rowcount
+        conn.commit()
+    return jsonify({"success": True, "deleted": deleted})
+
+
 @app.route("/api/admin/notices", methods=["GET", "POST"])
 @admin_required_api
 def admin_notices():
