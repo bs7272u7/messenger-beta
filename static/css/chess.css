@@ -25,6 +25,38 @@
     --chess-danger:#d9544c;
     --light-square:var(--cc-board-light);
     --dark-square:var(--cc-board-dark);
+
+    /* ---- 디자인 토큰 ----------------------------------
+     * 기존 값에서 1~2px 안쪽으로만 정리해, 보이는 인상은 유지하면서
+     * 여백(간격) · 위계(글자) · 일관성(모서리/그림자)에 규칙을 부여한다.
+     * -------------------------------------------------- */
+    /* 여백: 4px 기반 스케일 */
+    --sp-1:4px;  --sp-2:6px;  --sp-3:8px;  --sp-4:10px;
+    --sp-5:12px; --sp-6:14px; --sp-7:16px; --sp-8:18px;
+    --sp-9:22px; --sp-10:26px; --sp-11:32px;
+
+    /* 모서리: 13종 → 6종 */
+    --r-xs:8px; --r-sm:10px; --r-md:12px; --r-lg:14px; --r-xl:18px; --r-2xl:22px;
+    --r-pill:999px;
+
+    /* 위계: 글자 크기 7단계 + 굵기 4단계 */
+    --fs-xs:11px; --fs-sm:12px; --fs-base:13px; --fs-md:14px;
+    --fs-lg:16px; --fs-xl:19px; --fs-2xl:22px;
+    --fw-normal:600; --fw-bold:700; --fw-heavy:800; --fw-black:900;
+
+    /* 깊이: 그림자 4단계 */
+    --sh-sm:0 4px 10px rgba(20,45,15,.14);
+    --sh-md:0 12px 26px rgba(20,45,15,.2);
+    --sh-lg:0 18px 36px rgba(12,30,12,.32);
+    --sh-modal:0 24px 50px rgba(15,35,10,.4);
+
+    /* 모션: 한 곳에서 관리해 속도감을 통일 */
+    --ease:cubic-bezier(.2,.8,.3,1);
+    --dur-fast:.12s;
+    --dur-base:.2s;
+
+    /* 포커스 링 */
+    --focus-ring:0 0 0 3px #fffdf6, 0 0 0 6px var(--cc-highlight);
 }
 
 * { box-sizing:border-box; }
@@ -81,23 +113,31 @@ body.chess-page::before {
 .cc-wordmark span { font-size:clamp(30px,5.4vw,54px); }
 .cc-wordmark strong { font-size:clamp(46px,9vw,92px); color:#dcd0f0; }
 
-.cc-cta-row { display:flex; flex-wrap:wrap; justify-content:center; gap:18px; }
+/* 강조: 주 동작(방 만들기)을 부 동작(코드로 입장)보다 크고 무겁게 두어 시선 순서를 만든다.
+   두 버튼을 같은 크기로 두면 "무엇을 먼저 눌러야 하는지"가 사라진다. */
+.cc-cta-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:var(--sp-8); }
 .cc-cta {
-    display:grid; place-items:center; gap:10px;
-    width:clamp(140px,20vw,178px); min-height:clamp(126px,16vw,158px); padding:18px 14px;
-    border:4px solid var(--cc-cream); border-radius:20px;
-    color:#fff; background:var(--cc-green);
-    font-size:clamp(15px,1.6vw,18px); font-weight:800; line-height:1.3;
-    box-shadow:0 6px 0 var(--cc-green-deep), 0 14px 26px rgba(12,30,12,.35);
-    transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;
+    display:grid; place-items:center; gap:var(--sp-4);
+    width:clamp(132px,18vw,164px); min-height:clamp(118px,14vw,146px); padding:var(--sp-8) var(--sp-6);
+    border:4px solid var(--cc-cream); border-radius:var(--r-xl);
+    color:#fff; background:var(--cc-purple);
+    font-size:clamp(14px,1.5vw,16px); font-weight:var(--fw-heavy); line-height:1.3;
+    box-shadow:0 6px 0 var(--cc-purple-deep), var(--sh-lg);
+    transition:transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
 }
-.cc-cta i { font-size:26px; }
-.cc-cta:hover { filter:brightness(1.06); transform:translateY(-3px); box-shadow:0 9px 0 var(--cc-green-deep), 0 18px 30px rgba(12,30,12,.4); }
-.cc-cta:active { transform:translateY(3px); box-shadow:0 2px 0 var(--cc-green-deep); }
-.cc-cta:disabled { opacity:.7; cursor:progress; }
-.cc-cta-alt { background:var(--cc-purple); box-shadow:0 6px 0 var(--cc-purple-deep), 0 14px 26px rgba(12,30,12,.35); }
-.cc-cta-alt:hover { box-shadow:0 9px 0 var(--cc-purple-deep), 0 18px 30px rgba(12,30,12,.4); }
-.cc-cta-alt:active { box-shadow:0 2px 0 var(--cc-purple-deep); }
+.cc-cta i { font-size:24px; }
+.cc-cta:hover { filter:brightness(1.06); transform:translateY(-3px); box-shadow:0 9px 0 var(--cc-purple-deep), var(--sh-lg); }
+.cc-cta:active { transform:translateY(3px); box-shadow:0 2px 0 var(--cc-purple-deep); }
+.cc-cta:disabled { opacity:.65; cursor:progress; transform:none; filter:saturate(.6); }
+/* 주 동작 */
+#cc-create-game {
+    width:clamp(152px,22vw,196px); min-height:clamp(134px,17vw,172px);
+    background:var(--cc-green); font-size:clamp(16px,1.8vw,19px);
+    box-shadow:0 7px 0 var(--cc-green-deep), var(--sh-lg);
+}
+#cc-create-game i { font-size:30px; }
+#cc-create-game:hover { box-shadow:0 10px 0 var(--cc-green-deep), var(--sh-lg); }
+#cc-create-game:active { box-shadow:0 2px 0 var(--cc-green-deep); }
 
 .cc-join-panel { width:min(420px,100%); padding:16px 18px; border:3px solid var(--cc-cream); border-radius:16px; background:var(--chess-card); box-shadow:0 12px 26px rgba(12,30,12,.3); text-align:left; }
 .cc-join-panel[hidden] { display:none !important; }
@@ -215,7 +255,16 @@ body.chess-page::before {
     font-weight:900; font-size:clamp(15px,1.8vw,20px); letter-spacing:.01em; text-align:center;
     box-shadow:0 8px 24px rgba(10,25,8,.4);
 }
-.game-status.is-my-turn { background:#fff6cf; box-shadow:0 8px 24px rgba(10,25,8,.4), 0 0 0 4px rgba(255,214,90,.45); }
+/* 강조: "내 차례"는 이 화면에서 가장 중요한 정보이므로 색·링·미세한 숨쉬기로 분명히 구분한다. */
+.game-status.is-my-turn {
+    background:#fff6cf; color:#4a3305;
+    box-shadow:0 8px 24px rgba(10,25,8,.4), 0 0 0 4px rgba(224,168,58,.5);
+    animation:cc-turn-breathe 2.4s var(--ease) infinite;
+}
+@keyframes cc-turn-breathe {
+    0%,100% { box-shadow:0 8px 24px rgba(10,25,8,.4), 0 0 0 4px rgba(224,168,58,.5); }
+    50%     { box-shadow:0 8px 24px rgba(10,25,8,.4), 0 0 0 9px rgba(224,168,58,0); }
+}
 
 /* ======================================================
  * 사이드 패널 — 플레이어 카드 · 기보 · 액션 · 채팅
@@ -388,4 +437,99 @@ body.chess-page::before {
     .chess-friend-status { display:none; }
     .cc-rules-tabs button { flex:1 1 calc(50% - 6px); }
     .cc-piece-badge { min-width:38px; height:38px; font-size:21px; }
+}
+
+/* ======================================================
+ * 마감 레이어 — 접근성 · 사용성 · 위계
+ * 색과 형태(디자인 정체성)는 그대로 두고, 상태 표현과 읽는 순서만 보강한다.
+ * ====================================================== */
+
+/* --- 접근성: 포커스 --------------------------------
+ * 이 페이지의 버튼은 대부분 border:0 이라 기본 포커스 링이 보이지 않았다.
+ * 키보드·스크린리더 사용자가 지금 어디에 있는지 항상 알 수 있어야 한다. */
+.chess-page :is(a, button, input, select, [tabindex]):focus-visible {
+    outline:none;
+    box-shadow:var(--focus-ring);
+    border-radius:var(--r-sm);
+    position:relative; z-index:3;
+}
+/* 아래 override들은 위 규칙과 같은 특정도(0,3,0)를 맞춰야 적용된다. */
+/* 체스판 칸은 모서리를 살리지 않고 칸 전체를 감싸야 위치가 분명하다. */
+.chess-page .chess-square:focus-visible { box-shadow:inset 0 0 0 4px var(--cc-highlight); border-radius:0; }
+/* 이미 알약/원형인 요소는 자기 모양을 유지한 채 링만 두른다. */
+.chess-page .chess-back-link:focus-visible { border-radius:var(--r-pill); }
+.chess-page .cc-cta:focus-visible,
+.chess-page .cc-util-btn:focus-visible { border-radius:var(--r-xl); }
+.chess-page .chess-header-btn:focus-visible { border-radius:var(--r-lg); }
+.chess-page .cc-player-card:focus-visible { border-radius:var(--r-lg); }
+.chess-page :is(.chess-friend-icon-btn,.chess-accept-icon,.chess-decline-icon):focus-visible { border-radius:var(--r-sm); }
+
+/* 스크린리더 전용 텍스트가 필요할 때 쓰는 표준 유틸 */
+.cc-sr-only {
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+
+/* --- 사용성: 상태 표현 ------------------------------
+ * 비활성/처리중 상태가 눈에 보이지 않으면 사용자는 같은 버튼을 반복해서 누른다. */
+.chess-page button:disabled,
+.chess-page .chess-primary:disabled,
+.chess-page .chess-secondary:disabled,
+.chess-page .danger-button:disabled {
+    opacity:.55; cursor:not-allowed; transform:none !important; filter:saturate(.55);
+}
+.chess-page button[aria-busy="true"] { cursor:progress; }
+/* 누를 수 있는 것과 없는 것을 커서로 구분한다. */
+.cc-player-card,.chess-friend-icon-btn,.cc-move { cursor:pointer; }
+.captured-pieces,.cc-move-no { cursor:default; user-select:none; }
+
+/* --- 접근성: 모션 줄이기 ----------------------------
+ * 전정기관 장애가 있는 사용자를 위해 움직임을 멈춘다(정보는 색으로 남는다). */
+@media (prefers-reduced-motion:reduce) {
+    .chess-page *,
+    .chess-page *::before,
+    .chess-page *::after {
+        animation-duration:.001ms !important;
+        animation-iteration-count:1 !important;
+        transition-duration:.001ms !important;
+        scroll-behavior:auto !important;
+    }
+    .cc-cta:hover,.cc-util-btn:hover,.chess-header-btn:hover,
+    .chess-primary:hover,.chess-secondary:hover,.danger-button:hover { transform:none; }
+}
+
+/* --- 접근성: 고대비 선호 ----------------------------- */
+@media (prefers-contrast:more) {
+    :root { --chess-muted:#4b5c41; --chess-line:#8d7c4e; }
+    .chess-page :is(.chess-friend-row,.chess-request-item,.chess-search-card,.chess-history-row) { border-width:2px; }
+    .cc-move { background:#20222833; background:rgba(28,30,34,.96); }
+}
+
+/* --- 위계 · 여백: 읽는 순서 다듬기 --------------------
+ * 제목 → 설명 → 내용의 간격 리듬을 통일해 스캔하기 쉽게 만든다. */
+.chess-social-modal-box h2,.cc-rules-box h2 { letter-spacing:-.01em; line-height:1.3; }
+.chess-social-hint { max-width:52ch; }
+.cc-rules-list p,.cc-rules-steps { max-width:60ch; }        /* 한 줄이 길어지면 읽기 어렵다 */
+.chess-settings-card h2 { display:flex; align-items:center; gap:var(--sp-3); }
+
+/* --- 공감: 비어 있는 상태 -----------------------------
+ * "없음"이 오류처럼 보이지 않도록, 차분한 안내로 읽히게 한다. */
+.chess-inbox-empty,.cc-move-empty { line-height:1.6; }
+.chess-history-list:not(:has(.chess-history-row)),
+.chess-friend-list:not(:has(.chess-friend-row)) {
+    padding:var(--sp-8) var(--sp-6);
+    border:1px dashed var(--chess-line); border-radius:var(--r-md);
+    background:color-mix(in srgb, var(--chess-card-soft) 60%, transparent);
+    color:var(--chess-muted); font-size:var(--fs-base); text-align:center; line-height:1.6;
+}
+
+/* --- 사용성: 스크롤 영역 ------------------------------ */
+.move-history,.chess-friend-list,.chess-inbox-list,.chess-chat-list,.chess-invite-friends { scrollbar-width:thin; overscroll-behavior:contain; }
+.game-result-modal { scrollbar-width:thin; }
+
+/* --- 정렬 · 균형: 모바일에서 터치 목표 확보 ------------- */
+@media (max-width:700px) {
+    .chess-page :is(button,a.chess-back-link,.cc-move) { min-height:40px; }
+    .cc-move { display:grid; place-items:center; }
+    .chess-modal-close { width:40px; height:40px; display:grid; place-items:center; top:8px; right:8px; }
 }
