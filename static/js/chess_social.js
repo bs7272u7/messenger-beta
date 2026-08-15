@@ -37,19 +37,16 @@
             friends.forEach(friend => {
                 const row = document.createElement("div");
                 row.className = "chess-friend-row";
+                // 체스 페이지에서는 차단 기능을 제공하지 않는다(차단은 채팅 화면에서만 관리).
                 const inviteIconHTML = friend.blockedByMe || friend.blockedMe ? "" :
                     `<button type="button" class="chess-friend-icon-btn chess-friend-invite" title="체스 초대" aria-label="${escapeHTML(friend.name)}님에게 체스 초대"><i class="fa-solid fa-chess-knight"></i></button>`;
-                const blockIconHTML = friend.blockedByMe
-                    ? `<button type="button" class="chess-friend-icon-btn chess-friend-unblock" title="차단 해제"><i class="fa-solid fa-lock-open"></i></button>`
-                    : `<button type="button" class="chess-friend-icon-btn chess-friend-block" title="차단"><i class="fa-solid fa-ban"></i></button>`;
                 row.innerHTML = `
                     <img src="${escapeHTML(friend.peerProfileImage || "/static/default_profile.png")}" alt="">
                     <span class="chess-friend-name">${escapeHTML(friend.name)}<small>@${escapeHTML(friend.peerUsername || "")}</small></span>
                     <span class="chess-friend-status ${friend.isOnline ? "online" : ""}">${friend.isOnline ? "온라인" : "오프라인"}</span>
                     <div class="chess-friend-actions">
                         ${inviteIconHTML}
-                        ${blockIconHTML}
-                        <button type="button" class="chess-friend-icon-btn chess-friend-delete" title="친구 삭제"><i class="fa-solid fa-trash"></i></button>
+                        <button type="button" class="chess-friend-icon-btn chess-friend-delete" title="친구 삭제" aria-label="${escapeHTML(friend.name)}님 친구 삭제"><i class="fa-solid fa-trash"></i></button>
                     </div>`;
                 const inviteBtn = row.querySelector(".chess-friend-invite");
                 if (inviteBtn) inviteBtn.addEventListener("click", async () => {
@@ -62,15 +59,6 @@
                 row.querySelector(".chess-friend-delete").addEventListener("click", async () => {
                     if (!confirm(`"${friend.name}"님을 친구에서 삭제할까요?`)) return;
                     try { await api(`/api/conversations/${friend.id}/leave`, { method: "DELETE" }); loadFriendList(); } catch (error) { alert(error.message); }
-                });
-                const blockBtn = row.querySelector(".chess-friend-block");
-                if (blockBtn) blockBtn.addEventListener("click", async () => {
-                    if (!confirm(`"${friend.name}"님을 차단하시겠습니까? 차단하면 서로 메시지를 보낼 수 없어요.`)) return;
-                    try { await api("/api/blocks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: friend.peerId }) }); loadFriendList(); } catch (error) { alert(error.message); }
-                });
-                const unblockBtn = row.querySelector(".chess-friend-unblock");
-                if (unblockBtn) unblockBtn.addEventListener("click", async () => {
-                    try { await api(`/api/blocks/${friend.peerId}`, { method: "DELETE" }); loadFriendList(); } catch (error) { alert(error.message); }
                 });
                 friendList.appendChild(row);
             });
@@ -228,7 +216,7 @@
             document.querySelector("#chess-my-info-name").textContent = player.name;
             const record = player.record || {};
             document.querySelector("#chess-my-info-record").textContent = `@${player.username} · ${record.wins || 0}승 ${record.draws || 0}무 ${record.losses || 0}패`;
-            document.querySelector("#chess-my-info-rating").textContent = `RATING ${player.rating ?? "-"}`;
+            document.querySelector("#chess-my-info-rating").textContent = player.rating ?? "-";
             myInfoCard.dataset.loaded = "1";
             return player;
         } catch (error) {

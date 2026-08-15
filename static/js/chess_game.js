@@ -5,7 +5,7 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
     const boardElement = document.querySelector("#chess-board");
     const pieceGlyph = { P:"♙", N:"♘", B:"♗", R:"♖", Q:"♕", K:"♔", p:"♟", n:"♞", b:"♝", r:"♜", q:"♛", k:"♚" };
-    let game = null, selected = null, pendingPromotion = null, flipped = false, lastMove = null, replayFen = null, hasLoadedState = false, chessAudioContext = null, movePending = false;
+    let game = null, selected = null, pendingPromotion = null, flipped = false, lastMove = null, replayFen = null, hasLoadedState = false, chessAudioContext = null, movePending = false, renderedMoveCount = -1;
     const socket = window.io ? io() : null;
 
     function squareFrom(row, col) { return "abcdefgh"[col] + (8 - row); }
@@ -62,6 +62,15 @@
             button.addEventListener("drop", event => { event.preventDefault(); const from = event.dataTransfer.getData("text/plain"); if (from) attemptMove(from, square); });
             boardElement.appendChild(button);
         }));
+        renderCoordinates(rows, cols);
+    }
+    /* 좌표 라벨은 보드와 같은 순서로 다시 그려, 보드를 뒤집어도 항상 맞는 좌표를 보여준다. */
+    function renderCoordinates(rows, cols) {
+        const rankBar = document.querySelector("#cc-ranks");
+        const fileBar = document.querySelector("#cc-files");
+        if (!rankBar || !fileBar) return;
+        rankBar.innerHTML = rows.map(row => `<span>${8 - row}</span>`).join("");
+        fileBar.innerHTML = cols.map(col => `<span>${"abcdefgh"[col]}</span>`).join("");
     }
     function selectSquare(square) {
         if (!isMyTurn()) return;
@@ -101,31 +110,32 @@
         const opponentColor = mineColor === "w" ? "b" : "w";
         document.querySelector("#white-name").textContent = mine.name;
         document.querySelector("#black-name").textContent = opponent.name;
+        document.querySelector("#white-avatar").src = mine.profileImage || "/static/default_profile.png";
+        document.querySelector("#black-avatar").src = opponent.profileImage || "/static/default_profile.png";
         document.querySelector("#white-rating").textContent = mine.rating == null ? "AI" : `RATING ${mine.rating}`;
         document.querySelector("#black-rating").textContent = opponent.rating == null ? (game.status === "waiting" ? "상대 입장 대기" : "AI") : `RATING ${opponent.rating}`;
+        // 레퍼런스 상단 중앙의 "나 vs 상대" 대전 타이틀
+        document.querySelector("#cc-match-title").textContent = game.status === "waiting"
+            ? "상대 입장 대기 중"
+            : `${mine.name} vs ${opponent.name}`;
         document.querySelector("#white-clock").textContent = displayClock(mineColor === "w" ? game.whiteRemainingMs : game.blackRemainingMs, mineColor);
         document.querySelector("#black-clock").textContent = displayClock(opponentColor === "w" ? game.whiteRemainingMs : game.blackRemainingMs, opponentColor);
         document.querySelector("#white-captured").textContent = (game.captured?.[opponentColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
         document.querySelector("#black-captured").textContent = (game.captured?.[mineColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
-        document.querySelector("#room-code").textContent = game.mode === "online" ? `초대 코드 ${game.roomCode}` : game.mode === "ai" ? "AI 대전" : "로컬 2인";
-        document.querySelector("#invite-friend-btn").hidden = !(game.mode === "online" && game.status === "waiting" && game.myColor === "w");
-        const visibleTurnLabel =
-            game.mode === "online"
-                ? (game.turn === game.myColor ? "백" : "흑")
-                : (game.turn === "w" ? "백" : "흑");
+        document.querySelector("#room-code").textContent = game.status === "waiting" ? `초대 코드 ${game.roomCode}` : "";
+        document.querySelector("#invite-friend-btn").hidden = !(game.status === "waiting" && game.myColor === "w");
 
+        // 하단 중앙 상태 알약: 누구 차례인지를 이름으로 알려준다.
+        const myTurn = game.turn === game.myColor;
         const status =
             game.status === "waiting"
-                ? "친구가 초대 코드로 입장하기를 기다리는 중입니다."
+                ? "친구를 초대하거나 초대 코드를 알려주세요"
                 : game.status === "active"
-                    ? (
-                        game.mode === "ai" && game.turn === "b"
-                            ? "AI가 수를 생각 중입니다…"
-                            : `${visibleTurnLabel} 차례${game.check ? " · 체크" : ""}`
-                    )
+                    ? `${myTurn ? "내" : `${opponent.name}님`} 차례${game.check ? " · 체크!" : ""}`
                     : "게임 종료";
 
         document.querySelector("#game-status").textContent = status;
+        document.querySelector("#game-status").classList.toggle("is-my-turn", game.status === "active" && myTurn);
         const drawOfferedByMe = game.drawOfferedBy === currentUserId;
         const drawOfferedByOpponent = Boolean(game.drawOfferedBy) && !drawOfferedByMe;
         drawBtn.hidden = game.mode !== "online" || game.status !== "active";
@@ -133,13 +143,29 @@
         drawBtn.textContent = drawOfferedByOpponent ? "무승부 수락" : drawOfferedByMe ? "무승부 제안 취소" : "무승부 제안";
         if (drawOfferedByOpponent) document.querySelector("#game-status").textContent = "상대가 무승부를 제안했습니다.";
         else if (drawOfferedByMe) document.querySelector("#game-status").textContent = "무승부를 제안했습니다. 상대의 응답을 기다리는 중…";
+        // 레퍼런스처럼 한 행에 [수 번호][백의 수][흑의 수]를 나란히 배치한다.
         const history = document.querySelector("#move-history"); history.innerHTML = "";
-        (game.moves || []).forEach((move, index) => {
-            const item = document.createElement("li"); const button = document.createElement("button");
-            button.type = "button"; button.textContent = `${Math.floor(index / 2) + 1}${index % 2 ? "..." : "."} ${move.san}`;
-            button.addEventListener("click", () => { replayFen = replayFen === move.fen ? null : move.fen; selected = null; renderBoard(); document.querySelector("#game-status").textContent = replayFen ? `${move.number}수 뒤 국면을 보고 있습니다. 다시 누르면 현재 국면으로 돌아갑니다.` : "현재 국면"; });
-            item.appendChild(button); history.appendChild(item);
-        });
+        const moves = game.moves || [];
+        if (!moves.length) history.innerHTML = '<li class="cc-move-empty">아직 둔 수가 없습니다.</li>';
+        function moveButton(move) {
+            if (!move) return document.createElement("span");
+            const button = document.createElement("button");
+            button.type = "button"; button.className = "cc-move"; button.textContent = move.san;
+            button.classList.toggle("is-current", replayFen === move.fen);
+            button.addEventListener("click", () => {
+                replayFen = replayFen === move.fen ? null : move.fen; selected = null; renderBoard(); renderMeta();
+                document.querySelector("#game-status").textContent = replayFen ? `${move.number}수 뒤 국면을 보는 중 · 다시 누르면 현재 국면` : "현재 국면";
+            });
+            return button;
+        }
+        for (let index = 0; index < moves.length; index += 2) {
+            const item = document.createElement("li"); item.className = "cc-move-row";
+            const number = document.createElement("span"); number.className = "cc-move-no"; number.textContent = index / 2 + 1;
+            item.append(number, moveButton(moves[index]), moveButton(moves[index + 1]));
+            history.appendChild(item);
+        }
+        // 새 수가 들어왔을 때만 아래로 따라간다. 매 갱신마다 스크롤하면 기보를 되짚어볼 수 없다.
+        if (moves.length !== renderedMoveCount) { history.scrollTop = history.scrollHeight; renderedMoveCount = moves.length; }
         if (game.result?.status && game.result.status !== "active") showResult(game.result);
         renderChat(game.chatMessages || []);
     }

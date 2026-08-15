@@ -92,8 +92,6 @@ VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY")
 VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL")
 active_socket_ids = {}
 active_socket_ids_lock = Lock()
-chess_matchmaking_queue = []
-chess_matchmaking_lock = Lock()
 chess_ai_reply_pending = set()
 chess_ai_reply_lock = Lock()
 _rate_limit_buckets = {}
@@ -4161,11 +4159,9 @@ def chess_send_invite_api(game_id):
             ON CONFLICT (game_id, invitee_id) DO UPDATE SET status = 'pending', created_at = EXCLUDED.created_at
             RETURNING id
         """, (game_id, user_id, invitee_id, now_str())).fetchone()
-        invite_url = url_for("chess_accept_invite_page", invite_id=invite["id"], _external=True)
-        create_system_message(conn, friends[invitee_id]["conversation_id"], f"체스 대국 초대가 도착했습니다. 참여하기: {invite_url}", user_id)
         conn.commit()
+    # 초대는 채팅방 링크가 아니라 체스 페이지의 메시지함에서만 수락/거절하도록 한다.
     notify_user(invitee_id, "chess_invite", {"gameId": str(game_id), "inviteId": invite["id"]})
-    socketio.emit("conversation_updated", {"conversationId": friends[invitee_id]["conversation_id"]}, room=f"conversation_{friends[invitee_id]['conversation_id']}")
     return jsonify({"success": True})
 
 
@@ -4344,22 +4340,10 @@ def chess_quick_invite_friend_api(friend_id):
             now_str(),
         )).fetchone()
 
-        invite_url = url_for(
-            "chess_accept_invite_page",
-            invite_id=invite["id"],
-            _external=True,
-        )
-
-        create_system_message(
-            conn,
-            friend["conversation_id"],
-            f"체스 대국 초대가 도착했습니다. 참여하기: {invite_url}",
-            user_id,
-        )
-
         state = chess_game_state(conn, game, user_id)
         conn.commit()
 
+    # 초대는 채팅방 링크가 아니라 체스 페이지의 메시지함에서만 수락/거절하도록 한다.
     notify_user(
         friend_id,
         "chess_invite",
@@ -4367,12 +4351,6 @@ def chess_quick_invite_friend_api(friend_id):
             "gameId": str(game["id"]),
             "inviteId": invite["id"],
         },
-    )
-
-    socketio.emit(
-        "conversation_updated",
-        {"conversationId": friend["conversation_id"]},
-        room=f"conversation_{friend['conversation_id']}",
     )
 
     return jsonify({
@@ -4533,33 +4511,6 @@ def chess_socket_create(data):
         conn.commit()
     join_room(f"chess_{game['id']}")
     socketio.emit("room:created", state, room=f"user_{session['user_id']}")
-
-
-@socketio.on("matchmaking:queue")
-def chess_matchmaking_queue(data):
-    if "user_id" not in session:
-        return
-    user_id = session["user_id"]
-    time_control = (data or {}).get("timeControl", "unlimited")
-    opponent_id = None
-    with chess_matchmaking_lock:
-        global chess_matchmaking_queue
-        chess_matchmaking_queue = [entry for entry in chess_matchmaking_queue if entry[0] != user_id]
-        if chess_matchmaking_queue:
-            opponent_id, opponent_time = chess_matchmaking_queue.pop(0)
-            time_control = opponent_time
-        else:
-            chess_matchmaking_queue.append((user_id, time_control))
-    if opponent_id is None:
-        socketio.emit("matchmaking:queued", {}, room=f"user_{user_id}")
-        return
-    with get_db() as conn:
-        game = create_chess_game(conn, opponent_id, "online", time_control)
-        game = activate_chess_game(conn, game, user_id)
-        for target_id in (user_id, opponent_id):
-            state = chess_game_state(conn, game, target_id)
-            socketio.emit("matchmaking:matched", state, room=f"user_{target_id}")
-        conn.commit()
 
 
 @socketio.on("game:move")
