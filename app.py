@@ -150,6 +150,30 @@ def add_security_headers(response):
     return response
 
 
+# API 라우트는 실패해도 항상 JSON을 반환해야 프런트가 response.json()을 안전하게 쓸 수 있다.
+# 기본 Flask 에러 페이지는 HTML이라 "<!doctype..."을 JSON으로 파싱하려다 깨지는 문제가 있었다.
+@app.errorhandler(404)
+def handle_api_404(error):
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "요청한 항목을 찾을 수 없습니다."}), 404
+    return error
+
+
+@app.errorhandler(405)
+def handle_api_405(error):
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "허용되지 않은 요청 방식입니다."}), 405
+    return error
+
+
+@app.errorhandler(500)
+def handle_api_500(error):
+    app.logger.exception("처리되지 않은 서버 오류")
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}), 500
+    return error
+
+
 def get_client_ip():
     # Render 프록시 뒤에서는 X-Forwarded-For의 첫 주소가 실제 접속자 IP다.
     forwarded = request.headers.get("X-Forwarded-For", "")
@@ -367,6 +391,10 @@ class PGConn:
     def execute(self, query, params=()):
         self._cursor.execute(query, params)
         return self
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
 
     def fetchone(self):
         return self._cursor.fetchone()
