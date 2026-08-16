@@ -48,11 +48,15 @@ except ImportError:
 load_dotenv()
 resend.api_key = os.environ.get("RESEND_API_KEY")
 
-# SENTRY_DSN이 설정된 경우에만 활성화된다. Flask 앱 생성보다 먼저 초기화해야 요청이 자동으로 계측된다.
-if sentry_sdk and os.environ.get("SENTRY_DSN"):
-    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], send_default_pii=True)
-
 app = Flask(__name__)
+
+# SENTRY_DSN이 설정된 경우에만 활성화된다. 초기화 자체가 실패해도(DSN 형식 오류 등)
+# 서버 전체가 못 뜨는 일이 없도록 반드시 감싸서 실행한다.
+if sentry_sdk and os.environ.get("SENTRY_DSN"):
+    try:
+        sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], send_default_pii=True)
+    except Exception as e:
+        app.logger.warning("Sentry 초기화 실패, 에러 추적 없이 계속 진행합니다: %s", e)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 요청 본문 최대 50MB
 if not os.environ.get("SECRET_KEY") and os.environ.get("RENDER_EXTERNAL_URL"):
     raise RuntimeError("운영 환경에서는 SECRET_KEY를 반드시 설정해야 합니다.")
