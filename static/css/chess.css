@@ -187,7 +187,7 @@ body.chess-page::before {
 .chess-outcome-win { background:var(--cc-green); }
 .chess-outcome-loss { background:var(--chess-danger); }
 .chess-outcome-draw { background:#8a8a8a; }
-.history-delete { width:30px; height:30px; border:0; border-radius:8px; color:#a4362f; background:#f8dedb; }
+.history-delete { display:grid; place-items:center; width:30px; height:30px; border:0; border-radius:8px; color:#a4362f; background:#f8dedb; font-size:13px; }
 .history-delete:hover { background:#f2c8c4; }
 
 /* ======================================================
@@ -340,7 +340,7 @@ body.chess-page::before {
 
 .chess-friend-add { display:flex; gap:8px; }
 .chess-friend-add input { flex:1; min-width:0; padding:11px; border:2px solid var(--chess-line); border-radius:11px; color:var(--chess-text); background:#fff; }
-.chess-friend-add button { width:46px; border:3px solid var(--cc-cream); border-radius:11px; color:#fff; background:var(--cc-green); box-shadow:0 3px 0 var(--cc-green-deep); }
+.chess-friend-add button { display:grid; place-items:center; width:46px; border:3px solid var(--cc-cream); border-radius:11px; color:#fff; background:var(--cc-green); box-shadow:0 3px 0 var(--cc-green-deep); font-size:15px; }
 .chess-friend-search-result:not(:empty) { margin-top:10px; }
 .chess-search-card,.chess-friend-row,.chess-request-item { display:flex; align-items:center; gap:10px; padding:11px; border:1px solid var(--chess-line); border-radius:12px; background:var(--chess-card-soft); color:var(--chess-text); }
 .chess-search-card img,.chess-friend-row img,.chess-request-item img { width:36px; height:36px; border-radius:50%; object-fit:cover; }
@@ -356,7 +356,7 @@ body.chess-page::before {
 .chess-friend-status { flex:0 0 auto; color:var(--chess-muted); font-size:11px; font-weight:700; }
 .chess-friend-status.online { color:var(--cc-green-deep); }
 .chess-friend-actions { display:flex; align-items:center; gap:6px; }
-.chess-friend-icon-btn { display:grid; width:34px; height:34px; place-items:center; border:2px solid var(--chess-line); border-radius:10px; color:var(--chess-text); background:#fff; }
+.chess-friend-icon-btn { display:grid; width:34px; height:34px; place-items:center; border:2px solid var(--chess-line); border-radius:10px; color:var(--chess-text); background:#fff; font-size:14px; }
 .chess-friend-icon-btn:hover { background:var(--chess-card-soft); }
 .chess-friend-invite:hover { color:#fff; background:var(--cc-green); border-color:var(--cc-green); }
 .chess-friend-delete:hover { color:#a4362f; border-color:#eeb9b4; background:#fdf1f0; }
@@ -370,7 +370,7 @@ body.chess-page::before {
 .chess-request-item span { flex:1; min-width:0; display:grid; gap:2px; color:var(--chess-text); }
 .chess-request-item strong { font-size:13px; }
 .chess-request-item small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--chess-muted); font-size:11px; }
-.chess-accept-icon,.chess-decline-icon { display:grid; width:34px; height:34px; place-items:center; border:0; border-radius:10px; }
+.chess-accept-icon,.chess-decline-icon { display:grid; width:34px; height:34px; place-items:center; border:0; border-radius:10px; font-size:14px; }
 .chess-accept-icon { color:#fff; background:var(--cc-green); }
 .chess-decline-icon { color:#a4362f; background:#f8dedb; }
 .chess-cancel-request { flex:0 0 auto; padding:8px 11px; border:2px solid var(--chess-line); border-radius:10px; color:var(--chess-text); background:#fff; font-size:12px; font-weight:700; }
