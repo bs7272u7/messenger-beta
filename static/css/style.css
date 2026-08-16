@@ -1730,6 +1730,19 @@
             z-index: 1000;
         }
 
+        /* 모달 겹침 순서를 DOM 순서(우연)가 아니라 명시적인 층으로 고정한다.
+           #modal-overlay(공용 알림/확인창)는 다른 모든 오버레이가 열려 있어도
+           그 위에서 항상 보여야 한다 — 안 그러면 alert가 화면 뒤로 숨는다. */
+        #modal-overlay {
+            z-index: 1200;
+        }
+        /* 의도적으로 부모 모달 위에 뜨는 자식 모달(프로필 편집 위의 사진 자르기,
+           그룹원 관리 위의 초대 목록)은 부모보다 명시적으로 높은 층에 둔다. */
+        #image-crop-overlay,
+        #invite-member-overlay {
+            z-index: 1050;
+        }
+
         .modal-box {
             background: var(--panel-bg);
             color: var(--text-color);

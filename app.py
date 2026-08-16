@@ -2755,6 +2755,14 @@ def send_message(conversation_id):
     data = request.get_json() or {}
     reply = data.get("reply")
 
+    # 이 라우트는 텍스트 전용이다(사진·동영상·파일·음성은 별도 라우트를 쓴다).
+    # 클라이언트 쪽 trim() 검사는 콘솔·직접 API 호출로 우회할 수 있으므로 서버에서도 반드시 검증한다.
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "메시지 내용을 입력해주세요."}), 400
+    if len(text) > 5000:
+        return jsonify({"success": False, "error": "메시지는 5,000자 이하로 입력해주세요."}), 400
+
     with get_db() as conn:
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
@@ -2774,7 +2782,7 @@ def send_message(conversation_id):
         """, (
             conversation_id,
             user_id,
-            data.get("text"),
+            text,
             time_label,
             date_label,
             sent_at,
@@ -2795,7 +2803,7 @@ def send_message(conversation_id):
         unhide_conversation(conn, conversation_id)
 
         conn.commit()
-        notify_conversation_message(conn, conversation_id, user_id, (data.get("text") or "새 메시지")[:120])
+        notify_conversation_message(conn, conversation_id, user_id, text[:120])
         broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
         return jsonify({"success": True})
 
@@ -3075,6 +3083,12 @@ def edit_message(message_id):
     user_id = session["user_id"]
     data = request.get_json() or {}
 
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "메시지 내용을 입력해주세요."}), 400
+    if len(text) > 5000:
+        return jsonify({"success": False, "error": "메시지는 5,000자 이하로 입력해주세요."}), 400
+
     with get_db() as conn:
         msg = get_owned_message(conn, user_id, message_id)
         if msg is None:
@@ -3084,7 +3098,7 @@ def edit_message(message_id):
 
         conn.execute(
             "UPDATE messages SET text = %s, edited = TRUE WHERE id = %s",
-            (data.get("text"), message_id)
+            (text, message_id)
         )
         conn.commit()
         broadcast_to_conversation(conn, msg["conversation_id"], "conversation_updated", {"conversationId": msg["conversation_id"]})
