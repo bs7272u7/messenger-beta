@@ -198,7 +198,8 @@
                 const moderation = r.is_suspended
                     ? `<button data-lift-user="${r.target_user_id}" data-report-id="${r.id}">정지 해제</button>`
                     : `<button data-suspend-user="${r.target_user_id}" data-duration="warning" data-report-id="${r.id}">경고</button><button data-suspend-user="${r.target_user_id}" data-duration="24h" data-report-id="${r.id}">24시간 정지</button><button data-suspend-user="${r.target_user_id}" data-duration="7d" data-report-id="${r.id}">7일 정지</button><button data-suspend-user="${r.target_user_id}" data-duration="permanent" data-report-id="${r.id}" class="danger">영구 정지</button>`;
-                return `<article class="admin-item"><strong>${escapeHTML(r.reason)} · ${escapeHTML(r.status)}</strong><p>신고자: ${escapeHTML(r.reporter_username)} / 대상: ${escapeHTML(r.sender_username)}</p><p>${escapeHTML(r.message_text || "미디어 메시지")}</p><small>${r.created_at}</small><div class="admin-item-actions"><button data-close-report="${r.id}">검토 완료</button>${moderation}<button data-delete-report="${r.id}" class="danger">신고 삭제</button></div></article>`;
+                const reportedContent = r.message_id ? escapeHTML(r.message_text || "미디어 메시지") : "<em>(메시지가 아닌 사용자 프로필 신고)</em>";
+                return `<article class="admin-item"><strong>${escapeHTML(r.reason)} · ${escapeHTML(r.status)}</strong><p>신고자: ${escapeHTML(r.reporter_username)} / 대상: ${escapeHTML(r.sender_username)}</p><p>${reportedContent}</p><small>${r.created_at}</small><div class="admin-item-actions"><button data-close-report="${r.id}">검토 완료</button>${moderation}<button data-delete-report="${r.id}" class="danger">신고 삭제</button></div></article>`;
             }).join("") : "<p>신고가 없습니다.</p>";
         }
         async function loadSuspendedUsers() {

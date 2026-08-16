@@ -366,7 +366,7 @@
 
     <div class="modal-overlay" id="report-message-overlay">
         <div class="modal-box settings-modal">
-            <div class="settings-modal-header"><h3>메시지 신고</h3><button type="button" id="report-message-close" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="settings-modal-header"><h3 id="report-modal-title">메시지 신고</h3><button type="button" id="report-message-close" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button></div>
             <div class="settings-modal-body">
                 <p class="help-description">신고 내용은 관리자만 확인하며, 상대방에게 신고자 정보가 전달되지 않습니다.</p>
                 <select id="report-reason-select" class="settings-input"><option value="">신고 사유 선택</option><option>스팸</option><option>욕설·괴롭힘</option><option>부적절한 콘텐츠</option><option>사칭</option><option>기타</option></select>
@@ -519,6 +519,11 @@
     <div class="modal-overlay" id="profile-card-overlay">
         <article class="profile-card" role="dialog" aria-modal="true">
             <button id="profile-card-close" class="settings-modal-close"><i class="fa-solid fa-xmark"></i></button>
+            <button id="profile-card-menu-btn" class="settings-modal-close" aria-haspopup="true" aria-expanded="false" aria-label="더보기"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+            <div id="profile-card-menu" class="profile-card-menu" hidden>
+                <div id="profile-card-report"><i class="fa-solid fa-flag"></i>신고하기</div>
+                <div id="profile-card-block"><i class="fa-solid fa-ban"></i>차단하기</div>
+            </div>
             <div id="profile-card-cover" class="profile-card-cover"></div>
             <img id="profile-card-avatar" class="profile-card-avatar" src="/static/default_profile.png">
             <div class="profile-card-body"><h3 id="profile-card-name"></h3><p id="profile-card-bio"></p><span id="profile-card-presence"></span></div>

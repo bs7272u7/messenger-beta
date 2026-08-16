@@ -136,6 +136,9 @@
             profileCardPresence.textContent = friend.isOnline
                 ? `● ${i18n ? i18n.t("온라인") : "온라인"}`
                 : `● ${i18n ? i18n.t("오프라인") : "오프라인"}`;
+            profileCardTarget = { peerId: friend.peerId, name: friend.name };
+            profileCardMenu.hidden = true;
+            profileCardMenuBtn.setAttribute("aria-expanded", "false");
             profileCardOverlay.style.display = "flex";
         }
 
@@ -411,6 +414,7 @@
         const reportMessageClose = document.querySelector("#report-message-close");
         const reportReasonSelect = document.querySelector("#report-reason-select");
         const reportDetail = document.querySelector("#report-detail");
+        const reportModalTitle = document.querySelector("#report-modal-title");
         const reportMessageSubmit = document.querySelector("#report-message-submit");
         const friendPanelTab = document.querySelector("#friend-panel-tab");
         const friendPanel = document.querySelector("#friend-panel");
@@ -556,6 +560,12 @@
         const profileCardName = document.querySelector("#profile-card-name");
         const profileCardBio = document.querySelector("#profile-card-bio");
         const profileCardPresence = document.querySelector("#profile-card-presence");
+        const profileCardMenuBtn = document.querySelector("#profile-card-menu-btn");
+        const profileCardMenu = document.querySelector("#profile-card-menu");
+        const profileCardReportItem = document.querySelector("#profile-card-report");
+        const profileCardBlockItem = document.querySelector("#profile-card-block");
+        let profileCardTarget = null;
+        let reportTarget = null;
         const myProfileBio = document.querySelector("#my-profile-bio");
         const myProfileVisibility = document.querySelector("#my-profile-visibility");
         const coverImageInput = document.querySelector("#cover-image-input");
@@ -1482,6 +1492,8 @@
 
         reportMessageButton.addEventListener("click", function () {
             if (!selectedIndex) return;
+            reportTarget = { type: "message", id: selectedIndex };
+            reportModalTitle.textContent = "메시지 신고";
             reportReasonSelect.value = "";
             reportDetail.value = "";
             closeMessageMenu();
@@ -1489,7 +1501,10 @@
         });
         reportMessageClose.addEventListener("click", function () { reportMessageOverlay.style.display = "none"; });
         reportMessageSubmit.addEventListener("click", async function () {
-            const response = await fetch(`/api/messages/${selectedIndex}/report`, {
+            if (!reportTarget) return;
+            if (!reportReasonSelect.value) return showToast("신고 사유를 선택해주세요.", "error");
+            const url = reportTarget.type === "user" ? `/api/users/${reportTarget.id}/report` : `/api/messages/${reportTarget.id}/report`;
+            const response = await fetch(url, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ reason: reportReasonSelect.value, detail: reportDetail.value.trim() })
             });
@@ -2656,6 +2671,52 @@
         removeCoverImageBtn.addEventListener("click", async function () { const response = await fetch("/api/account/cover-image", {method:"DELETE"}); const result=await response.json(); if (result.success) updateProfileCoverPreview(null); showToast(result.success ? "배경사진을 제거했습니다." : result.error, result.success ? undefined : "error"); });
         profileCardClose.addEventListener("click", function () { profileCardOverlay.style.display="none"; });
         profileCardOverlay.addEventListener("click", function(event){ if(event.target===profileCardOverlay) profileCardOverlay.style.display="none"; });
+
+        /* ======================================================
+         * 프로필 카드 ⋮ 메뉴 — 신고하기 / 차단하기
+         * ====================================================== */
+        profileCardMenuBtn.addEventListener("click", function (event) {
+            event.stopPropagation();
+            const willOpen = profileCardMenu.hidden;
+            profileCardMenu.hidden = !willOpen;
+            profileCardMenuBtn.setAttribute("aria-expanded", String(willOpen));
+        });
+        document.addEventListener("click", function (event) {
+            if (profileCardMenu.hidden) return;
+            if (profileCardMenu.contains(event.target) || event.target === profileCardMenuBtn) return;
+            profileCardMenu.hidden = true;
+            profileCardMenuBtn.setAttribute("aria-expanded", "false");
+        });
+        profileCardBlockItem.addEventListener("click", function () {
+            profileCardMenu.hidden = true;
+            const target = profileCardTarget;
+            if (!target) return;
+            showConfirm(`"${target.name}"님을 차단하시겠습니까? 차단하면 서로 메시지를 보낼 수 없어요.`, async function (confirmed) {
+                if (!confirmed) return;
+                const response = await fetch("/api/blocks", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_id: target.peerId })
+                });
+                const result = await response.json();
+                if (!result.success) return showAlert(result.error);
+                profileCardOverlay.style.display = "none";
+                await loadFriends();
+                renderFriendPanelList();
+                updateBlockState();
+                showToast(`"${target.name}"님을 차단했습니다.`);
+            });
+        });
+        profileCardReportItem.addEventListener("click", function () {
+            profileCardMenu.hidden = true;
+            const target = profileCardTarget;
+            if (!target) return;
+            reportTarget = { type: "user", id: target.peerId };
+            reportModalTitle.textContent = `${target.name}님 신고`;
+            reportReasonSelect.value = "";
+            reportDetail.value = "";
+            reportMessageOverlay.style.display = "flex";
+        });
 
         /* ======================================================
          * 전송 버튼 / 엔터 입력

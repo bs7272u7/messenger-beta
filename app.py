@@ -970,6 +970,11 @@ def init_db():
                 UNIQUE (reporter_id, message_id)
             )
         """)
+        # 메시지 신고뿐 아니라 프로필에서 "사용자 자체"를 신고할 수 있도록 message_id를 선택 항목으로 바꾼다.
+        cur.execute("ALTER TABLE reports ALTER COLUMN message_id DROP NOT NULL")
+        cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS reported_user_id INT REFERENCES users(id) ON DELETE CASCADE")
+        # 같은 사람을 중복 신고하지 못하게 막되, 메시지 신고용 UNIQUE(reporter_id, message_id)와는 별개로 관리한다.
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_reporter_user ON reports(reporter_id, reported_user_id) WHERE reported_user_id IS NOT NULL")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS friend_requests (
@@ -1795,13 +1800,18 @@ def admin_bulk_delete_inquiries():
 def admin_reports():
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT r.*, reporter.username AS reporter_username, sender.username AS sender_username,
-                   m.text AS message_text, m.sender_id AS target_user_id,
-                   sender.is_suspended, sender.suspended_until, sender.suspension_reason
+            SELECT r.*, reporter.username AS reporter_username,
+                   COALESCE(sender.username, reported.username) AS sender_username,
+                   m.text AS message_text,
+                   COALESCE(m.sender_id, r.reported_user_id) AS target_user_id,
+                   COALESCE(sender.is_suspended, reported.is_suspended) AS is_suspended,
+                   COALESCE(sender.suspended_until, reported.suspended_until) AS suspended_until,
+                   COALESCE(sender.suspension_reason, reported.suspension_reason) AS suspension_reason
             FROM reports r
             JOIN users reporter ON reporter.id = r.reporter_id
-            JOIN messages m ON m.id = r.message_id
-            JOIN users sender ON sender.id = m.sender_id
+            LEFT JOIN messages m ON m.id = r.message_id
+            LEFT JOIN users sender ON sender.id = m.sender_id
+            LEFT JOIN users reported ON reported.id = r.reported_user_id
             ORDER BY CASE WHEN r.status = 'pending' THEN 0 ELSE 1 END, r.id DESC
         """).fetchall()
     return jsonify([dict(row) for row in rows])
@@ -1912,9 +1922,9 @@ def admin_user_suspension(user_id):
         if report_id and action != "lift":
             report = conn.execute("""
                 SELECT r.id FROM reports r
-                JOIN messages m ON m.id = r.message_id
-                WHERE r.id = %s AND m.sender_id = %s
-            """, (report_id, user_id)).fetchone()
+                LEFT JOIN messages m ON m.id = r.message_id
+                WHERE r.id = %s AND (m.sender_id = %s OR r.reported_user_id = %s)
+            """, (report_id, user_id, user_id)).fetchone()
             if report:
                 conn.execute(
                     "UPDATE reports SET status = 'closed', handled_by = %s, handled_at = %s WHERE id = %s",
@@ -3096,6 +3106,34 @@ def report_message(message_id):
             """INSERT INTO reports (reporter_id, message_id, reason, detail, created_at)
                VALUES (%s, %s, %s, %s, %s) ON CONFLICT (reporter_id, message_id) DO NOTHING""",
             (user_id, message_id, reason, detail or None, now_str()),
+        )
+        conn.commit()
+    return jsonify({"success": True, "message": "신고가 접수되었습니다."})
+
+
+@app.route("/api/users/<int:user_id>/report", methods=["POST"])
+@login_required_api
+def report_user(user_id):
+    """프로필 카드에서 특정 메시지가 아니라 사용자 자체를 신고할 때 쓴다."""
+    reporter_id = session["user_id"]
+    if user_id == reporter_id:
+        return jsonify({"success": False, "error": "본인은 신고할 수 없습니다."}), 400
+    data = request.get_json() or {}
+    reason = (data.get("reason") or "").strip()
+    detail = (data.get("detail") or "").strip()
+    if reason not in {"스팸", "욕설·괴롭힘", "부적절한 콘텐츠", "사칭", "기타"}:
+        return jsonify({"success": False, "error": "신고 사유를 선택해주세요."}), 400
+    if len(detail) > 1000:
+        return jsonify({"success": False, "error": "신고 내용은 1,000자 이하로 입력해주세요."}), 400
+    with get_db() as conn:
+        target = conn.execute("SELECT id FROM users WHERE id = %s", (user_id,)).fetchone()
+        if not target:
+            return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
+        conn.execute(
+            """INSERT INTO reports (reporter_id, reported_user_id, reason, detail, created_at)
+               VALUES (%s, %s, %s, %s, %s)
+               ON CONFLICT (reporter_id, reported_user_id) WHERE reported_user_id IS NOT NULL DO NOTHING""",
+            (reporter_id, user_id, reason, detail or None, now_str()),
         )
         conn.commit()
     return jsonify({"success": True, "message": "신고가 접수되었습니다."})
