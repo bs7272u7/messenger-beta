@@ -20,12 +20,10 @@
     function viewFlipped() { return Boolean(game?.myColor === "b") !== flipped; }
     function viewPiece(piece) {
         const type = piece.toLowerCase();
-        const isWhite = piece === piece.toUpperCase();
-        const glyphs = isWhite
-            ? {p:"♙", n:"♘", b:"♗", r:"♖", q:"♕", k:"♔"}
-            : {p:"♟", n:"♞", b:"♝", r:"♜", q:"♛", k:"♚"};
-        return glyphs[type];
+        const iconClass = {p:"fa-chess-pawn", n:"fa-chess-knight", b:"fa-chess-bishop", r:"fa-chess-rook", q:"fa-chess-queen", k:"fa-chess-king"}[type];
+        return `<i class="fa-solid ${iconClass}"></i>`;
     }
+
     function prepareChessAudio() {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextClass) return;
@@ -133,8 +131,8 @@
             : `${mine.name} vs ${opponent.name}`;
         document.querySelector("#white-clock").textContent = displayClock(mineColor === "w" ? game.whiteRemainingMs : game.blackRemainingMs, mineColor);
         document.querySelector("#black-clock").textContent = displayClock(opponentColor === "w" ? game.whiteRemainingMs : game.blackRemainingMs, opponentColor);
-        document.querySelector("#white-captured").textContent = (game.captured?.[opponentColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
-        document.querySelector("#black-captured").textContent = (game.captured?.[mineColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
+        document.querySelector("#white-captured").innerHTML = (game.captured?.[opponentColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
+        document.querySelector("#black-captured").innerHTML = (game.captured?.[mineColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
         document.querySelector("#room-code").textContent = game.status === "waiting" ? `초대 코드 ${game.roomCode}` : "";
         document.querySelector("#invite-friend-btn").hidden = game.status !== "waiting";
 
