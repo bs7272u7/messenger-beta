@@ -887,7 +887,7 @@
         let activeModalAction = null;
         function closeAppModal(confirmed) {
             // TEMP DEBUG — 모달 상태 충돌 재현 진단용. 원인 확정 후 제거할 것.
-            console.log("[MODAL-DEBUG] closeAppModal", { confirmed, hadAction: !!activeModalAction, currentText: modalMessage.innerText });
+            console.log("[MODAL-DEBUG] closeAppModal confirmed=" + confirmed + " hadAction=" + (!!activeModalAction) + " currentText=" + JSON.stringify(modalMessage.innerText) + " overlayDisplay=" + getComputedStyle(modalOverlay).display + " overlayVisibility=" + getComputedStyle(modalOverlay).visibility);
             const action = activeModalAction;
             activeModalAction = null;
             modalOverlay.style.display = "none";
