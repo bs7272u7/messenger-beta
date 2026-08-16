@@ -13,8 +13,9 @@ import time
 import secrets
 import hmac
 import io
+import traceback
 from threading import Lock
-from collections import Counter
+from collections import Counter, deque
 import resend
 import ipaddress
 import socket
@@ -93,6 +94,8 @@ active_socket_ids = {}
 active_socket_ids_lock = Lock()
 _rate_limit_buckets = {}
 _rate_limit_lock = Lock()
+_recent_errors = deque(maxlen=50)
+_recent_errors_lock = Lock()
 
 if CLOUDINARY_ENABLED:
     cloudinary.config(
@@ -164,6 +167,14 @@ def handle_api_405(error):
 @app.errorhandler(500)
 def handle_api_500(error):
     app.logger.exception("처리되지 않은 서버 오류")
+    with _recent_errors_lock:
+        _recent_errors.appendleft({
+            "at": now_str(),
+            "path": request.path,
+            "method": request.method,
+            "userId": session.get("user_id"),
+            "traceback": traceback.format_exc()[-4000:],
+        })
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}), 500
     return error
@@ -193,6 +204,23 @@ def rate_limit(limit, window_seconds, scope):
             return view(*args, **kwargs)
         return wrapped
     return decorator
+
+
+_RATE_LIMIT_RETENTION_SECONDS = 60 * 60  # 가장 긴 rate_limit 윈도우(1시간)와 맞춘 보존 기간
+
+
+def cleanup_rate_limit_buckets():
+    """오래전에 요청이 끊긴 IP 항목을 주기적으로 지워 메모리가 무한정 늘어나지 않게 한다."""
+    while True:
+        socketio.sleep(30 * 60)
+        now = time.time()
+        with _rate_limit_lock:
+            stale_keys = [
+                key for key, attempts in _rate_limit_buckets.items()
+                if not attempts or attempts[-1] < now - _RATE_LIMIT_RETENTION_SECONDS
+            ]
+            for key in stale_keys:
+                _rate_limit_buckets.pop(key, None)
 
 
 class OpenGraphParser(HTMLParser):
@@ -1638,6 +1666,14 @@ def update_or_delete_my_review(review_id):
         )
         conn.commit()
     return jsonify({"success": True})
+
+
+@app.route("/api/admin/errors", methods=["GET"])
+@admin_required_api
+def admin_recent_errors():
+    """서버 재시작 전까지 최근 500 에러 최대 50건을 메모리에 보관해 관리자 페이지에서 바로 확인할 수 있게 한다."""
+    with _recent_errors_lock:
+        return jsonify(list(_recent_errors))
 
 
 @app.route("/api/admin/reviews", methods=["GET"])
@@ -4643,6 +4679,8 @@ try:
     init_db()
 except Exception as e:
     app.logger.warning("초기 DB 생성 실패 (서버 연결 대기 중일 수 있음): %s", e)
+
+socketio.start_background_task(cleanup_rate_limit_buckets)
 
 
 if __name__ == "__main__":

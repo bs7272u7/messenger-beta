@@ -47,6 +47,7 @@
         .admin-panel { position:relative; overflow:hidden; }
         .admin-panel::before { content:""; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,#397ef0,transparent 72%); opacity:.7; }
         .admin-panel h2 { margin: 0 0 16px; font-size: 18px; }
+        .admin-panel-hint { margin: -10px 0 14px; color: #8a97b0; font-size: 12px; line-height: 1.5; }
         .admin-panel label { display: block; margin: 12px 0 6px; color: #b9c5da; font-size: 13px; font-weight: 700; }
         .admin-panel input, .admin-panel textarea, .admin-panel select { width: 100%; padding: 11px 12px; border: 1px solid #3a465d; border-radius: 9px; color: #edf2ff; font: inherit; background: #121722; }
         .admin-panel textarea { min-height: 120px; resize: vertical; }
@@ -150,6 +151,11 @@
                 <h2><i class="fa-solid fa-star"></i> 사용자 리뷰</h2>
                 <div id="review-list" class="admin-list"><p>불러오는 중...</p></div>
             </article>
+            <article class="admin-panel">
+                <h2><i class="fa-solid fa-bug"></i> 서버 오류 로그</h2>
+                <p class="admin-panel-hint">서버가 재시작되기 전까지 최근 500 오류 최대 50건을 보여줍니다.</p>
+                <div id="error-log-list" class="admin-list"><p>불러오는 중...</p></div>
+            </article>
         </section>
     </main>
     <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
@@ -173,6 +179,7 @@
         const suspendedUserList = document.querySelector("#suspended-user-list");
         const allUserList = document.querySelector("#all-user-list");
         const reviewList = document.querySelector("#review-list");
+        const errorLogList = document.querySelector("#error-log-list");
         let lastInquiries = [];
         let lastReviews = [];
 
@@ -233,6 +240,10 @@
             const items = await api("/api/admin/reviews");
             lastReviews = items;
             reviewList.innerHTML = items.length ? `<div class="admin-bulk-actions"><label><input id="select-all-reviews" type="checkbox"> 전체 선택</label><button id="bulk-delete-reviews" class="danger" type="button">선택 삭제</button></div>` + items.map(r => `<article class="admin-item"><label class="admin-item-check"><input type="checkbox" class="review-select" value="${r.id}" aria-label="리뷰 선택"></label><strong>${"★".repeat(r.rating)} · ${escapeHTML(r.display_name || r.username)}</strong><p>${escapeHTML(r.content)}</p>${r.admin_reply ? `<p><strong>답장:</strong> ${escapeHTML(r.admin_reply)}</p>` : ""}<div class="admin-item-actions"><button data-reply-review="${r.id}">${r.admin_reply ? "답장 수정" : "답장"}</button><button data-delete-review="${r.id}" class="danger">삭제</button></div></article>`).join("") : "<p>리뷰가 없습니다.</p>";
+        }
+        async function loadErrors() {
+            const items = await api("/api/admin/errors");
+            errorLogList.innerHTML = items.length ? items.map(e => `<article class="admin-item"><strong>${escapeHTML(e.method)} ${escapeHTML(e.path)}</strong><p>${escapeHTML(e.traceback)}</p><small>${escapeHTML(e.at)} · ${e.userId ? `user #${e.userId}` : "비로그인"}</small></article>`).join("") : "<p>최근 서버 오류가 없습니다.</p>";
         }
         document.querySelector("#notice-submit").addEventListener("click", async () => {
             try { await api("/api/admin/notices", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:document.querySelector("#notice-title").value, content:document.querySelector("#notice-content").value, is_published:document.querySelector("#notice-published").checked})}); document.querySelector("#notice-title").value=""; document.querySelector("#notice-content").value=""; await loadNotices(); alert("공지를 등록했습니다."); } catch (error) { alert(error.message); }
@@ -346,7 +357,7 @@
                 await loadReviews();
             } catch (error) { alert(error.message); }
         });
-        Promise.all([loadNotices(), loadInquiries(), loadReports(), loadAllUsers(), loadSuspendedUsers(), loadReviews()]).catch(error => alert(error.message));
+        Promise.all([loadNotices(), loadInquiries(), loadReports(), loadAllUsers(), loadSuspendedUsers(), loadReviews(), loadErrors()]).catch(error => alert(error.message));
     </script>
 </body>
 </html>
