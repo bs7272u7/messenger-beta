@@ -34,12 +34,25 @@
     }
     function playChessMoveSound() {
         if (!chessAudioContext) return;
-        const now = chessAudioContext.currentTime;
-        [[175, .065, .13], [265, .045, .08]].forEach(([frequency, duration, volume]) => {
-            const oscillator = chessAudioContext.createOscillator(), gain = chessAudioContext.createGain();
-            oscillator.type = "triangle"; oscillator.frequency.setValueAtTime(frequency, now);
+        const ctx = chessAudioContext, now = ctx.currentTime;
+
+        // 접촉 순간의 "톡" — 로우패스로 거른 짧은 노이즈로 나무판에 말이 닿는 질감을 낸다.
+        const noiseDuration = .045;
+        const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * noiseDuration), ctx.sampleRate);
+        const noiseData = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < noiseData.length; i++) noiseData[i] = (Math.random() * 2 - 1) * (1 - i / noiseData.length);
+        const noiseSource = ctx.createBufferSource(); noiseSource.buffer = noiseBuffer;
+        const noiseFilter = ctx.createBiquadFilter(); noiseFilter.type = "lowpass"; noiseFilter.frequency.setValueAtTime(1200, now);
+        const noiseGain = ctx.createGain(); noiseGain.gain.setValueAtTime(.5, now); noiseGain.gain.exponentialRampToValueAtTime(.001, now + noiseDuration);
+        noiseSource.connect(noiseFilter).connect(noiseGain).connect(ctx.destination);
+        noiseSource.start(now); noiseSource.stop(now + noiseDuration);
+
+        // 저음역 바디 — 둔탁하고 묵직한 울림을 더한다.
+        [[95, .09, .22], [150, .06, .12]].forEach(([frequency, duration, volume]) => {
+            const oscillator = ctx.createOscillator(), gain = ctx.createGain();
+            oscillator.type = "sine"; oscillator.frequency.setValueAtTime(frequency, now);
             gain.gain.setValueAtTime(volume, now); gain.gain.exponentialRampToValueAtTime(.001, now + duration);
-            oscillator.connect(gain).connect(chessAudioContext.destination); oscillator.start(now); oscillator.stop(now + duration);
+            oscillator.connect(gain).connect(ctx.destination); oscillator.start(now); oscillator.stop(now + duration);
         });
     }
     function renderBoard() {
