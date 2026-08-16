@@ -1749,9 +1749,10 @@
             z-index: 1200;
         }
         /* 의도적으로 부모 모달 위에 뜨는 자식 모달(프로필 편집 위의 사진 자르기,
-           그룹원 관리 위의 초대 목록)은 부모보다 명시적으로 높은 층에 둔다. */
+           그룹원 관리 위의 초대 목록, 프로필 카드 위의 신고 모달)은 부모보다 명시적으로 높은 층에 둔다. */
         #image-crop-overlay,
-        #invite-member-overlay {
+        #invite-member-overlay,
+        #report-message-overlay {
             z-index: 1050;
         }
 
