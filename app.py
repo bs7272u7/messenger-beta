@@ -232,6 +232,42 @@ def cleanup_rate_limit_buckets():
                 _rate_limit_buckets.pop(key, None)
 
 
+def cleanup_stale_db_rows():
+    """아무도 들어오지 않은 대기 중 체스방, 만료된 인증 코드, 오래된 초대 기록을 주기적으로 정리한다."""
+    while True:
+        socketio.sleep(6 * 60 * 60)
+        if not db_pool:
+            continue
+        try:
+            with get_db() as conn:
+                now = now_str()
+
+                # 48시간 넘게 상대가 들어오지 않은 대기 중 체스방은 방치된 것으로 보고 정리한다.
+                # (일부 초기 배포 DB에는 CASCADE 제약이 없을 수 있어 자식 테이블부터 명시적으로 지운다.)
+                waiting_cutoff = (datetime.now(KST) - timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S")
+                stale_games = conn.execute(
+                    "SELECT id FROM chess_games WHERE status = 'waiting' AND created_at < %s", (waiting_cutoff,)
+                ).fetchall()
+                stale_game_ids = [row["id"] for row in stale_games]
+                if stale_game_ids:
+                    conn.execute("DELETE FROM chess_game_moves WHERE game_id = ANY(%s::uuid[])", (stale_game_ids,))
+                    conn.execute("DELETE FROM chess_game_chat_messages WHERE game_id = ANY(%s::uuid[])", (stale_game_ids,))
+                    conn.execute("DELETE FROM chess_invites WHERE game_id = ANY(%s::uuid[])", (stale_game_ids,))
+                    conn.execute("DELETE FROM chess_games WHERE id = ANY(%s::uuid[])", (stale_game_ids,))
+
+                # 만료된 인증/재설정 코드는 재요청 전까지 쓸모가 없으니 바로 지운다.
+                conn.execute("DELETE FROM email_verification_codes WHERE expires_at < %s", (now,))
+                conn.execute("DELETE FROM password_reset_codes WHERE expires_at < %s", (now,))
+
+                # 처리 완료된(대기 중이 아닌) 체스 초대는 7일 지나면 기록만 남기지 않고 정리한다.
+                invite_cutoff = (datetime.now(KST) - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+                conn.execute("DELETE FROM chess_invites WHERE status != 'pending' AND created_at < %s", (invite_cutoff,))
+
+                conn.commit()
+        except Exception as e:
+            app.logger.warning("정기 데이터 정리 실패: %s", e)
+
+
 class OpenGraphParser(HTMLParser):
     """Extract a small, safe subset of Open Graph metadata from a page."""
     def __init__(self):
@@ -4690,6 +4726,7 @@ except Exception as e:
     app.logger.warning("초기 DB 생성 실패 (서버 연결 대기 중일 수 있음): %s", e)
 
 socketio.start_background_task(cleanup_rate_limit_buckets)
+socketio.start_background_task(cleanup_stale_db_rows)
 
 
 if __name__ == "__main__":
