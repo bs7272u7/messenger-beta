@@ -886,6 +886,8 @@
         // 친구 차단/삭제 때 과거 채팅방 삭제 모달을 다시 열던 상태 충돌을 막는다.
         let activeModalAction = null;
         function closeAppModal(confirmed) {
+            // TEMP DEBUG — 모달 상태 충돌 재현 진단용. 원인 확정 후 제거할 것.
+            console.log("[MODAL-DEBUG] closeAppModal", { confirmed, hadAction: !!activeModalAction, currentText: modalMessage.innerText });
             const action = activeModalAction;
             activeModalAction = null;
             modalOverlay.style.display = "none";
@@ -898,6 +900,8 @@
         });
 
         function showConfirm(message, onConfirm) {
+            // TEMP DEBUG — 모달 상태 충돌 재현 진단용. 원인 확정 후 제거할 것.
+            console.log("[MODAL-DEBUG] showConfirm", message, new Error("call-site").stack);
             activeModalAction = onConfirm;
             modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
             modalCancelBtn.style.display = "inline-block";
@@ -905,6 +909,8 @@
         }
 
         function showAlert(message, onClose) {
+            // TEMP DEBUG — 모달 상태 충돌 재현 진단용. 원인 확정 후 제거할 것.
+            console.log("[MODAL-DEBUG] showAlert", message, new Error("call-site").stack);
             activeModalAction = function (confirmed) { if (confirmed && onClose) onClose(); };
             modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
             modalCancelBtn.style.display = "none";
