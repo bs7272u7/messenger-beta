@@ -754,7 +754,7 @@
         if (savedTheme === "dark") {
             document.body.classList.add("dark-mode");
             themeToggleIcon.className = "fa-solid fa-sun";
-            themeToggleLabel.innerText = "라이트 모드";
+            themeToggleLabel.innerText = window.CloudI18n ? window.CloudI18n.t("라이트 모드") : "라이트 모드";
         }
 
         themeToggleItem.addEventListener("click", function (event) {
@@ -769,11 +769,11 @@
             if (document.body.classList.contains("dark-mode")) {
                 localStorage.setItem("theme", "dark");
                 themeToggleIcon.className = "fa-solid fa-sun";
-                themeToggleLabel.innerText = "라이트 모드";
+                themeToggleLabel.innerText = window.CloudI18n ? window.CloudI18n.t("라이트 모드") : "라이트 모드";
             } else {
                 localStorage.setItem("theme", "light");
                 themeToggleIcon.className = "fa-solid fa-moon";
-                themeToggleLabel.innerText = "다크 모드";
+                themeToggleLabel.innerText = window.CloudI18n ? window.CloudI18n.t("다크 모드") : "다크 모드";
             }
         });
 
@@ -817,22 +817,26 @@
             const officeEnabled = document.body.classList.contains("office-mode");
             themeToggleItem.classList.toggle("disabled", officeEnabled);
             themeToggleItem.setAttribute("aria-disabled", officeEnabled ? "true" : "false");
+            const i18n = window.CloudI18n;
             if (officeEnabled) {
                 themeToggleIcon.className = "fa-solid fa-lock";
-                themeToggleLabel.innerText = "화면 모드 고정됨";
-                themeToggleItem.title = "오피스 모드에서는 다크/라이트 모드를 바꿀 수 없습니다.";
+                themeToggleLabel.innerText = i18n ? i18n.t("화면 모드 고정됨") : "화면 모드 고정됨";
+                themeToggleItem.title = i18n ? i18n.t("오피스 모드에서는 다크/라이트 모드를 변경할 수 없습니다.") : "오피스 모드에서는 다크/라이트 모드를 바꿀 수 없습니다.";
                 return;
             }
             const isDark = document.body.classList.contains("dark-mode");
             themeToggleIcon.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
-            themeToggleLabel.innerText = isDark ? "라이트 모드" : "다크 모드";
+            themeToggleLabel.innerText = isDark ? (i18n ? i18n.t("라이트 모드") : "라이트 모드") : (i18n ? i18n.t("다크 모드") : "다크 모드");
             themeToggleItem.removeAttribute("title");
         }
 
         function syncOfficeModeLabel() {
             const enabled = document.body.classList.contains("office-mode");
+            const i18n = window.CloudI18n;
             officeModeIcon.className = enabled ? "fa-solid fa-briefcase" : "fa-solid fa-briefcase";
-            officeModeLabel.innerText = enabled ? "오피스 모드 끄기" : "오피스 모드 켜기";
+            officeModeLabel.innerText = enabled
+                ? (i18n ? i18n.t("오피스 모드 끄기") : "오피스 모드 끄기")
+                : (i18n ? i18n.t("오피스 모드 켜기") : "오피스 모드 켜기");
             syncThemeToggleAvailability();
             syncOfficeComfortVisibility();
         }
