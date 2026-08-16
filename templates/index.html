@@ -419,8 +419,8 @@
     <aside id="desktop-chat-info" aria-label="채팅 정보">
         <div class="desktop-info-label">현재 대화</div>
         <div class="desktop-info-avatar"><i class="fa-regular fa-comments"></i></div>
-        <strong id="desktop-info-name">대화를 선택하세요</strong>
-        <p id="desktop-info-status">친구를 추가하거나 채팅방을 선택해보세요.</p>
+        <strong id="desktop-info-name" data-no-i18n>대화를 선택하세요</strong>
+        <p id="desktop-info-status" data-no-i18n>친구를 추가하거나 채팅방을 선택해보세요.</p>
         <div id="desktop-conversation-actions" class="desktop-conversation-actions">
             <button type="button" id="desktop-conversation-pin"><i class="fa-solid fa-thumbtack"></i> 고정</button>
             <button type="button" id="desktop-conversation-mute"><i class="fa-solid fa-bell-slash"></i> 알림 끄기</button>
@@ -859,6 +859,6 @@
 
     <script>const MY_USER_ID = {{ user_id }}; window.CLOUD_LANGUAGE = {{ user_language|tojson }};</script>
     <script src="{{ url_for('static', filename='js/i18n.js', v='20260815.4') }}"></script>
-    <script src="{{ url_for('static', filename='js/script.js', v='20260816.4') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js', v='20260816.5') }}"></script>
 </body>
 </html>

@@ -150,7 +150,7 @@
                 chatHeaderMemberCount.style.display = "none";
                 if (chatPanel) chatPanel.classList.add("no-conversation");
                 applyChatTheme(null);
-                desktopInfoName.innerText = "대화를 선택하세요";
+                desktopInfoName.innerText = window.CloudI18n ? window.CloudI18n.t("대화를 선택하세요") : "대화를 선택하세요";
                 desktopInfoStatus.innerText = "";
                 desktopConversationActions.style.display = "none";
                 return;
@@ -160,9 +160,10 @@
             applyChatTheme(friend);
             chatHeader.innerText = friend.name;
             desktopInfoName.innerText = friend.name;
+            const i18n = window.CloudI18n;
             desktopInfoStatus.innerText = friend.isGroup
                 ? `${friend.memberCount || 0}명이 참여 중인 그룹 채팅입니다.`
-                : (friend.isOnline ? "현재 온라인입니다." : "현재 오프라인입니다.");
+                : (friend.isOnline ? (i18n ? i18n.t("현재 온라인입니다.") : "현재 온라인입니다.") : (i18n ? i18n.t("현재 오프라인입니다.") : "현재 오프라인입니다."));
             desktopConversationActions.style.display = "grid";
             desktopConversationPin.innerHTML = `<i class="fa-solid fa-thumbtack"></i> ${friend.isPinned ? "고정 해제" : "고정"}`;
             desktopConversationMute.innerHTML = `<i class="fa-solid fa-bell${friend.isMuted ? "" : "-slash"}"></i> ${friend.isMuted ? "알림 켜기" : "알림 끄기"}`;
