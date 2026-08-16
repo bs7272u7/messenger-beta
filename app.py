@@ -746,6 +746,8 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'ko'")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_rating INT NOT NULL DEFAULT 400")
         cur.execute("ALTER TABLE users ALTER COLUMN chess_rating SET DEFAULT 400")
+        # 기존 가입자는 가입 시점을 소급할 수 없어 NULL로 남는다 — 관리자 목록에서 "가입일 없음"으로 표시한다.
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 
         cur.execute("""
@@ -1805,6 +1807,28 @@ def admin_reports():
     return jsonify([dict(row) for row in rows])
 
 
+@app.route("/api/admin/users", methods=["GET"])
+@admin_required_api
+def admin_all_users():
+    """가입한 전체 사용자 목록을 아이디/이메일/가입일/정지 상태와 함께 보여준다."""
+    with get_db() as conn:
+        # 만료된 기간 정지는 목록을 보여주기 전에 먼저 자동 해제한다(로그인 시 판정과 동일한 규칙).
+        conn.execute(
+            """UPDATE users
+               SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL
+               WHERE is_suspended = TRUE AND suspended_until > 0 AND suspended_until <= %s""",
+            (time.time(),),
+        )
+        rows = conn.execute("""
+            SELECT id, username, email, display_name, created_at, is_admin,
+                   is_suspended, suspended_until, suspension_reason
+            FROM users
+            ORDER BY id DESC
+        """).fetchall()
+        conn.commit()
+    return jsonify([dict(row) for row in rows])
+
+
 @app.route("/api/admin/users/suspended", methods=["GET"])
 @admin_required_api
 def admin_suspended_users():
@@ -1951,8 +1975,8 @@ def register():
         display_name = display_name or username
 
         row = conn.execute(
-            "INSERT INTO users (username, password_hash, display_name, profile_image, email, is_admin, language) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
-            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email, bool(ADMIN_EMAIL and email == ADMIN_EMAIL), language)
+            "INSERT INTO users (username, password_hash, display_name, profile_image, email, is_admin, language, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email, bool(ADMIN_EMAIL and email == ADMIN_EMAIL), language, now_str())
         ).fetchone()
 
         user_id = row["id"]
