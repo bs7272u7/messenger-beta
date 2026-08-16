@@ -57,9 +57,6 @@
 
     /* 포커스 링 */
     --focus-ring:0 0 0 3px #fffdf6, 0 0 0 6px var(--cc-highlight);
-
-    /* 목수가 손도끼로 깎아낸 팻말처럼, 버튼 안쪽에 얕게 파인 결을 얹는 공용 베벨 */
-    --carve: inset 0 2px 0 rgba(255,255,255,.3), inset 0 -3px 6px rgba(35,20,10,.28);
 }
 
 * { box-sizing:border-box; }
@@ -94,22 +91,12 @@ body.chess-page::before {
 .chess-back-link { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; color:#f4ecd2; background:var(--cc-dark-pill); text-decoration:none; font-size:13px; font-weight:700; }
 .chess-back-link:hover { background:rgba(38,40,45,.98); }
 .chess-header-actions { display:flex; align-items:center; gap:10px; }
-.chess-header-btn {
-    position:relative; display:grid; width:42px; height:42px; place-items:center; border:3px solid var(--cc-cream); border-radius:14px; color:#fff; background:var(--cc-green); font-size:16px;
-    background-image:
-        repeating-linear-gradient(115deg, rgba(255,255,255,.08) 0 2px, rgba(0,0,0,.06) 2px 4px),
-        radial-gradient(circle 2.5px at 8px 8px, rgba(35,20,10,.4), transparent 2.6px),
-        radial-gradient(circle 2.5px at calc(100% - 8px) 8px, rgba(35,20,10,.4), transparent 2.6px),
-        radial-gradient(circle 2.5px at 8px calc(100% - 8px), rgba(35,20,10,.4), transparent 2.6px),
-        radial-gradient(circle 2.5px at calc(100% - 8px) calc(100% - 8px), rgba(35,20,10,.4), transparent 2.6px);
-    background-blend-mode: overlay, normal, normal, normal, normal;
-    box-shadow:0 4px 0 var(--cc-green-deep), var(--carve); transition:transform .12s ease, box-shadow .12s ease;
-}
-.chess-header-btn:hover { transform:translateY(-2px); box-shadow:0 6px 0 var(--cc-green-deep), var(--carve); }
-.chess-header-btn:active { transform:translateY(2px); box-shadow:0 1px 0 var(--cc-green-deep), var(--carve); }
-.chess-header-avatar-btn { padding:0; overflow:hidden; background:var(--cc-purple); box-shadow:0 4px 0 var(--cc-purple-deep), var(--carve); }
-.chess-header-avatar-btn:hover { box-shadow:0 6px 0 var(--cc-purple-deep), var(--carve); }
-.chess-header-avatar-btn:active { box-shadow:0 1px 0 var(--cc-purple-deep), var(--carve); }
+.chess-header-btn { position:relative; display:grid; width:42px; height:42px; place-items:center; border:3px solid var(--cc-cream); border-radius:14px; color:#fff; background:var(--cc-green); font-size:16px; box-shadow:0 4px 0 var(--cc-green-deep); transition:transform .12s ease, box-shadow .12s ease; }
+.chess-header-btn:hover { transform:translateY(-2px); box-shadow:0 6px 0 var(--cc-green-deep); }
+.chess-header-btn:active { transform:translateY(2px); box-shadow:0 1px 0 var(--cc-green-deep); }
+.chess-header-avatar-btn { padding:0; overflow:hidden; background:var(--cc-purple); box-shadow:0 4px 0 var(--cc-purple-deep); }
+.chess-header-avatar-btn:hover { box-shadow:0 6px 0 var(--cc-purple-deep); }
+.chess-header-avatar-btn:active { box-shadow:0 1px 0 var(--cc-purple-deep); }
 .chess-header-avatar-btn img { width:32px; height:32px; border-radius:50%; object-fit:cover; }
 .chess-inbox-badge { position:absolute; top:-8px; right:-8px; display:inline-grid; min-width:20px; height:20px; padding:0 5px; border-radius:999px; place-items:center; color:#fff; background:var(--chess-danger); font-size:10px; font-weight:800; border:2px solid var(--cc-cream); }
 .chess-inbox-badge[hidden] { display:none !important; }
@@ -138,20 +125,20 @@ body.chess-page::before {
     border:4px solid var(--cc-cream); border-radius:var(--r-xl);
     color:#fff; background:var(--cc-purple);
     font-size:clamp(14px,1.5vw,16px); font-weight:var(--fw-heavy); line-height:1.3;
-    box-shadow:0 6px 0 var(--cc-purple-deep), var(--sh-lg), var(--carve);
+    box-shadow:0 6px 0 var(--cc-purple-deep), var(--sh-lg);
     transition:transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
 }
 .cc-cta i { font-size:22px; }
-.cc-cta:hover { filter:brightness(1.06); transform:translateY(-3px); box-shadow:0 9px 0 var(--cc-purple-deep), var(--sh-lg), var(--carve); }
-.cc-cta:active { transform:translateY(3px); box-shadow:0 2px 0 var(--cc-purple-deep), var(--carve); }
+.cc-cta:hover { filter:brightness(1.06); transform:translateY(-3px); box-shadow:0 9px 0 var(--cc-purple-deep), var(--sh-lg); }
+.cc-cta:active { transform:translateY(3px); box-shadow:0 2px 0 var(--cc-purple-deep); }
 .cc-cta:disabled { opacity:.65; cursor:progress; transform:none; filter:saturate(.6); }
 /* 주 동작 */
 #cc-create-game {
     background:var(--cc-green);
-    box-shadow:0 7px 0 var(--cc-green-deep), var(--sh-lg), var(--carve);
+    box-shadow:0 7px 0 var(--cc-green-deep), var(--sh-lg);
 }
-#cc-create-game:hover { box-shadow:0 10px 0 var(--cc-green-deep), var(--sh-lg), var(--carve); }
-#cc-create-game:active { box-shadow:0 2px 0 var(--cc-green-deep), var(--carve); }
+#cc-create-game:hover { box-shadow:0 10px 0 var(--cc-green-deep), var(--sh-lg); }
+#cc-create-game:active { box-shadow:0 2px 0 var(--cc-green-deep); }
 
 .cc-join-panel { width:min(420px,100%); padding:16px 18px; border:3px solid var(--cc-cream); border-radius:16px; background:var(--chess-card); box-shadow:0 12px 26px rgba(12,30,12,.3); text-align:left; }
 .cc-join-panel[hidden] { display:none !important; }
@@ -170,21 +157,15 @@ body.chess-page::before {
     font-weight:800; font-size:14px;
     transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;
 }
-.chess-primary { color:#fff; background:var(--cc-green); border:3px solid var(--cc-cream); box-shadow:0 4px 0 var(--cc-green-deep), var(--carve); }
-.chess-primary:hover { filter:brightness(1.06); transform:translateY(-2px); box-shadow:0 6px 0 var(--cc-green-deep), var(--carve); }
-.chess-primary:active { transform:translateY(2px); box-shadow:0 1px 0 var(--cc-green-deep), var(--carve); }
-.chess-secondary { color:#3b4a30; background:var(--cc-cream); border:3px solid #e4d7b2; box-shadow:0 4px 0 #c9b98d, var(--carve); }
-.chess-secondary:hover { filter:brightness(1.03); transform:translateY(-2px); box-shadow:0 4px 0 #c9b98d, var(--carve); }
-.chess-secondary:active { transform:translateY(2px); box-shadow:0 1px 0 #c9b98d, var(--carve); }
-.danger-button { color:#fff; background:#c74640; border:3px solid #ffe0dd; box-shadow:0 4px 0 #93302b, var(--carve); }
-.danger-button:hover { filter:brightness(1.06); transform:translateY(-2px); box-shadow:0 4px 0 #93302b, var(--carve); }
-.danger-button:active { transform:translateY(2px); box-shadow:0 1px 0 #93302b, var(--carve); }
-
-/* 목수가 깎아 만든 나무 팻말 느낌의 결 무늬 — 크림 테두리 버튼 위에 아주 옅게 얹는다. */
-.chess-primary,.chess-secondary,.danger-button,.cc-cta,.chess-search-add,.chess-friend-add button {
-    background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.08) 0 2px, rgba(0,0,0,.06) 2px 4px);
-    background-blend-mode: overlay;
-}
+.chess-primary { color:#fff; background:var(--cc-green); border:3px solid var(--cc-cream); box-shadow:0 4px 0 var(--cc-green-deep); }
+.chess-primary:hover { filter:brightness(1.06); transform:translateY(-2px); box-shadow:0 6px 0 var(--cc-green-deep); }
+.chess-primary:active { transform:translateY(2px); box-shadow:0 1px 0 var(--cc-green-deep); }
+.chess-secondary { color:#3b4a30; background:var(--cc-cream); border:3px solid #e4d7b2; box-shadow:0 4px 0 #c9b98d; }
+.chess-secondary:hover { filter:brightness(1.03); transform:translateY(-2px); }
+.chess-secondary:active { transform:translateY(2px); box-shadow:0 1px 0 #c9b98d; }
+.danger-button { color:#fff; background:#c74640; border:3px solid #ffe0dd; box-shadow:0 4px 0 #93302b; }
+.danger-button:hover { filter:brightness(1.06); transform:translateY(-2px); }
+.danger-button:active { transform:translateY(2px); box-shadow:0 1px 0 #93302b; }
 
 /* ======================================================
  * 카드
@@ -359,14 +340,14 @@ body.chess-page::before {
 
 .chess-friend-add { display:flex; gap:8px; }
 .chess-friend-add input { flex:1; min-width:0; padding:11px; border:2px solid var(--chess-line); border-radius:11px; color:var(--chess-text); background:#fff; }
-.chess-friend-add button { display:grid; place-items:center; width:46px; border:3px solid var(--cc-cream); border-radius:11px; color:#fff; background:var(--cc-green); box-shadow:0 3px 0 var(--cc-green-deep), var(--carve); font-size:15px; }
+.chess-friend-add button { display:grid; place-items:center; width:46px; border:3px solid var(--cc-cream); border-radius:11px; color:#fff; background:var(--cc-green); box-shadow:0 3px 0 var(--cc-green-deep); font-size:15px; }
 .chess-friend-search-result:not(:empty) { margin-top:10px; }
 .chess-search-card,.chess-friend-row,.chess-request-item { display:flex; align-items:center; gap:10px; padding:11px; border:1px solid var(--chess-line); border-radius:12px; background:var(--chess-card-soft); color:var(--chess-text); }
 .chess-search-card img,.chess-friend-row img,.chess-request-item img { width:36px; height:36px; border-radius:50%; object-fit:cover; }
 .chess-search-card span { flex:1; display:block; font-weight:700; }
 .chess-search-card small { display:block; margin-top:2px; color:var(--chess-muted); font-weight:500; }
 .chess-search-add,.chess-search-state { display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; padding:8px 12px; border-radius:10px; font-size:12px; font-weight:800; }
-.chess-search-add { border:3px solid var(--cc-cream); color:#fff; background:var(--cc-green); box-shadow:0 3px 0 var(--cc-green-deep), var(--carve); cursor:pointer; }
+.chess-search-add { border:3px solid var(--cc-cream); color:#fff; background:var(--cc-green); box-shadow:0 3px 0 var(--cc-green-deep); cursor:pointer; }
 .chess-search-state { border:2px solid #a9d3b7; color:var(--cc-green-deep); background:#eaf6ee; }
 
 .chess-friend-list { display:grid; gap:8px; max-height:280px; overflow-y:auto; }
