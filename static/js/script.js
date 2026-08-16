@@ -1348,8 +1348,6 @@
                         : innerContent;
                 }
 
-                if (chat.text && !chat.image && !chat.video) appendLinkPreview(message, chat);
-
                 const swipeIcon = document.createElement("i");
                 swipeIcon.className = "fa-solid fa-reply swipe-reply-icon";
                 message.appendChild(swipeIcon);
@@ -1366,6 +1364,9 @@
                 }
 
                 renderTarget.appendChild(message);
+
+                // 캐시된 미리보기는 동기적으로 처리되므로, DOM에 붙은 뒤에 호출해야 연결 여부 검사를 통과한다.
+                if (chat.text && !chat.image && !chat.video) appendLinkPreview(message, chat);
             });
 
             messages.replaceChildren(renderTarget);
