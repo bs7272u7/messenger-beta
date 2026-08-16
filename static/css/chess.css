@@ -330,7 +330,7 @@ body.chess-page::before {
 .game-result-modal { position:fixed; inset:0; z-index:10; display:grid; place-items:center; background:rgba(20,15,10,.7); backdrop-filter:blur(6px); }
 .game-result-modal[hidden] { display:none !important; }
 .game-result-modal>div { width:min(370px,calc(100% - 32px)); text-align:center; padding:32px; background:var(--chess-card); border:4px solid var(--btn-brass); border-radius:var(--r-xl); box-shadow:0 24px 50px rgba(10,5,0,.6); background-image:url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E"); }
-.game-result-modal i { color:var(--cc-highlight); font-size:46px; filter:drop-shadow(0 4px 4px rgba(0,0,0,.3)); }
+.cc-result-icon { color:var(--cc-highlight); font-size:46px; filter:drop-shadow(0 4px 4px rgba(0,0,0,.3)); }
 .game-result-modal h2 { margin-top:16px; color:var(--btn-wood-dark); font-weight:900; font-size:24px; }
 .game-result-modal p { color:var(--chess-muted); line-height:1.6; font-weight:600; }
 .game-result-actions { display:grid; gap:8px; margin-top:24px; }

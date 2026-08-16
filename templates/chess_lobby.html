@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=20260816">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180x180.png?v=20260816">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260816.11') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260816.12') }}">
 </head>
 <body class="chess-page">
     <main class="chess-lobby-shell" data-current-user-id="{{ session.get('user_id', '') }}">
@@ -158,7 +158,7 @@
     </div>
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260816.11') }}"></script>
-    <script src="{{ url_for('static', filename='js/chess_social.js', v='20260816.11') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260816.12') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_social.js', v='20260816.12') }}"></script>
 </body>
 </html>
