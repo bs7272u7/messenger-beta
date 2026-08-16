@@ -15,8 +15,8 @@
         return grid;
     }
     function legalTargets(from) { return (game?.legalMoves || []).filter(move => move.slice(0,2) === from).map(move => move.slice(2,4)); }
-    function isMyTurn() { return !movePending && !replayFen && game && game.status === "active" && (game.mode === "local" || game.myColor === game.turn); }
-    function isMine(piece) { return game?.mode === "local" ? piece === piece.toUpperCase() : (piece === piece.toUpperCase() ? "w" : "b") === game?.myColor; }
+    function isMyTurn() { return !movePending && !replayFen && game && game.status === "active" && game.myColor === game.turn; }
+    function isMine(piece) { return (piece === piece.toUpperCase() ? "w" : "b") === game?.myColor; }
     function viewFlipped() { return Boolean(game?.myColor === "b") !== flipped; }
     function viewPiece(piece) {
         const type = piece.toLowerCase();
@@ -89,7 +89,7 @@
         if (!isMyTurn()) return;
         const piece = fenPieces(replayFen || game.fen)[8 - Number(square[1])]["abcdefgh".indexOf(square[0])];
         if (selected && legalTargets(selected).includes(square)) return attemptMove(selected, square);
-        if (piece && (game.mode === "local" || (piece === piece.toUpperCase() ? "w" : "b") === game.myColor) && (piece === piece.toUpperCase() ? "w" : "b") === game.turn) selected = square;
+        if (piece && (piece === piece.toUpperCase() ? "w" : "b") === game.myColor && (piece === piece.toUpperCase() ? "w" : "b") === game.turn) selected = square;
         else selected = null;
         renderBoard();
     }
@@ -117,9 +117,9 @@
     }
     function renderMeta() {
         // 카드 위치(하단=나, 상단=상대)만 고정한다. 기물 색상은 실제 흑/백을 그대로 보여준다.
-        const mine = game.mode === "local" || game.myColor !== "b" ? game.white : game.black;
-        const opponent = game.mode === "local" || game.myColor !== "b" ? game.black : game.white;
-        const mineColor = game.mode === "local" || game.myColor !== "b" ? "w" : "b";
+        const mine = game.myColor !== "b" ? game.white : game.black;
+        const opponent = game.myColor !== "b" ? game.black : game.white;
+        const mineColor = game.myColor !== "b" ? "w" : "b";
         const opponentColor = mineColor === "w" ? "b" : "w";
         document.querySelector("#white-name").textContent = mine.name;
         document.querySelector("#black-name").textContent = opponent.name;
@@ -200,7 +200,7 @@
         const previousMoveCount = game?.moves?.length || 0;
         const hasNewMove = hasLoadedState && (state.moves?.length || 0) > previousMoveCount;
         // 방 전체로 전송된 상태라도 현재 로그인한 계정 기준으로 시점을 다시 계산한다.
-        if (state.mode !== "local") state.myColor = Number(state.white?.id) === currentUserId ? "w" : Number(state.black?.id) === currentUserId ? "b" : null;
+        state.myColor = Number(state.white?.id) === currentUserId ? "w" : Number(state.black?.id) === currentUserId ? "b" : null;
         game = state; replayFen = null; renderBoard(); renderMeta();
         if (hasNewMove) playChessMoveSound();
         hasLoadedState = true;
@@ -260,15 +260,8 @@
     document.querySelectorAll(".chess-player-trigger").forEach(button => button.addEventListener("click", async () => {
         const isMe = button.dataset.playerSlot === "me";
 
-        const mine =
-            game.mode === "local" || game.myColor !== "b"
-                ? game.white
-                : game.black;
-
-        const opponent =
-            game.mode === "local" || game.myColor !== "b"
-                ? game.black
-                : game.white;
+        const mine = game.myColor !== "b" ? game.white : game.black;
+        const opponent = game.myColor !== "b" ? game.black : game.white;
 
         const player = isMe ? mine : opponent;
 

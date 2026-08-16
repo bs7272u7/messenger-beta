@@ -1,6 +1,5 @@
 import unittest
 from chess_engine import ChessBoard
-from chess_engine.ai import choose_move
 
 
 class ChessEngineTests(unittest.TestCase):
@@ -32,13 +31,11 @@ class ChessEngineTests(unittest.TestCase):
         board = ChessBoard("4r2k/8/8/8/8/8/4R3/4K3 w - - 0 1")
         self.assertNotIn("e2d2", [move.uci for move in board.legal_moves()])
 
-    def test_threefold_repetition_and_ai_legal_move(self):
+    def test_threefold_repetition(self):
         board = ChessBoard()
         for move in (("g1", "f3"), ("g8", "f6"), ("f3", "g1"), ("f6", "g8")) * 2:
             board.push_uci(*move)
         self.assertEqual(board.result()["status"], "draw_threefold")
-        fresh = ChessBoard(); move = choose_move(fresh, "easy")
-        self.assertIn(move, fresh.legal_moves())
 
 
 if __name__ == "__main__":

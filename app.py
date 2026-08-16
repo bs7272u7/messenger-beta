@@ -33,7 +33,6 @@ import psycopg2.extras
 import psycopg2.pool
 from chess_engine import ChessBoard, STARTING_FEN
 from chess_engine.board import opponent
-from chess_engine.ai import choose_move
 try:
     from pywebpush import webpush, WebPushException
 except ImportError:
@@ -92,8 +91,6 @@ VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY")
 VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL")
 active_socket_ids = {}
 active_socket_ids_lock = Lock()
-chess_ai_reply_pending = set()
-chess_ai_reply_lock = Lock()
 _rate_limit_buckets = {}
 _rate_limit_lock = Lock()
 
@@ -3907,6 +3904,7 @@ def read_conversation(conversation_id):
 # 체스: 서버 권위 상태 관리 (클라이언트 FEN은 화면 표시용일 뿐, 수 판정에는 사용하지 않음)
 # ----------------------------------------------------------------
 CHESS_TIME_CONTROLS = {"unlimited": None, "blitz3": 3 * 60 * 1000, "blitz5": 5 * 60 * 1000, "rapid10": 10 * 60 * 1000}
+CHESS_WAITING_PLAYER = {"id": None, "name": "대기 중", "username": "", "profileImage": None, "rating": None, "record": {"wins": 0, "draws": 0, "losses": 0}}
 
 
 def chess_room_code(conn):
@@ -3916,7 +3914,7 @@ def chess_room_code(conn):
             return code
 
 
-def create_chess_game(conn, user_id, mode, time_control="unlimited", difficulty="medium", color="w"):
+def create_chess_game(conn, user_id, mode, time_control="unlimited", color="w"):
     if mode != "online":
         raise ValueError("온라인 대전만 지원합니다.")
     if time_control not in CHESS_TIME_CONTROLS:
@@ -3925,35 +3923,23 @@ def create_chess_game(conn, user_id, mode, time_control="unlimited", difficulty=
         color = "w"
     game_id, room_code = str(uuid.uuid4()), chess_room_code(conn)
     clock = CHESS_TIME_CONTROLS[time_control]
-    status = "waiting" if mode == "online" else "active"
     # 방장이 미리 고른 색으로 자기 자리를 채우고, 반대쪽 자리는 입장할 상대를 위해 비워둔다.
-    white_id = user_id if (mode == "local" or color == "w") else None
-    black_id = user_id if (mode == "local" or color == "b") else None
+    white_id = user_id if color == "w" else None
+    black_id = user_id if color == "b" else None
     conn.execute("""
         INSERT INTO chess_games (
-            id, room_code, white_player_id, black_player_id, mode, ai_difficulty, fen, status, time_control,
-            white_remaining_ms, black_remaining_ms, turn_started_ms, created_at, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            id, room_code, white_player_id, black_player_id, mode, fen, status, time_control,
+            white_remaining_ms, black_remaining_ms, created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s)
     """, (
         game_id, room_code, white_id, black_id, mode,
-        difficulty if mode == "ai" else None, STARTING_FEN, status, time_control, clock, clock,
-        current_message_timestamp_ms() if status == "active" else None, now_str(), now_str(),
+        STARTING_FEN, time_control, clock, clock, now_str(), now_str(),
     ))
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
 
 
-def chess_player_name(conn, user_id):
-    if not user_id:
-        return "AI" if user_id is None else None
-    user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
-    return (user["display_name"] or user["username"]) if user else "알 수 없음"
-
-
 def chess_player_summary(conn, user_id):
-    """메신저의 프로필 카드 정보에 체스 레이팅과 전적을 덧붙여 재사용한다."""
-    if not user_id:
-        return {"id": None, "name": "AI", "username": "ai", "profileImage": None, "rating": None,
-                "record": {"wins": 0, "draws": 0, "losses": 0}}
+    """메신저의 프로필 카드 정보에 체스 레이팅과 전적을 덧붙여 재사용한다. user_id는 항상 실제 계정이어야 한다."""
     user = conn.execute(
         "SELECT id, username, display_name, profile_image, chess_rating FROM users WHERE id = %s", (user_id,)
     ).fetchone()
@@ -4022,14 +4008,12 @@ def chess_game_state(conn, game, user_id=None):
         "id": str(game["id"]), "roomCode": game["room_code"], "mode": game["mode"], "status": game["status"],
         "timeControl": game["time_control"], "whiteRemainingMs": game["white_remaining_ms"],
         "blackRemainingMs": game["black_remaining_ms"], "turnStartedMs": game["turn_started_ms"],
-        "white": chess_player_summary(conn, game["white_player_id"]),
-        "black": chess_player_summary(conn, game["black_player_id"]) if game["black_player_id"] else (
-            chess_player_summary(conn, None) if game["mode"] == "ai" else {"id": None, "name": "대기 중", "username": "", "profileImage": None, "rating": None, "record": {"wins": 0, "draws": 0, "losses": 0}}
-        ),
+        "white": chess_player_summary(conn, game["white_player_id"]) if game["white_player_id"] else CHESS_WAITING_PLAYER,
+        "black": chess_player_summary(conn, game["black_player_id"]) if game["black_player_id"] else CHESS_WAITING_PLAYER,
         "result": json.loads(game["result"]) if game["result"] else state["result"],
         "moves": [{"number": row["move_number"], "san": row["san"], "fen": row["fen"]} for row in move_rows],
-        "myColor": "w" if user_id == game["white_player_id"] else ("b" if user_id == game["black_player_id"] and game["mode"] != "local" else None),
-        "canPlay": bool(user_id and (game["mode"] == "local" and user_id == game["white_player_id"] or user_id in {game["white_player_id"], game["black_player_id"]})),
+        "myColor": "w" if user_id == game["white_player_id"] else ("b" if user_id == game["black_player_id"] else None),
+        "canPlay": bool(user_id and user_id in {game["white_player_id"], game["black_player_id"]}),
         # 방 전체로 방송되는 상태이므로 "누가 제안했는지"는 순수 id로만 보내고,
         # 나 기준 판단(내가 걸었는지/상대가 걸었는지)은 각 클라이언트가 currentUserId와 비교해 계산한다.
         "drawOfferedBy": game["draw_offer_user_id"],
@@ -4057,10 +4041,6 @@ def apply_chess_ratings(conn, game):
 
 
 def chess_can_control_turn(game, user_id, turn):
-    if game["mode"] == "local":
-        return user_id == game["white_player_id"]
-    if game["mode"] == "ai":
-        return turn == "w" and user_id == game["white_player_id"]
     return user_id == (game["white_player_id"] if turn == "w" else game["black_player_id"])
 
 
@@ -4087,38 +4067,6 @@ def submit_chess_move(conn, game, user_id, from_sq, to_sq, promotion=None):
     move = board.find_move(from_sq, to_sq, promotion)
     game, _ = save_chess_move(conn, game, board, move)
     return game
-
-
-def play_chess_ai_reply(game_id):
-    """AI가 바로 응수하지 않도록 짧은 생각 시간을 둔 뒤, 서버에서만 다음 수를 계산한다."""
-    try:
-        socketio.sleep(0.25)
-        state = None
-        with get_db() as conn:
-            game = conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
-            if game and game["mode"] == "ai" and game["status"] == "active":
-                board = chess_board_for_game(conn, game)
-                if board.turn == "b":
-                    ai_move = choose_move(board, game["ai_difficulty"] or "medium")
-                    if ai_move:
-                        game, _ = save_chess_move(conn, game, board, ai_move)
-                        state = chess_game_state(conn, game, game["white_player_id"])
-                        conn.commit()
-        if state:
-            socketio.emit("game:state_update", state, room=f"chess_{game_id}")
-    finally:
-        with chess_ai_reply_lock:
-            chess_ai_reply_pending.discard(str(game_id))
-
-
-def schedule_chess_ai_reply(game_id):
-    """같은 대국에 AI 응수 작업이 중복 예약되지 않도록 보호한다."""
-    game_id = str(game_id)
-    with chess_ai_reply_lock:
-        if game_id in chess_ai_reply_pending:
-            return
-        chess_ai_reply_pending.add(game_id)
-    socketio.start_background_task(play_chess_ai_reply, game_id)
 
 
 def activate_chess_game(conn, game, joining_user_id):
@@ -4347,7 +4295,7 @@ def chess_send_friend_request_api(player_id):
 def chess_create_game_api():
     data = request.get_json() or {}
     with get_db() as conn:
-        game = create_chess_game(conn, session["user_id"], data.get("mode", "online"), data.get("timeControl", "unlimited"), data.get("difficulty", "medium"), data.get("color", "w"))
+        game = create_chess_game(conn, session["user_id"], data.get("mode", "online"), data.get("timeControl", "unlimited"), data.get("color", "w"))
         state = chess_game_state(conn, game, session["user_id"])
         conn.commit()
     return jsonify({"success": True, "game": state})
@@ -4510,8 +4458,6 @@ def chess_move_api(game_id):
             game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
             state = chess_game_state(conn, game, session["user_id"])
             conn.commit()
-        if game["mode"] == "ai" and game["status"] == "active":
-            schedule_chess_ai_reply(game["id"])
         socketio.emit("game:state_update", state, room=f"chess_{game_id}")
         return jsonify({"success": True, "game": state})
     except ValueError as error:
@@ -4604,8 +4550,6 @@ def chess_socket_move(data):
             game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
             state = chess_game_state(conn, game, session["user_id"])
             conn.commit()
-        if game["mode"] == "ai" and game["status"] == "active":
-            schedule_chess_ai_reply(game["id"])
         socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
     except (ValueError, TypeError) as error:
         socketio.emit("game:error", {"error": str(error)}, room=f"user_{session['user_id']}")
