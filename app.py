@@ -4184,13 +4184,6 @@ def chess_game_page(game_id):
     return render_template("chess_game.html", game_id=game_id)
 
 
-@app.route("/chess/invite/<int:invite_id>")
-@login_required_page
-def chess_accept_invite_page(invite_id):
-    """채팅 메시지의 초대 링크는 수락 화면을 거쳐서만 대국에 입장한다."""
-    return render_template("chess_invite.html", invite_id=invite_id)
-
-
 def chess_invitable_friends(conn, user_id):
     """1:1 채팅방으로 연결된 친구만 체스 대국 초대 대상으로 반환한다."""
     return conn.execute("""
