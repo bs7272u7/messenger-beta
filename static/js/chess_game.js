@@ -269,20 +269,9 @@
             document.querySelector("#chess-player-username").textContent = `@${inspectedPlayer.username}`;
             document.querySelector("#chess-player-rating").textContent = inspectedPlayer.rating ?? "-";
             const record = inspectedPlayer.record || {}; document.querySelector("#chess-player-record").textContent = `${record.wins || 0}승 ${record.draws || 0}무 ${record.losses || 0}패`;
-            const addButton = document.querySelector("#chess-player-friend-btn");
-            addButton.hidden = isMe || inspectedPlayer.isFriend;
-            addButton.disabled = false; addButton.innerHTML = '<i class="fa-solid fa-user-plus"></i> 친구 추가';
             playerModal.hidden = false;
         } catch (error) { alert(error.message); }
     }));
-    document.querySelector("#chess-player-friend-btn").addEventListener("click", async event => {
-        if (!inspectedPlayer) return;
-        event.currentTarget.disabled = true;
-        const response = await fetch(`/api/chess/players/${inspectedPlayer.id}/friend-request`, {method:"POST", headers:{"X-CSRF-Token":csrf}});
-        const data = await response.json();
-        if (!response.ok || !data.success) { event.currentTarget.disabled = false; return alert(data.error || "친구 요청에 실패했습니다."); }
-        event.currentTarget.innerHTML = '<i class="fa-solid fa-check"></i> 요청 완료';
-    });
     document.querySelector("#flip-board").addEventListener("click", () => { flipped = !flipped; renderBoard(); });
     document.querySelector("#resign-btn").addEventListener("click", async () => { if (!confirm("정말 기권할까요?")) return; const response = await fetch(`/api/chess/games/${gameId}/resign`, {method:"POST", headers:{"X-CSRF-Token":csrf}}); const data = await response.json(); if (data.success) applyState(data.game); else alert(data.error); });
     const drawBtn = document.querySelector("#draw-btn");

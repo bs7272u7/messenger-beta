@@ -4453,11 +4453,18 @@ def chess_game_state_api(game_id):
 def chess_history_api():
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT id, mode, result, status, created_at FROM chess_games
+            SELECT id, mode, result, status, created_at, white_player_id, black_player_id FROM chess_games
             WHERE status = 'finished' AND (white_player_id = %s OR black_player_id = %s)
             ORDER BY created_at DESC LIMIT 20
         """, (session["user_id"], session["user_id"])).fetchall()
-    return jsonify([{"id": str(row["id"]), "mode": row["mode"], "status": row["status"], "result": json.loads(row["result"]) if row["result"] else None, "createdAt": row["created_at"]} for row in rows])
+    return jsonify([{
+        "id": str(row["id"]),
+        "mode": row["mode"],
+        "status": row["status"],
+        "result": json.loads(row["result"]) if row["result"] else None,
+        "createdAt": row["created_at"],
+        "myColor": "w" if row["white_player_id"] == session["user_id"] else "b",
+    } for row in rows])
 
 
 @app.route("/api/chess/history", methods=["DELETE"])

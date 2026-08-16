@@ -10,13 +10,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=20260816">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180x180.png?v=20260816">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260816.3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260816.4') }}">
 </head>
 <body class="chess-page">
     <main class="chess-lobby-shell" data-current-user-id="{{ session.get('user_id', '') }}">
         <header class="chess-lobby-header">
             <a class="chess-back-link" href="/"><i class="fa-solid fa-arrow-left"></i> 채팅으로 돌아가기</a>
             <div class="chess-header-actions">
+                <button type="button" id="chess-my-info-card" class="chess-header-btn chess-header-avatar-btn" title="내 정보" aria-label="내 정보">
+                    <img id="chess-my-info-avatar" src="/static/default_profile.png" alt="">
+                    <span class="cc-sr-only"><strong id="chess-my-info-name">내 정보</strong><small id="chess-my-info-record">전적을 불러오는 중…</small></span>
+                    <span id="chess-my-info-rating" class="chess-my-info-rating cc-sr-only">400</span>
+                </button>
+                <button type="button" id="chess-rules-btn" class="chess-header-btn" title="체스 규칙" aria-label="체스 규칙"><i class="fa-solid fa-book-open"></i></button>
                 <button id="chess-friends-btn" type="button" class="chess-header-btn" title="친구 관리" aria-label="친구 관리"><i class="fa-solid fa-user-group"></i></button>
                 <button id="chess-inbox-btn" type="button" class="chess-header-btn" title="메시지함" aria-label="메시지함"><i class="fa-regular fa-envelope"></i><span id="chess-inbox-badge" class="chess-inbox-badge" hidden>0</span></button>
             </div>
@@ -49,22 +55,6 @@
             </div>
         </section>
 
-        <!-- 레퍼런스의 좌측 하단 유틸 스택 -->
-        <div class="cc-util-stack">
-            <button type="button" id="chess-my-info-card" class="cc-util-btn cc-util-purple">
-                <img id="chess-my-info-avatar" src="/static/default_profile.png" alt="">
-                <span class="cc-util-text">
-                    <strong id="chess-my-info-name">내 정보</strong>
-                    <small id="chess-my-info-record">전적을 불러오는 중…</small>
-                </span>
-                <span id="chess-my-info-rating" class="chess-my-info-rating">400</span>
-            </button>
-            <button type="button" id="chess-rules-btn" class="cc-util-btn cc-util-green">
-                <i class="fa-solid fa-book-open"></i>
-                <span class="cc-util-text"><strong>체스 규칙</strong><small>처음이라면 여기부터</small></span>
-            </button>
-        </div>
-
         <section class="chess-settings-card">
             <h2><i class="fa-regular fa-clock"></i> 시간 설정</h2>
             <div class="time-control-options">
@@ -80,7 +70,7 @@
         </section>
     </main>
 
-    <div id="chess-player-modal" class="game-result-modal" hidden><div class="chess-player-modal-box"><button id="close-chess-player" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button><img id="chess-player-avatar" src="/static/default_profile.png" alt=""><h2 id="chess-player-name">플레이어</h2><p id="chess-player-username"></p><div class="chess-player-stats"><span>레이팅 <strong id="chess-player-rating">400</strong></span><span>전적 <strong id="chess-player-record">0승 0무 0패</strong></span></div><button id="chess-player-friend-btn" class="chess-primary" type="button" hidden><i class="fa-solid fa-user-plus"></i> 친구 추가</button></div></div>
+    <div id="chess-player-modal" class="game-result-modal" hidden><div class="chess-player-modal-box"><button id="close-chess-player" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button><img id="chess-player-avatar" src="/static/default_profile.png" alt=""><h2 id="chess-player-name">플레이어</h2><p id="chess-player-username"></p><div class="chess-player-stats"><span>레이팅 <strong id="chess-player-rating">400</strong></span><span>전적 <strong id="chess-player-record">0승 0무 0패</strong></span></div></div></div>
 
     <div id="chess-friends-modal" class="game-result-modal" hidden>
         <div class="chess-social-modal-box">
@@ -168,7 +158,7 @@
     </div>
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260816.3') }}"></script>
-    <script src="{{ url_for('static', filename='js/chess_social.js', v='20260816.3') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260816.4') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_social.js', v='20260816.4') }}"></script>
 </body>
 </html>

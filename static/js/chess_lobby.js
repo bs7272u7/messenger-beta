@@ -83,7 +83,12 @@
         if (!response.ok || !games.length) { list.textContent = "아직 완료한 체스 게임이 없습니다."; deleteAllButton.hidden = true; return; }
         deleteAllButton.hidden = false;
         const resultText = {checkmate:"체크메이트", stalemate:"스테일메이트", draw_50_move:"50수 무승부", draw_threefold:"3회 반복", draw_insufficient_material:"기물 부족 무승부", draw_agreed:"합의 무승부", resignation:"기권", timeout:"시간 초과", disconnect:"연결 끊김"};
-        list.innerHTML = games.map(game => `<div class="chess-history-row"><span>${resultText[game.result?.status] || (game.status === "waiting" ? "대기 중" : "진행 중")}</span><div><a href="/chess/game/${game.id}">보기</a>${game.status === "finished" ? `<button class="history-delete" data-game-id="${game.id}" aria-label="전적 삭제"><i class="fa-solid fa-trash"></i></button>` : ""}</div></div>`).join("");
+        list.innerHTML = games.map(game => {
+            const winner = game.result?.winner;
+            const outcome = !winner ? "draw" : winner === game.myColor ? "win" : "loss";
+            const outcomeText = {win:"승리", loss:"패배", draw:"무승부"}[outcome];
+            return `<div class="chess-history-row"><span><span class="chess-outcome-badge chess-outcome-${outcome}">${outcomeText}</span>${resultText[game.result?.status] || (game.status === "waiting" ? "대기 중" : "진행 중")}</span><div><a href="/chess/game/${game.id}">보기</a>${game.status === "finished" ? `<button class="history-delete" data-game-id="${game.id}" aria-label="전적 삭제"><i class="fa-solid fa-trash"></i></button>` : ""}</div></div>`;
+        }).join("");
         list.querySelectorAll(".history-delete").forEach(button => button.addEventListener("click", async () => {
             if (!confirm("이 전적과 기보를 삭제할까요?")) return;
             const response = await fetch(`/api/chess/history/${button.dataset.gameId}`, {method:"DELETE", headers:{"X-CSRF-Token":csrf}});

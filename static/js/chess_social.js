@@ -205,7 +205,6 @@
     function closePlayerModal() { playerModal.hidden = true; }
     document.querySelector("#close-chess-player").addEventListener("click", closePlayerModal);
     playerModal.addEventListener("click", event => { if (event.target === playerModal) closePlayerModal(); });
-    document.querySelector("#chess-player-friend-btn").hidden = true;
 
     async function loadMyInfo() {
         if (!currentUserId) return;

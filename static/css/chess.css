@@ -94,6 +94,10 @@ body.chess-page::before {
 .chess-header-btn { position:relative; display:grid; width:42px; height:42px; place-items:center; border:3px solid var(--cc-cream); border-radius:14px; color:#fff; background:var(--cc-green); font-size:16px; box-shadow:0 4px 0 var(--cc-green-deep); transition:transform .12s ease, box-shadow .12s ease; }
 .chess-header-btn:hover { transform:translateY(-2px); box-shadow:0 6px 0 var(--cc-green-deep); }
 .chess-header-btn:active { transform:translateY(2px); box-shadow:0 1px 0 var(--cc-green-deep); }
+.chess-header-avatar-btn { padding:0; overflow:hidden; background:var(--cc-purple); box-shadow:0 4px 0 var(--cc-purple-deep); }
+.chess-header-avatar-btn:hover { box-shadow:0 6px 0 var(--cc-purple-deep); }
+.chess-header-avatar-btn:active { box-shadow:0 1px 0 var(--cc-purple-deep); }
+.chess-header-avatar-btn img { width:32px; height:32px; border-radius:50%; object-fit:cover; }
 .chess-inbox-badge { position:absolute; top:-8px; right:-8px; display:inline-grid; min-width:20px; height:20px; padding:0 5px; border-radius:999px; place-items:center; color:#fff; background:var(--chess-danger); font-size:10px; font-weight:800; border:2px solid var(--cc-cream); }
 .chess-inbox-badge[hidden] { display:none !important; }
 
@@ -113,8 +117,7 @@ body.chess-page::before {
 .cc-wordmark span { font-size:clamp(30px,5.4vw,54px); }
 .cc-wordmark strong { font-size:clamp(46px,9vw,92px); color:#dcd0f0; }
 
-/* 강조: 주 동작(방 만들기)을 부 동작(코드로 입장)보다 크고 무겁게 두어 시선 순서를 만든다.
-   두 버튼을 같은 크기로 두면 "무엇을 먼저 눌러야 하는지"가 사라진다. */
+/* 방 만들기 / 코드로 입장을 같은 크기로 두어 두 동작을 동등하게 보여준다. */
 .cc-cta-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:var(--sp-8); }
 .cc-cta {
     display:grid; place-items:center; gap:var(--sp-4);
@@ -125,17 +128,15 @@ body.chess-page::before {
     box-shadow:0 6px 0 var(--cc-purple-deep), var(--sh-lg);
     transition:transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
 }
-.cc-cta i { font-size:24px; }
+.cc-cta i { font-size:22px; }
 .cc-cta:hover { filter:brightness(1.06); transform:translateY(-3px); box-shadow:0 9px 0 var(--cc-purple-deep), var(--sh-lg); }
 .cc-cta:active { transform:translateY(3px); box-shadow:0 2px 0 var(--cc-purple-deep); }
 .cc-cta:disabled { opacity:.65; cursor:progress; transform:none; filter:saturate(.6); }
 /* 주 동작 */
 #cc-create-game {
-    width:clamp(152px,22vw,196px); min-height:clamp(134px,17vw,172px);
-    background:var(--cc-green); font-size:clamp(16px,1.8vw,19px);
+    background:var(--cc-green);
     box-shadow:0 7px 0 var(--cc-green-deep), var(--sh-lg);
 }
-#cc-create-game i { font-size:30px; }
 #cc-create-game:hover { box-shadow:0 10px 0 var(--cc-green-deep), var(--sh-lg); }
 #cc-create-game:active { box-shadow:0 2px 0 var(--cc-green-deep); }
 
@@ -145,22 +146,6 @@ body.chess-page::before {
 .cc-join-row { display:flex; gap:8px; }
 .cc-join-row input { flex:1; min-width:0; padding:11px 12px; border:2px solid var(--chess-line); border-radius:11px; background:#fff; color:var(--chess-text); font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
 
-/* 좌측 하단 유틸 스택 (레퍼런스의 MY GAMES / PARK VIEW) */
-.cc-util-stack { display:grid; gap:10px; width:min(340px,100%); margin:0 0 26px; }
-.cc-util-btn {
-    display:flex; align-items:center; gap:12px; width:100%; padding:12px 16px;
-    border:3px solid var(--cc-cream); border-radius:16px; color:#fff; text-align:left;
-    box-shadow:0 5px 0 rgba(0,0,0,.22); transition:transform .12s ease, box-shadow .12s ease;
-}
-.cc-util-btn:hover { transform:translateY(-2px); box-shadow:0 7px 0 rgba(0,0,0,.22); }
-.cc-util-btn:active { transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,.22); }
-.cc-util-purple { background:var(--cc-purple); }
-.cc-util-green { background:var(--cc-green); }
-.cc-util-btn img { width:44px; height:44px; border-radius:50%; object-fit:cover; border:3px solid rgba(255,255,255,.75); flex:0 0 auto; }
-.cc-util-btn > i { width:44px; font-size:22px; text-align:center; flex:0 0 auto; }
-.cc-util-text { flex:1; min-width:0; display:grid; gap:2px; }
-.cc-util-text strong { font-size:15px; font-weight:800; }
-.cc-util-text small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:rgba(255,255,255,.85); font-size:12px; }
 .chess-my-info-rating { flex:0 0 auto; padding:7px 13px; border-radius:999px; color:#4a3305; background:var(--cc-cream); font-weight:900; font-size:13px; }
 
 /* ======================================================
@@ -197,6 +182,11 @@ body.chess-page::before {
 .chess-history-row { display:flex; justify-content:space-between; align-items:center; padding:11px 14px; border-radius:12px; background:var(--chess-card-soft); border:1px solid var(--chess-line); font-weight:600; }
 .chess-history-row a { color:var(--cc-green-deep); text-decoration:none; font-weight:800; }
 .chess-history-row>div { display:flex; align-items:center; gap:8px; }
+.chess-history-row>span { display:flex; align-items:center; gap:8px; }
+.chess-outcome-badge { flex:0 0 auto; padding:4px 10px; border-radius:999px; color:#fff; font-size:11px; font-weight:800; }
+.chess-outcome-win { background:var(--cc-green); }
+.chess-outcome-loss { background:var(--chess-danger); }
+.chess-outcome-draw { background:#8a8a8a; }
 .history-delete { width:30px; height:30px; border:0; border-radius:8px; color:#a4362f; background:#f8dedb; }
 .history-delete:hover { background:#f2c8c4; }
 
@@ -209,7 +199,7 @@ body.chess-page::before {
 .room-code:empty { display:none; }
 
 .chess-game-layout { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:18px; align-items:start; }
-.chess-board-area { position:relative; width:100%; padding:18px; border-radius:24px; background:rgba(255,253,246,.14); backdrop-filter:blur(2px); }
+.chess-board-area { position:relative; width:100%; max-width:600px; margin-inline:auto; padding:18px; border-radius:24px; background:rgba(255,253,246,.14); backdrop-filter:blur(2px); }
 
 /* 좌표 라벨 + 보드 */
 .cc-board-wrap { display:grid; grid-template-columns:auto minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto; gap:6px; }
