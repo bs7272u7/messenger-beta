@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=20260816">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180x180.png?v=20260816">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260816.8') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260816.9') }}">
 </head>
 <body class="chess-page">
     <main class="chess-lobby-shell" data-current-user-id="{{ session.get('user_id', '') }}">
@@ -22,9 +22,9 @@
                     <span class="cc-sr-only"><strong id="chess-my-info-name">내 정보</strong><small id="chess-my-info-record">전적을 불러오는 중…</small></span>
                     <span id="chess-my-info-rating" class="chess-my-info-rating cc-sr-only">400</span>
                 </button>
-                <button type="button" id="chess-rules-btn" class="chess-header-btn" title="규칙서" aria-label="규칙서"><i class="fa-solid fa-book-open"></i></button>
-                <button id="chess-friends-btn" type="button" class="chess-header-btn" title="동료 기사단" aria-label="동료 기사단"><i class="fa-solid fa-shield-halved"></i></button>
-                <button id="chess-inbox-btn" type="button" class="chess-header-btn" title="서찰함" aria-label="서찰함"><i class="fa-solid fa-scroll"></i><span id="chess-inbox-badge" class="chess-inbox-badge" hidden>0</span></button>
+                <button type="button" id="chess-rules-btn" class="chess-header-btn" title="체스 규칙" aria-label="체스 규칙"><i class="fa-solid fa-book-open"></i></button>
+                <button id="chess-friends-btn" type="button" class="chess-header-btn" title="친구 관리" aria-label="친구 관리"><i class="fa-solid fa-shield-halved"></i></button>
+                <button id="chess-inbox-btn" type="button" class="chess-header-btn" title="메시지함" aria-label="메시지함"><i class="fa-solid fa-scroll"></i><span id="chess-inbox-badge" class="chess-inbox-badge" hidden>0</span></button>
             </div>
         </header>
 
@@ -38,18 +38,18 @@
             <div class="cc-cta-row">
                 <button type="button" id="cc-create-game" class="cc-cta">
                     <i class="fa-solid fa-chess-board"></i>
-                    <span>체스판<br>펼치기</span>
+                    <span>방<br>만들기</span>
                 </button>
                 <button type="button" id="cc-join-game" class="cc-cta" aria-expanded="false" aria-controls="cc-join-panel">
                     <i class="fa-solid fa-key"></i>
-                    <span>성문<br>열기</span>
+                    <span>코드로<br>입장</span>
                 </button>
             </div>
 
             <div id="cc-join-panel" class="cc-join-panel" hidden>
-                <label for="cc-join-code-input">동료에게 받은 6자리 초대 코드를 입력하세요.</label>
+                <label for="cc-join-code-input">친구에게 받은 6자리 방 코드를 입력하세요.</label>
                 <div class="cc-join-row">
-                    <input id="cc-join-code-input" maxlength="6" placeholder="초대 코드" autocomplete="off">
+                    <input id="cc-join-code-input" maxlength="6" placeholder="방 코드" autocomplete="off">
                     <button type="button" id="cc-join-submit" class="chess-primary">입장</button>
                 </div>
             </div>
@@ -65,7 +65,7 @@
             </div>
         </section>
         <section class="chess-settings-card chess-history-card">
-            <div class="chess-history-heading"><h2><i class="fa-solid fa-book"></i> 지난 대국 기록</h2><button id="delete-all-chess-history" type="button" class="chess-history-clear">전체 삭제</button></div>
+            <div class="chess-history-heading"><h2><i class="fa-solid fa-book"></i> 최근 전적</h2><button id="delete-all-chess-history" type="button" class="chess-history-clear">전체 삭제</button></div>
             <div id="chess-history-list" class="chess-history-list">전적을 불러오는 중…</div>
         </section>
     </main>
@@ -75,15 +75,15 @@
     <div id="chess-friends-modal" class="game-result-modal" hidden>
         <div class="chess-social-modal-box">
             <button id="close-chess-friends" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
-            <h2><i class="fa-solid fa-shield-halved"></i> 동료 기사단</h2>
-            <p class="chess-social-hint">아이디로 동료를 찾아 맺고, 동료에게 바로 대국을 신청할 수 있어요. 채팅 화면의 친구 목록과 그대로 연결됩니다.</p>
-            <h3 class="chess-social-subheading"><i class="fa-solid fa-handshake"></i> 동료 맺기</h3>
+            <h2><i class="fa-solid fa-shield-halved"></i> 친구 관리</h2>
+            <p class="chess-social-hint">아이디로 친구를 찾아 추가하고, 친구에게 바로 대국을 신청할 수 있어요. 채팅 화면의 친구 목록과 그대로 연결됩니다.</p>
+            <h3 class="chess-social-subheading"><i class="fa-solid fa-handshake"></i> 친구 추가</h3>
             <div class="chess-friend-add">
                 <input type="text" id="chess-friend-search-input" placeholder="상대방 아이디 입력">
-                <button id="chess-friend-search-btn" type="button" aria-label="동료 찾기"><i class="fa-solid fa-magnifying-glass"></i></button>
+                <button id="chess-friend-search-btn" type="button" aria-label="친구 찾기"><i class="fa-solid fa-magnifying-glass"></i></button>
             </div>
             <div id="chess-friend-search-result" class="chess-friend-search-result"></div>
-            <h3 class="chess-social-subheading"><i class="fa-solid fa-users"></i> 동료 목록</h3>
+            <h3 class="chess-social-subheading"><i class="fa-solid fa-users"></i> 친구 목록</h3>
             <div id="chess-friend-list" class="chess-friend-list">불러오는 중…</div>
         </div>
     </div>
@@ -91,11 +91,11 @@
     <div id="chess-inbox-modal" class="game-result-modal" hidden>
         <div class="chess-social-modal-box">
             <button id="close-chess-inbox" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
-            <h2><i class="fa-solid fa-scroll"></i> 서찰함</h2>
-            <p class="chess-social-hint">대국 초대와 동료 요청이 여기로 도착합니다. 수락하면 바로 대국이 시작돼요.</p>
+            <h2><i class="fa-solid fa-scroll"></i> 메시지함</h2>
+            <p class="chess-social-hint">대국 초대와 친구 요청이 여기로 도착합니다. 수락하면 바로 대국이 시작돼요.</p>
             <div class="chess-inbox-tabs" role="tablist">
-                <button type="button" class="active" data-chess-inbox-tab="incoming">받은 서찰 <span id="chess-incoming-count">0</span></button>
-                <button type="button" data-chess-inbox-tab="outgoing">보낸 서찰 <span id="chess-outgoing-count">0</span></button>
+                <button type="button" class="active" data-chess-inbox-tab="incoming">받은 요청 <span id="chess-incoming-count">0</span></button>
+                <button type="button" data-chess-inbox-tab="outgoing">보낸 요청 <span id="chess-outgoing-count">0</span></button>
             </div>
             <div id="chess-inbox-incoming" class="chess-inbox-list"></div>
             <div id="chess-inbox-outgoing" class="chess-inbox-list" hidden></div>
@@ -106,7 +106,7 @@
     <div id="chess-rules-modal" class="game-result-modal" hidden>
         <div class="chess-social-modal-box cc-rules-box">
             <button id="close-chess-rules" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
-            <h2><i class="fa-solid fa-book-open"></i> 체스 규칙서</h2>
+            <h2><i class="fa-solid fa-book-open"></i> 체스 규칙</h2>
             <p class="chess-social-hint">체스가 처음이어도 괜찮아요. 아래 순서대로 읽으면 바로 한 판 둘 수 있습니다.</p>
             <div class="cc-rules-tabs" role="tablist">
                 <button type="button" class="active" data-rules-tab="pieces">기물 이동</button>
@@ -140,16 +140,16 @@
                     <li><span class="cc-piece-badge cc-badge-win">★</span><div><strong>체크메이트 (Checkmate)</strong><p>체크를 피할 방법이 전혀 없는 상태로, 그 즉시 게임이 끝나고 공격한 쪽이 승리합니다.</p></div></li>
                     <li><span class="cc-piece-badge">=</span><div><strong>스테일메이트 (Stalemate)</strong><p>체크는 아니지만 둘 수 있는 합법적인 수가 하나도 없는 상태로, 무승부입니다.</p></div></li>
                     <li><span class="cc-piece-badge">=</span><div><strong>그 밖의 무승부</strong><p>50수 동안 폰 이동과 기물 포획이 없거나, 같은 국면이 3번 반복되거나, 체크메이트가 불가능할 만큼 기물이 부족하거나, 양측이 무승부에 합의하면 무승부가 됩니다.</p></div></li>
-                    <li><span class="cc-piece-badge cc-badge-warn">⏻</span><div><strong>항복 · 시간 초과</strong><p>항복하면 상대가 승리합니다. 시간 제한을 건 대국에서 시간을 모두 쓰면 시간 초과로 패배합니다.</p></div></li>
+                    <li><span class="cc-piece-badge cc-badge-warn">⏻</span><div><strong>기권 · 시간 초과</strong><p>기권하면 상대가 승리합니다. 시간 제한을 건 대국에서 시간을 모두 쓰면 시간 초과로 패배합니다.</p></div></li>
                 </ul>
             </div>
 
             <div class="cc-rules-panel" data-rules-panel="howto" hidden>
                 <ol class="cc-rules-steps">
                     <li><strong>시간을 고릅니다.</strong> 로비의 “시간 설정”에서 무제한 또는 래피드·블리츠를 선택하세요.</li>
-                    <li><strong>체스판을 펼칩니다.</strong> “체스판 펼치기”를 누르면 대기방과 6자리 초대 코드가 만들어집니다.</li>
-                    <li><strong>동료를 초대합니다.</strong> 대국 화면의 “동료 초대” 또는 동료 기사단의 ♞ 버튼으로 초대를 보냅니다. 초대는 상대의 <em>서찰함</em>으로 도착합니다.</li>
-                    <li><strong>상대가 수락하면 시작.</strong> 초대받은 사람은 서찰함에서 수락/거절을 고르고, 수락하는 순간 대국이 시작됩니다. 코드를 받았다면 “성문 열기”로도 들어올 수 있어요.</li>
+                    <li><strong>방을 만듭니다.</strong> “방 만들기”를 누르면 대기방과 6자리 초대 코드가 만들어집니다.</li>
+                    <li><strong>친구를 초대합니다.</strong> 대국 화면의 “친구 초대” 또는 친구 관리의 ♞ 버튼으로 초대를 보냅니다. 초대는 상대의 <em>메시지함</em>으로 도착합니다.</li>
+                    <li><strong>상대가 수락하면 시작.</strong> 초대받은 사람은 메시지함에서 수락/거절을 고르고, 수락하는 순간 대국이 시작됩니다. 코드를 받았다면 “코드로 입장”으로도 들어올 수 있어요.</li>
                     <li><strong>흑백은 서버가 무작위로 정합니다.</strong> 다만 화면에서는 언제나 내 진영이 아래쪽에 보이도록 그려집니다.</li>
                 </ol>
                 <p class="cc-rules-note"><strong>레이팅 안내</strong> — 처음 시작하면 <strong>400점</strong>입니다. 온라인 대국이 끝날 때마다 ELO 방식으로 점수가 오르내리며, 강한 상대를 이길수록 더 많이 오릅니다. 전적을 삭제해도 레이팅은 유지됩니다.</p>
@@ -158,7 +158,7 @@
     </div>
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260816.8') }}"></script>
-    <script src="{{ url_for('static', filename='js/chess_social.js', v='20260816.8') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_lobby.js', v='20260816.9') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_social.js', v='20260816.9') }}"></script>
 </body>
 </html>

@@ -32,7 +32,7 @@
         try {
             const conversations = await api("/api/conversations");
             const friends = conversations.filter(item => !item.isGroup && item.peerId);
-            if (!friends.length) { friendList.innerHTML = "아직 동료가 없습니다. 위에서 아이디로 동료를 찾아보세요."; return; }
+            if (!friends.length) { friendList.innerHTML = "아직 친구가 없습니다. 위에서 아이디로 친구를 찾아보세요."; return; }
             friendList.innerHTML = "";
             friends.forEach(friend => {
                 const row = document.createElement("div");
@@ -46,7 +46,7 @@
                     <span class="chess-friend-status ${friend.isOnline ? "online" : ""}">${friend.isOnline ? "온라인" : "오프라인"}</span>
                     <div class="chess-friend-actions">
                         ${inviteIconHTML}
-                        <button type="button" class="chess-friend-icon-btn chess-friend-delete" title="동료 삭제" aria-label="${escapeHTML(friend.name)}님 동료 삭제"><i class="fa-solid fa-trash"></i></button>
+                        <button type="button" class="chess-friend-icon-btn chess-friend-delete" title="친구 삭제" aria-label="${escapeHTML(friend.name)}님 친구 삭제"><i class="fa-solid fa-trash"></i></button>
                     </div>`;
                 const inviteBtn = row.querySelector(".chess-friend-invite");
                 if (inviteBtn) inviteBtn.addEventListener("click", async () => {
@@ -57,7 +57,7 @@
                     } catch (error) { inviteBtn.disabled = false; alert(error.message); }
                 });
                 row.querySelector(".chess-friend-delete").addEventListener("click", async () => {
-                    if (!confirm(`"${friend.name}"님을 동료에서 삭제할까요?`)) return;
+                    if (!confirm(`"${friend.name}"님을 친구에서 삭제할까요?`)) return;
                     try { await api(`/api/conversations/${friend.id}/leave`, { method: "DELETE" }); loadFriendList(); } catch (error) { alert(error.message); }
                 });
                 friendList.appendChild(row);
@@ -76,7 +76,7 @@
                 <div class="chess-search-card">
                     <img src="${escapeHTML(user.profile_image || "/static/default_profile.png")}" alt="">
                     <span>${escapeHTML(user.display_name || user.username)}<small>@${escapeHTML(user.username)}</small></span>
-                    ${user.is_friend ? '<span class="chess-search-state">동료</span>' : '<button type="button" class="chess-search-add"><i class="fa-solid fa-handshake"></i> 동료 추가</button>'}
+                    ${user.is_friend ? '<span class="chess-search-state">친구</span>' : '<button type="button" class="chess-search-add"><i class="fa-solid fa-handshake"></i> 친구 추가</button>'}
                 </div>`;
             const addBtn = friendSearchResult.querySelector(".chess-search-add");
             if (addBtn) addBtn.addEventListener("click", async () => {
@@ -120,7 +120,7 @@
         incomingList.innerHTML = "불러오는 중…";
         outgoingList.innerHTML = "불러오는 중…";
         const data = await refreshInboxBadge();
-        if (!data) { incomingList.innerHTML = "서찰함을 불러오지 못했습니다."; return; }
+        if (!data) { incomingList.innerHTML = "메시지함을 불러오지 못했습니다."; return; }
         const incoming = data.requests.incoming || [];
         const outgoing = data.requests.outgoing || [];
         const chessInvites = data.invites.invites || [];
@@ -128,7 +128,7 @@
         outgoingCount.textContent = outgoing.length;
 
         incomingList.innerHTML = "";
-        if (!incoming.length && !chessInvites.length) incomingList.innerHTML = '<div class="chess-inbox-empty">받은 서찰이 없습니다.</div>';
+        if (!incoming.length && !chessInvites.length) incomingList.innerHTML = '<div class="chess-inbox-empty">받은 요청이 없습니다.</div>';
         chessInvites.forEach(invite => {
             const item = document.createElement("div");
             item.className = "chess-request-item";
@@ -150,7 +150,7 @@
             item.className = "chess-request-item";
             item.innerHTML = `
                 <img src="${escapeHTML(req.profile_image || "/static/default_profile.png")}" alt="">
-                <span><strong>${escapeHTML(req.display_name || req.username)}</strong><small>동료 요청을 보냈습니다.</small></span>
+                <span><strong>${escapeHTML(req.display_name || req.username)}</strong><small>친구 요청을 보냈습니다.</small></span>
                 <button type="button" class="chess-accept-icon" title="수락"><i class="fa-solid fa-check"></i></button>
                 <button type="button" class="chess-decline-icon" title="거절"><i class="fa-solid fa-xmark"></i></button>`;
             item.querySelector(".chess-accept-icon").addEventListener("click", async () => {
@@ -163,13 +163,13 @@
         });
 
         outgoingList.innerHTML = "";
-        if (!outgoing.length) outgoingList.innerHTML = '<div class="chess-inbox-empty">보낸 서찰이 없습니다.</div>';
+        if (!outgoing.length) outgoingList.innerHTML = '<div class="chess-inbox-empty">보낸 친구 요청이 없습니다.</div>';
         outgoing.forEach(req => {
             const item = document.createElement("div");
             item.className = "chess-request-item";
             item.innerHTML = `
                 <img src="${escapeHTML(req.profile_image || "/static/default_profile.png")}" alt="">
-                <span><strong>${escapeHTML(req.display_name || req.username)}</strong><small>동료 요청을 보냈습니다.</small></span>
+                <span><strong>${escapeHTML(req.display_name || req.username)}</strong><small>친구 요청을 보냈습니다.</small></span>
                 <button type="button" class="chess-cancel-request">요청 취소</button>`;
             item.querySelector(".chess-cancel-request").addEventListener("click", async () => {
                 try { await api(`/api/friend-requests/${req.id}`, { method: "DELETE" }); loadInbox(); } catch (error) { alert(error.message); }
