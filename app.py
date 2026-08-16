@@ -40,8 +40,17 @@ except ImportError:
     webpush = None
     WebPushException = Exception
 
+try:
+    import sentry_sdk
+except ImportError:
+    sentry_sdk = None
+
 load_dotenv()
 resend.api_key = os.environ.get("RESEND_API_KEY")
+
+# SENTRY_DSN이 설정된 경우에만 활성화된다. Flask 앱 생성보다 먼저 초기화해야 요청이 자동으로 계측된다.
+if sentry_sdk and os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], send_default_pii=True)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 요청 본문 최대 50MB

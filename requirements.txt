@@ -11,3 +11,4 @@ requests
 cloudinary
 pywebpush
 Pillow
+sentry-sdk[flask]
