@@ -69,8 +69,8 @@ body.chess-page {
     color:var(--chess-text);
     font-family:"Pretendard", Inter, system-ui, sans-serif;
     background:
-        linear-gradient(rgba(18,35,16,.16),rgba(12,24,12,.32)),
-        url("/static/images/chess-forest-castle-bg.png") center / cover fixed no-repeat,
+        linear-gradient(rgba(18,35,16,.08),rgba(12,24,12,.18)),
+        url("/static/images/chess-forest-castle-bg-morning.png") center / cover fixed no-repeat,
         linear-gradient(180deg,#3d6a30 0%,#6fae5e 42%,#356630 100%);
 }
 body.chess-page::before {
