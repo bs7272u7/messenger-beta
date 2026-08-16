@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180x180.png?v=20260816">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260816.7') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css', v='20260816.8') }}">
 </head>
 <body class="chess-page chess-game-page">
     <main class="chess-game-shell" data-game-id="{{ game_id }}" data-current-user-id="{{ session.get('user_id', '') }}">
@@ -47,13 +47,13 @@
                 </button>
                 <div id="black-captured" class="captured-pieces"></div>
 
-                <div class="side-title cc-moves-title"><span>기보</span></div>
+                <div class="side-title cc-moves-title"><span><i class="fa-solid fa-scroll"></i> 기보</span></div>
                 <ol id="move-history" class="move-history"></ol>
 
                 <div class="game-actions">
-                    <button id="invite-friend-btn" class="chess-secondary" type="button" hidden><i class="fa-solid fa-user-plus"></i> 친구 초대</button>
-                    <button id="draw-btn" class="chess-secondary">무승부 제안</button>
-                    <button id="resign-btn" class="danger-button">기권</button>
+                    <button id="invite-friend-btn" class="chess-secondary" type="button" hidden><i class="fa-solid fa-scroll"></i> 동료 초대</button>
+                    <button id="draw-btn" class="chess-secondary"><i class="fa-solid fa-dove"></i> 화친 제안</button>
+                    <button id="resign-btn" class="danger-button"><i class="fa-solid fa-flag"></i> 항복</button>
                 </div>
 
                 <div id="white-captured" class="captured-pieces"></div>
@@ -70,7 +70,7 @@
                 <section class="chess-game-chat">
                     <div class="side-title"><span>실시간 채팅</span></div>
                     <div id="chess-chat-list" class="chess-chat-list"></div>
-                    <form id="chess-chat-form"><input id="chess-chat-input" maxlength="200" placeholder="메시지 입력"><button class="chess-primary" aria-label="채팅 전송"><i class="fa-solid fa-paper-plane"></i></button></form>
+                    <form id="chess-chat-form"><input id="chess-chat-input" maxlength="200" placeholder="메시지 입력"><button class="chess-primary" aria-label="채팅 전송"><i class="fa-solid fa-feather"></i></button></form>
                     <div id="chess-emote-tray" class="chess-emote-tray"><button data-emote="respect" title="리스펙">👏</button><button data-emote="goodgame" title="좋은 경기">🤝</button><button data-emote="crown" title="잘했어요">👑</button><button data-emote="taunt" title="도발">😈</button><button data-emote="smirk" title="도발">😏</button><button data-emote="laugh" title="도발">😂</button></div>
                 </section>
             </aside>
@@ -80,11 +80,11 @@
     <!-- 레퍼런스 하단 중앙의 "SHUU'S TURN" 상태 알약 -->
     <div id="game-status" class="game-status">게임을 불러오는 중…</div>
 
-    <div id="game-result-modal" class="game-result-modal" hidden><div><i class="fa-solid fa-trophy"></i><h2 id="result-title">게임 종료</h2><p id="result-description"></p><div class="game-result-actions"><a class="chess-secondary" href="/chess">로비로 돌아가기</a><a class="chess-primary" href="/chess">다시 플레이</a><button id="result-delete-history" class="danger-button" type="button"><i class="fa-solid fa-trash"></i> 전적 삭제</button></div></div></div>
-    <div id="chess-invite-modal" class="game-result-modal" hidden><div class="chess-invite-modal-box"><button id="close-chess-invite" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button><i class="fa-solid fa-chess-knight"></i><h2>친구 초대</h2><p>초대는 상대의 메시지함으로 전달됩니다.</p><div id="chess-invite-friends" class="chess-invite-friends">친구 목록을 불러오는 중…</div></div></div>
+    <div id="game-result-modal" class="game-result-modal" hidden><div><i class="fa-solid fa-trophy"></i><h2 id="result-title">게임 종료</h2><p id="result-description"></p><div class="game-result-actions"><a class="chess-secondary" href="/chess"><i class="fa-solid fa-house-chimney"></i> 로비로 돌아가기</a><a class="chess-primary" href="/chess"><i class="fa-solid fa-chess-board"></i> 다시 플레이</a><button id="result-delete-history" class="danger-button" type="button"><i class="fa-solid fa-trash"></i> 전적 삭제</button></div></div></div>
+    <div id="chess-invite-modal" class="game-result-modal" hidden><div class="chess-invite-modal-box"><button id="close-chess-invite" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button><i class="fa-solid fa-chess-knight"></i><h2>동료 초대</h2><p>초대는 상대의 서찰함으로 전달됩니다.</p><div id="chess-invite-friends" class="chess-invite-friends">동료 목록을 불러오는 중…</div></div></div>
     <div id="chess-player-modal" class="game-result-modal" hidden><div class="chess-player-modal-box"><button id="close-chess-player" class="chess-modal-close" type="button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button><img id="chess-player-avatar" src="/static/default_profile.png" alt=""><h2 id="chess-player-name">플레이어</h2><p id="chess-player-username"></p><div class="chess-player-stats"><span>레이팅 <strong id="chess-player-rating">400</strong></span><span>전적 <strong id="chess-player-record">0승 0무 0패</strong></span></div></div></div>
     <div id="chess-emote-pop" class="chess-emote-pop" hidden></div>
 
-    <script src="{{ url_for('static', filename='js/chess_game.js', v='20260816.7') }}"></script>
+    <script src="{{ url_for('static', filename='js/chess_game.js', v='20260816.8') }}"></script>
 </body>
 </html>

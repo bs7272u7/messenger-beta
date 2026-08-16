@@ -82,7 +82,7 @@
         const deleteAllButton = document.querySelector("#delete-all-chess-history");
         if (!response.ok || !games.length) { list.textContent = "아직 완료한 체스 게임이 없습니다."; deleteAllButton.hidden = true; return; }
         deleteAllButton.hidden = false;
-        const resultText = {checkmate:"체크메이트", stalemate:"스테일메이트", draw_50_move:"50수 무승부", draw_threefold:"3회 반복", draw_insufficient_material:"기물 부족 무승부", draw_agreed:"합의 무승부", resignation:"기권", timeout:"시간 초과", disconnect:"연결 끊김"};
+        const resultText = {checkmate:"체크메이트", stalemate:"스테일메이트", draw_50_move:"50수 무승부", draw_threefold:"3회 반복", draw_insufficient_material:"기물 부족 무승부", draw_agreed:"합의 무승부", resignation:"항복", timeout:"시간 초과", disconnect:"연결 끊김"};
         list.innerHTML = games.map(game => {
             const winner = game.result?.winner;
             const outcome = !winner ? "draw" : winner === game.myColor ? "win" : "loss";

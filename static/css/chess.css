@@ -167,6 +167,12 @@ body.chess-page::before {
 .danger-button:hover { filter:brightness(1.06); transform:translateY(-2px); }
 .danger-button:active { transform:translateY(2px); box-shadow:0 1px 0 #93302b; }
 
+/* 목수가 깎아 만든 나무 팻말 느낌의 결 무늬 — 크림 테두리 버튼 위에 아주 옅게 얹는다. */
+.chess-primary,.chess-secondary,.danger-button,.cc-cta,.chess-header-btn,.chess-search-add,.chess-friend-add button {
+    background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.07) 0 2px, rgba(0,0,0,.05) 2px 4px);
+    background-blend-mode: overlay;
+}
+
 /* ======================================================
  * 카드
  * ====================================================== */
@@ -346,7 +352,7 @@ body.chess-page::before {
 .chess-search-card img,.chess-friend-row img,.chess-request-item img { width:36px; height:36px; border-radius:50%; object-fit:cover; }
 .chess-search-card span { flex:1; display:block; font-weight:700; }
 .chess-search-card small { display:block; margin-top:2px; color:var(--chess-muted); font-weight:500; }
-.chess-search-add,.chess-search-state { flex:0 0 auto; padding:8px 12px; border-radius:10px; font-size:12px; font-weight:800; }
+.chess-search-add,.chess-search-state { display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; padding:8px 12px; border-radius:10px; font-size:12px; font-weight:800; }
 .chess-search-add { border:3px solid var(--cc-cream); color:#fff; background:var(--cc-green); box-shadow:0 3px 0 var(--cc-green-deep); cursor:pointer; }
 .chess-search-state { border:2px solid #a9d3b7; color:var(--cc-green-deep); background:#eaf6ee; }
 

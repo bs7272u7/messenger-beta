@@ -129,7 +129,7 @@
         const myTurn = game.turn === game.myColor;
         const status =
             game.status === "waiting"
-                ? "친구를 초대하거나 초대 코드를 알려주세요"
+                ? "동료를 초대하거나 성문 코드를 알려주세요"
                 : game.status === "active"
                     ? `${myTurn ? "내" : `${opponent.name}님`} 차례${game.check ? " · 체크!" : ""}`
                     : "게임 종료";
@@ -140,9 +140,9 @@
         const drawOfferedByOpponent = Boolean(game.drawOfferedBy) && !drawOfferedByMe;
         drawBtn.hidden = game.mode !== "online" || game.status !== "active";
         drawBtn.classList.toggle("draw-offered", drawOfferedByOpponent);
-        drawBtn.textContent = drawOfferedByOpponent ? "무승부 수락" : drawOfferedByMe ? "무승부 제안 취소" : "무승부 제안";
-        if (drawOfferedByOpponent) document.querySelector("#game-status").textContent = "상대가 무승부를 제안했습니다.";
-        else if (drawOfferedByMe) document.querySelector("#game-status").textContent = "무승부를 제안했습니다. 상대의 응답을 기다리는 중…";
+        drawBtn.innerHTML = `<i class="fa-solid fa-dove"></i> ${drawOfferedByOpponent ? "화친 수락" : drawOfferedByMe ? "화친 제안 취소" : "화친 제안"}`;
+        if (drawOfferedByOpponent) document.querySelector("#game-status").textContent = "상대가 화친을 제안했습니다.";
+        else if (drawOfferedByMe) document.querySelector("#game-status").textContent = "화친을 제안했습니다. 상대의 응답을 기다리는 중…";
         // 레퍼런스처럼 한 행에 [수 번호][백의 수][흑의 수]를 나란히 배치한다.
         const history = document.querySelector("#move-history"); history.innerHTML = "";
         const moves = game.moves || [];
@@ -176,7 +176,7 @@
     }
     function appendChat(message) { const messages = [...(game.chatMessages || []), message]; game.chatMessages = messages.slice(-40); renderChat(game.chatMessages); }
     function showResult(result) {
-        const names = { checkmate:"체크메이트", stalemate:"스테일메이트", draw_50_move:"50수 무승부", draw_threefold:"동일 국면 3회 반복", draw_insufficient_material:"기물 부족 무승부", draw_agreed:"합의 무승부", resignation:"기권", timeout:"시간 초과", disconnect:"연결 끊김" };
+        const names = { checkmate:"체크메이트", stalemate:"스테일메이트", draw_50_move:"50수 무승부", draw_threefold:"동일 국면 3회 반복", draw_insufficient_material:"기물 부족 무승부", draw_agreed:"합의 무승부", resignation:"항복", timeout:"시간 초과", disconnect:"연결 끊김" };
         const winner = result.winner === "w" ? game.white.name : result.winner === "b" ? game.black.name : null;
         document.querySelector("#result-title").textContent = names[result.status] || "게임 종료";
         const changes = result.ratingChanges; const changeText = changes && game.mode === "online" ? ` 레이팅 ${game.myColor === "w" ? (changes.white >= 0 ? "+" : "") + changes.white : (changes.black >= 0 ? "+" : "") + changes.black}` : "";
@@ -213,20 +213,20 @@
     document.querySelector("#close-chess-invite").addEventListener("click", closeInviteModal);
     document.querySelector("#invite-friend-btn").addEventListener("click", async () => {
         inviteModal.hidden = false;
-        inviteFriends.textContent = "친구 목록을 불러오는 중…";
+        inviteFriends.textContent = "동료 목록을 불러오는 중…";
         try {
             const response = await fetch(`/api/chess/games/${gameId}/inviteable-friends`);
             const contentType = response.headers.get("content-type") || "";
             const data = contentType.includes("application/json") ? await response.json() : {success:false, error:"초대 목록을 불러오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해주세요."};
-            if (!response.ok || !data.success) throw new Error(data.error || "친구 목록을 불러오지 못했습니다.");
+            if (!response.ok || !data.success) throw new Error(data.error || "동료 목록을 불러오지 못했습니다.");
             inviteFriends.innerHTML = "";
-            if (!data.friends.length) { inviteFriends.textContent = "초대할 친구가 없습니다."; return; }
+            if (!data.friends.length) { inviteFriends.textContent = "초대할 동료가 없습니다."; return; }
             data.friends.forEach(friend => {
                 const button = document.createElement("button"); button.type = "button"; button.className = "chess-invite-friend";
                 const image = document.createElement("img"), label = document.createElement("span"), username = document.createElement("small"), icon = document.createElement("i");
                 image.src = friend.profile_image || "/static/default_profile.png"; image.alt = "";
                 label.append(document.createTextNode(friend.display_name || friend.username)); username.textContent = `@${friend.username}`; label.appendChild(username);
-                icon.className = "fa-solid fa-paper-plane"; button.append(image, label, icon);
+                icon.className = "fa-solid fa-scroll"; button.append(image, label, icon);
                 button.addEventListener("click", async () => {
                     button.disabled = true;
                     const response = await fetch(`/api/chess/games/${gameId}/invites`, {method:"POST", headers:{"Content-Type":"application/json", "X-CSRF-Token":csrf}, body:JSON.stringify({userId:friend.id})});
@@ -273,12 +273,12 @@
         } catch (error) { alert(error.message); }
     }));
     document.querySelector("#flip-board").addEventListener("click", () => { flipped = !flipped; renderBoard(); });
-    document.querySelector("#resign-btn").addEventListener("click", async () => { if (!confirm("정말 기권할까요?")) return; const response = await fetch(`/api/chess/games/${gameId}/resign`, {method:"POST", headers:{"X-CSRF-Token":csrf}}); const data = await response.json(); if (data.success) applyState(data.game); else alert(data.error); });
+    document.querySelector("#resign-btn").addEventListener("click", async () => { if (!confirm("정말 항복하시겠습니까?")) return; const response = await fetch(`/api/chess/games/${gameId}/resign`, {method:"POST", headers:{"X-CSRF-Token":csrf}}); const data = await response.json(); if (data.success) applyState(data.game); else alert(data.error); });
     const drawBtn = document.querySelector("#draw-btn");
     drawBtn.addEventListener("click", async () => {
         const offeredByMe = game?.drawOfferedBy === currentUserId;
         const method = offeredByMe ? "DELETE" : "POST";
-        if (method === "POST" && !game?.drawOfferedBy && !confirm("무승부를 제안할까요?")) return;
+        if (method === "POST" && !game?.drawOfferedBy && !confirm("화친을 제안할까요?")) return;
         drawBtn.disabled = true;
         try {
             const response = await fetch(`/api/chess/games/${gameId}/draw`, {method, headers:{"X-CSRF-Token":csrf}});
