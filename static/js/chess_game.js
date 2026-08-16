@@ -301,7 +301,7 @@
     });
     document.querySelector("#chess-chat-form").addEventListener("submit", event => { event.preventDefault(); const input = document.querySelector("#chess-chat-input"), text = input.value.trim(); if (text && socket) { socket.emit("chat:message", {gameId, text}); input.value = ""; } });
     document.querySelectorAll("#chess-emote-tray [data-emote]").forEach(button => button.addEventListener("click", () => { prepareChessAudio(); socket?.emit("emote:send", {gameId, emote:button.dataset.emote}); }));
-    function showEmote(data) { const pop = document.querySelector("#chess-emote-pop"); pop.textContent = `${data.emoji} ${data.sender} · ${data.label}`; pop.hidden = false; clearTimeout(showEmote.timer); showEmote.timer = setTimeout(() => pop.hidden = true, 2400); prepareChessAudio(); if (chessAudioContext) playChessMoveSound(); }
+    function showEmote(data) { const pop = document.querySelector("#chess-emote-pop"); pop.textContent = data.emoji; pop.hidden = false; clearTimeout(showEmote.timer); showEmote.timer = setTimeout(() => pop.hidden = true, 2400); prepareChessAudio(); if (chessAudioContext) playChessMoveSound(); }
     if (socket) { socket.emit("room:join", {gameId}); socket.emit("game:reconnect", {gameId}); socket.on("game:state_update", applyState); socket.on("game:start", applyState); socket.on("game:timeout", loadState); socket.on("game:error", data => alert(data.error || "게임 처리 중 오류가 발생했습니다.")); socket.on("chat:message", appendChat); socket.on("emote:receive", showEmote); }
     setInterval(() => { if (game?.status === "active") { renderMeta(); } }, 500);
     setInterval(() => { if (game?.status === "active") loadState(); }, 5000);

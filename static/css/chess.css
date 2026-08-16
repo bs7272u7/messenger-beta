@@ -321,7 +321,7 @@ body.chess-page::before {
 .chess-emote-tray button { width:32px; height:32px; border:2px solid var(--chess-line); border-radius:var(--r-sm); background:var(--chess-card-soft); font-size:16px; box-shadow:0 2px 0 var(--chess-line); }
 .chess-emote-tray button:hover { background:#fff; transform:translateY(-1px); box-shadow:0 3px 0 var(--chess-line); }
 .chess-emote-tray button:active { transform:translateY(1px); box-shadow:0 1px 0 var(--chess-line); }
-.chess-emote-pop { position:fixed; z-index:12; top:82px; left:50%; transform:translateX(-50%); padding:12px 18px; border:3px solid var(--btn-brass); border-radius:var(--r-md); color:#43310a; background:#fcefb4; box-shadow:0 12px 28px rgba(20,15,10,.5); font-weight:900; animation:chess-emote-pop .25s ease-out; }
+.chess-emote-pop { position:fixed; z-index:12; top:82px; left:50%; transform:translateX(-50%); padding:10px 20px; border:3px solid var(--btn-brass); border-radius:var(--r-md); color:#43310a; background:#fcefb4; box-shadow:0 12px 28px rgba(20,15,10,.5); font-weight:900; font-size:32px; line-height:1; animation:chess-emote-pop .25s ease-out; }
 @keyframes chess-emote-pop { from { opacity:0; transform:translate(-50%,-10px) scale(.9); } to { opacity:1; transform:translate(-50%,0) scale(1); } }
 
 /* ======================================================
