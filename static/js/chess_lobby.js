@@ -1,6 +1,7 @@
 (function () {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
     const selectedTime = () => document.querySelector('input[name="timeControl"]:checked').value;
+    const selectedColor = () => document.querySelector('input[name="chessColor"]:checked').value;
 
     /* ======================================================
      * 방 만들기 / 코드로 입장
@@ -17,7 +18,7 @@
             const response = await fetch("/api/chess/games", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-                body: JSON.stringify({ mode: "online", timeControl: selectedTime() })
+                body: JSON.stringify({ mode: "online", timeControl: selectedTime(), color: selectedColor() })
             });
             const data = await response.json();
             if (!response.ok || !data.success) throw new Error(data.error || "게임 생성에 실패했습니다.");

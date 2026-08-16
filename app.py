@@ -3916,21 +3916,26 @@ def chess_room_code(conn):
             return code
 
 
-def create_chess_game(conn, user_id, mode, time_control="unlimited", difficulty="medium"):
+def create_chess_game(conn, user_id, mode, time_control="unlimited", difficulty="medium", color="w"):
     if mode != "online":
         raise ValueError("온라인 대전만 지원합니다.")
     if time_control not in CHESS_TIME_CONTROLS:
         time_control = "unlimited"
+    if color not in ("w", "b"):
+        color = "w"
     game_id, room_code = str(uuid.uuid4()), chess_room_code(conn)
     clock = CHESS_TIME_CONTROLS[time_control]
     status = "waiting" if mode == "online" else "active"
+    # 방장이 미리 고른 색으로 자기 자리를 채우고, 반대쪽 자리는 입장할 상대를 위해 비워둔다.
+    white_id = user_id if (mode == "local" or color == "w") else None
+    black_id = user_id if (mode == "local" or color == "b") else None
     conn.execute("""
         INSERT INTO chess_games (
             id, room_code, white_player_id, black_player_id, mode, ai_difficulty, fen, status, time_control,
             white_remaining_ms, black_remaining_ms, turn_started_ms, created_at, updated_at
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
-        game_id, room_code, user_id, user_id if mode == "local" else None, mode,
+        game_id, room_code, white_id, black_id, mode,
         difficulty if mode == "ai" else None, STARTING_FEN, status, time_control, clock, clock,
         current_message_timestamp_ms() if status == "active" else None, now_str(), now_str(),
     ))
@@ -4117,13 +4122,13 @@ def schedule_chess_ai_reply(game_id):
 
 
 def activate_chess_game(conn, game, joining_user_id):
-    """대기 중인 온라인 방에 두 번째 사용자를 넣고 색상은 서버에서 무작위로 정한다."""
+    """대기 중인 온라인 방에 두 번째 사용자를 넣는다. 방장이 미리 고른 색의 반대쪽 자리를 받는다."""
     if game["mode"] != "online" or game["status"] != "waiting":
         raise ValueError("입장할 수 있는 대기 방이 아닙니다.")
-    if game["white_player_id"] == joining_user_id:
+    if joining_user_id in {game["white_player_id"], game["black_player_id"]}:
         raise ValueError("만든 방에는 다른 계정으로 입장해 주세요.")
-    owner_id = game["white_player_id"]
-    white_id, black_id = (owner_id, joining_user_id) if secrets.randbelow(2) == 0 else (joining_user_id, owner_id)
+    white_id = joining_user_id if game["white_player_id"] is None else game["white_player_id"]
+    black_id = joining_user_id if game["black_player_id"] is None else game["black_player_id"]
     conn.execute("""
         UPDATE chess_games SET white_player_id = %s, black_player_id = %s, status = 'active',
             turn_started_ms = %s, disconnected_user_id = NULL, disconnect_deadline_ms = NULL, updated_at = %s WHERE id = %s
@@ -4207,7 +4212,7 @@ def chess_invitable_friends(conn, user_id):
 def chess_invitable_friends_api(game_id):
     with get_db() as conn:
         game = chess_game_or_404(conn, game_id)
-        if game["mode"] != "online" or game["status"] != "waiting" or game["white_player_id"] != session["user_id"]:
+        if game["mode"] != "online" or game["status"] != "waiting" or session["user_id"] not in {game["white_player_id"], game["black_player_id"]}:
             return jsonify({"success": False, "error": "대기 중인 온라인 방장만 친구를 초대할 수 있습니다."}), 403
         friends = chess_invitable_friends(conn, session["user_id"])
     return jsonify({"success": True, "friends": [dict(friend) for friend in friends]})
@@ -4224,7 +4229,7 @@ def chess_send_invite_api(game_id):
     with get_db() as conn:
         game = chess_game_or_404(conn, game_id)
         user_id = session["user_id"]
-        if game["mode"] != "online" or game["status"] != "waiting" or game["white_player_id"] != user_id:
+        if game["mode"] != "online" or game["status"] != "waiting" or user_id not in {game["white_player_id"], game["black_player_id"]}:
             return jsonify({"success": False, "error": "대기 중인 온라인 방장만 친구를 초대할 수 있습니다."}), 403
         friends = {friend["id"]: friend for friend in chess_invitable_friends(conn, user_id)}
         if invitee_id not in friends:
@@ -4349,7 +4354,7 @@ def chess_send_friend_request_api(player_id):
 def chess_create_game_api():
     data = request.get_json() or {}
     with get_db() as conn:
-        game = create_chess_game(conn, session["user_id"], data.get("mode", "online"), data.get("timeControl", "unlimited"), data.get("difficulty", "medium"))
+        game = create_chess_game(conn, session["user_id"], data.get("mode", "online"), data.get("timeControl", "unlimited"), data.get("difficulty", "medium"), data.get("color", "w"))
         state = chess_game_state(conn, game, session["user_id"])
         conn.commit()
     return jsonify({"success": True, "game": state})

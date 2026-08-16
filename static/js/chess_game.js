@@ -20,8 +20,8 @@
     function viewFlipped() { return Boolean(game?.myColor === "b") !== flipped; }
     function viewPiece(piece) {
         const type = piece.toLowerCase();
-        const own = isMine(piece);
-        const glyphs = own
+        const isWhite = piece === piece.toUpperCase();
+        const glyphs = isWhite
             ? {p:"♙", n:"♘", b:"♗", r:"♖", q:"♕", k:"♔"}
             : {p:"♟", n:"♞", b:"♝", r:"♜", q:"♛", k:"♚"};
         return glyphs[type];
@@ -55,7 +55,7 @@
             if (selectedTargets.includes(square)) button.classList.add("legal");
             if (lastMove && (lastMove.from === square || lastMove.to === square)) button.classList.add("last-move");
             if (game.check && piece && piece.toLowerCase() === "k" && (piece === "K" ? "w" : "b") === game.turn) button.classList.add("checked");
-            if (piece) button.innerHTML = `<span class="chess-piece ${isMine(piece) ? "white" : "black"}">${viewPiece(piece)}</span>`;
+            if (piece) button.innerHTML = `<span class="chess-piece ${piece === piece.toUpperCase() ? "white" : "black"}">${viewPiece(piece)}</span>`;
             button.addEventListener("click", () => selectSquare(square));
             button.addEventListener("dragstart", event => { if (!isMyTurn()) return event.preventDefault(); event.dataTransfer.setData("text/plain", square); });
             button.addEventListener("dragover", event => event.preventDefault());
@@ -103,7 +103,7 @@
         current = Math.max(0, current); return `${Math.floor(current / 60000)}:${String(Math.floor(current / 1000) % 60).padStart(2,"0")}`;
     }
     function renderMeta() {
-        // 실제 서버 색상과 화면 색상을 분리한다. 양쪽 모두 자신의 진영을 백/하단으로 본다.
+        // 카드 위치(하단=나, 상단=상대)만 고정한다. 기물 색상은 실제 흑/백을 그대로 보여준다.
         const mine = game.mode === "local" || game.myColor !== "b" ? game.white : game.black;
         const opponent = game.mode === "local" || game.myColor !== "b" ? game.black : game.white;
         const mineColor = game.mode === "local" || game.myColor !== "b" ? "w" : "b";
@@ -123,7 +123,7 @@
         document.querySelector("#white-captured").textContent = (game.captured?.[opponentColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
         document.querySelector("#black-captured").textContent = (game.captured?.[mineColor === "w" ? "white" : "black"] || []).map(piece => viewPiece(piece)).join(" ");
         document.querySelector("#room-code").textContent = game.status === "waiting" ? `초대 코드 ${game.roomCode}` : "";
-        document.querySelector("#invite-friend-btn").hidden = !(game.status === "waiting" && game.myColor === "w");
+        document.querySelector("#invite-friend-btn").hidden = game.status !== "waiting";
 
         // 하단 중앙 상태 알약: 누구 차례인지를 이름으로 알려준다.
         const myTurn = game.turn === game.myColor;
