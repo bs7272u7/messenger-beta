@@ -4683,8 +4683,8 @@ def chess_socket_emote(data):
     if "user_id" not in session:
         return
     emote = (data or {}).get("emote")
-    labels = {"respect": "리스펙", "goodgame": "좋은 경기", "crown": "잘했어요", "taunt": "도발", "smirk": "도발", "laugh": "도발"}
-    emojis = {"respect": "👏", "goodgame": "🤝", "crown": "👑", "taunt": "😈", "smirk": "😏", "laugh": "😂"}
+    labels = {"respect": "리스펙", "goodgame": "좋은 경기", "crown": "잘했어요", "taunt": "도발", "smirk": "도발", "laugh": "도발", "cry": "눈물"}
+    emojis = {"respect": "👏", "goodgame": "🤝", "crown": "👑", "taunt": "😈", "smirk": "😏", "laugh": "😂", "cry": "😭"}
     if emote not in emojis:
         return
     with get_db() as conn:
