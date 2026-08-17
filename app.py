@@ -3095,10 +3095,9 @@ def send_video(conversation_id):
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
             return jsonify({"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}), 403
 
-        ext = video_file.filename.rsplit(".", 1)[1].lower()
-        filename = f"{uuid.uuid4().hex}.{ext}"
-        video_file.save(os.path.join(UPLOAD_DIR, filename))
-        video_path = f"/static/uploads/{filename}"
+        video_path, _ = save_uploaded_file(video_file, "videos")
+        if not video_path:
+            return jsonify({"success": False, "error": "동영상 저장에 실패했습니다."}), 500
 
         sent_at = current_message_timestamp_ms()
         time_label, date_label = legacy_message_labels(sent_at)
