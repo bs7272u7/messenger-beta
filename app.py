@@ -451,12 +451,12 @@ DB_KEEPALIVE_KWARGS = dict(
 try:
     if DATABASE_URL:
         db_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=1, maxconn=20, dsn=DATABASE_URL, sslmode=DB_SSLMODE,
+            minconn=1, maxconn=25, dsn=DATABASE_URL, sslmode=DB_SSLMODE,
             **DB_KEEPALIVE_KWARGS
         )
     else:
         db_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=1, maxconn=20, host=DB_HOST, user=DB_USER,
+            minconn=1, maxconn=25, host=DB_HOST, user=DB_USER,
             password=DB_PASSWORD, dbname=DB_NAME, port=DB_PORT, sslmode=DB_SSLMODE,
             **DB_KEEPALIVE_KWARGS
         )
