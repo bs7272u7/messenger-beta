@@ -446,15 +446,21 @@ DB_SSLMODE = os.environ.get("DB_SSLMODE", "require" if DATABASE_URL else "prefer
 # ----------------------------------------------------------------
 # Database Connection Pool 초기화
 # ----------------------------------------------------------------
+DB_KEEPALIVE_KWARGS = dict(
+    keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=5
+)
+
 try:
     if DATABASE_URL:
         db_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=1, maxconn=20, dsn=DATABASE_URL, sslmode=DB_SSLMODE
+            minconn=1, maxconn=20, dsn=DATABASE_URL, sslmode=DB_SSLMODE,
+            **DB_KEEPALIVE_KWARGS
         )
     else:
         db_pool = psycopg2.pool.ThreadedConnectionPool(
             minconn=1, maxconn=20, host=DB_HOST, user=DB_USER,
-            password=DB_PASSWORD, dbname=DB_NAME, port=DB_PORT, sslmode=DB_SSLMODE
+            password=DB_PASSWORD, dbname=DB_NAME, port=DB_PORT, sslmode=DB_SSLMODE,
+            **DB_KEEPALIVE_KWARGS
         )
 except Exception as e:
     app.logger.error(f"DB Connection Pool 초기화 실패: {e}")
@@ -488,11 +494,15 @@ class PGConn:
     def commit(self):
         self.raw_conn.commit()
 
-    def close(self):
-        self._cursor.close()
-        # 커넥션을 닫지 않고 풀(Pool)에 반납합니다.
+    def close(self, discard=False):
+        try:
+            self._cursor.close()
+        except Exception:
+            pass
+        # 커넥션을 닫지 않고 풀(Pool)에 반납합니다. 단, 손상된 커넥션(discard=True)은
+        # 풀에 되돌리지 않고 폐기합니다 - 그대로 반납하면 다음 요청이 같은 SSL 오류를 다시 겪습니다.
         if self.pool_obj:
-            self.pool_obj.putconn(self.raw_conn)
+            self.pool_obj.putconn(self.raw_conn, close=discard)
         else:
             self.raw_conn.close()
 
@@ -500,12 +510,15 @@ class PGConn:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        discard = False
         if exc_type:
             try:
                 self.raw_conn.rollback()
             except Exception:
-                pass
-        self.close()
+                discard = True
+        if isinstance(exc_val, psycopg2.OperationalError):
+            discard = True
+        self.close(discard=discard)
 
 
 def get_db():
