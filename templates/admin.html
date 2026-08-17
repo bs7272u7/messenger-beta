@@ -9,75 +9,202 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon-16x16.png', v='20260814') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
-        :root { color-scheme: dark; }
+        :root {
+            color-scheme: dark;
+            --bg: #12151c;
+            --panel: #1b212c;
+            --panel-2: #212836;
+            --item: #252d3c;
+            --item-hover: #2c3546;
+            --border: #313c50;
+            --border-soft: #262e3e;
+            --text: #f2f4fa;
+            --text-dim: #c1cae0;
+            --text-mute: #93a0bb;
+            --accent: #529bff;
+            --accent-strong: #6facff;
+            --accent-soft: rgba(82, 155, 255, .14);
+            --danger: #ff8f97;
+            --danger-bg: #3d2730;
+            --danger-border: #6b3742;
+            --success: #6fe3a8;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+        }
         * { box-sizing: border-box; }
         body {
             min-height: 100vh;
             margin: 0;
-            color: #e9edf7;
+            color: var(--text);
             font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: radial-gradient(circle at 12% 0%, #2c3f68 0, transparent 35%), #141820;
+            background: radial-gradient(circle at 10% -10%, #26355a 0, transparent 38%), var(--bg);
+            font-size: 15px;
+            line-height: 1.5;
         }
-        .admin-shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 26px 0 56px; }
-        .admin-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 22px; padding:22px 24px; border:1px solid #2d3950; border-radius:16px; background:linear-gradient(110deg,rgba(31,42,62,.96),rgba(23,30,43,.96)); box-shadow:0 14px 32px rgba(0,0,0,.16); }
-        .eyebrow { margin: 0 0 8px; color: #86aaf8; font-size: 13px; font-weight: 700; letter-spacing: .05em; }
-        h1 { margin: 0; font-size: clamp(27px, 4vw, 38px); letter-spacing: -.04em; }
-        .subtitle { margin: 11px 0 0; color: #aab4c8; font-size: 15px; }
+        ::selection { background: var(--accent-soft); }
+        .admin-shell { width: min(1240px, calc(100% - 40px)); margin: 0 auto; padding: 26px 0 64px; }
+
+        /* 헤더 */
+        .admin-header {
+            display: flex; align-items: center; justify-content: space-between; gap: 18px;
+            margin-bottom: 18px; padding: 20px 24px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+            background: linear-gradient(110deg, rgba(33, 44, 68, .95), rgba(23, 29, 42, .95));
+            box-shadow: 0 14px 32px rgba(0, 0, 0, .22);
+        }
+        .eyebrow { margin: 0 0 6px; color: var(--accent-strong); font-size: 12.5px; font-weight: 700; letter-spacing: .08em; }
+        h1 { margin: 0; font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -.03em; }
+        .subtitle { margin: 8px 0 0; color: var(--text-mute); font-size: 14px; }
         .back-link {
             display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
-            padding: 11px 15px; border: 1px solid #3a465d; border-radius: 10px;
-            color: #e9edf7; text-decoration: none; font-weight: 700; background: #1c2330;
+            padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            color: var(--text); text-decoration: none; font-weight: 700; font-size: 13.5px; background: var(--panel-2);
+            transition: background .15s;
         }
-        .back-link:hover { background: #253047; }
-        .admin-actions { display:grid; justify-items:end; gap:10px; }
-        .console-status { display:inline-flex; align-items:center; gap:7px; padding:7px 10px; border:1px solid #2f5b4c; border-radius:999px; background:rgba(56,139,104,.12); color:#a9e6c8; font-size:12px; font-weight:700; }
-        .console-status i { color:#63d69a; font-size:9px; }
-        .notice { display: flex; gap: 13px; align-items: flex-start; padding: 17px 18px; margin-bottom: 22px; border: 1px solid #2d5aa4; border-radius: 12px; background: #172946; color: #cbdcff; }
-        .notice i { margin-top: 2px; color: #70a5ff; }
-        .notice strong { display: block; margin-bottom: 4px; color: #f3f7ff; }
-        .notice p { margin: 0; font-size: 14px; line-height: 1.55; }
-        .dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-        .card { min-height: 188px; padding: 23px; border: 1px solid #2d3648; border-radius: 14px; background: linear-gradient(145deg, #202838, #1a202c); box-shadow: 0 12px 28px rgba(0,0,0,.17); }
-        .card-icon { display: grid; width: 42px; height: 42px; place-items: center; margin-bottom: 20px; border-radius: 11px; background: #293b5c; color: #89b0ff; font-size: 18px; }
-        .card h2 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.02em; }
-        .card p { margin: 0; color: #aeb8ca; font-size: 14px; line-height: 1.55; }
-        .status { display: inline-block; margin-top: 18px; color: #7d95c2; font-size: 12px; font-weight: 700; }
-        .admin-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .85fr); gap: 16px; margin-top: 16px; }
-        .admin-panel { padding: 22px; border: 1px solid #2d3648; border-radius: 14px; background: #1a202c; }
-        .admin-panel { position:relative; overflow:hidden; }
-        .admin-panel::before { content:""; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,#397ef0,transparent 72%); opacity:.7; }
-        .admin-panel h2 { margin: 0 0 16px; font-size: 18px; }
-        .admin-panel-hint { margin: -10px 0 14px; color: #8a97b0; font-size: 12px; line-height: 1.5; }
-        .admin-panel-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+        .back-link:hover { background: var(--item-hover); }
+        .admin-actions { display: grid; justify-items: end; gap: 9px; }
+        .console-status {
+            display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid #2f5b4c;
+            border-radius: 999px; background: rgba(56, 139, 104, .14); color: var(--success); font-size: 11.5px; font-weight: 700;
+        }
+        .console-status i { color: var(--success); font-size: 8px; }
+
+        .notice {
+            display: flex; gap: 12px; align-items: center; padding: 13px 18px; margin-bottom: 20px;
+            border: 1px solid #2d5aa4; border-radius: var(--radius-md); background: #16233c; color: #c9dbff;
+        }
+        .notice i { color: var(--accent-strong); font-size: 14px; }
+        .notice p { margin: 0; font-size: 13px; line-height: 1.5; }
+
+        /* 개요 카드 */
+        .dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 22px; }
+        .card {
+            padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md);
+            background: linear-gradient(150deg, var(--panel-2), var(--panel));
+            box-shadow: 0 10px 22px rgba(0, 0, 0, .16);
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .card-top { display: flex; align-items: center; justify-content: space-between; }
+        .card-icon {
+            display: grid; width: 38px; height: 38px; place-items: center; border-radius: 10px;
+            background: var(--accent-soft); color: var(--accent-strong); font-size: 16px;
+        }
+        .card-badge {
+            display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px;
+            padding: 0 7px; border-radius: 999px; background: var(--danger-bg); color: var(--danger);
+            font-size: 12px; font-weight: 800; border: 1px solid var(--danger-border);
+        }
+        .card-badge[data-zero="1"] { background: var(--panel-2); color: var(--text-mute); border-color: var(--border-soft); }
+        .card h2 { margin: 2px 0 0; font-size: 16.5px; letter-spacing: -.01em; }
+        .card p { margin: 0; color: var(--text-mute); font-size: 13px; line-height: 1.5; }
+
+        /* 탭 */
+        .admin-tabs {
+            display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; padding: 6px;
+            border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel);
+            position: sticky; top: 12px; z-index: 5;
+        }
+        .admin-tab {
+            display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: var(--radius-sm);
+            background: transparent; color: var(--text-mute); font: inherit; font-weight: 700; font-size: 13.5px; cursor: pointer;
+            transition: background .15s, color .15s;
+        }
+        .admin-tab:hover { background: var(--item); color: var(--text-dim); }
+        .admin-tab.active { background: var(--accent); color: #fff; }
+        .admin-tab .tab-badge {
+            display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px;
+            border-radius: 999px; background: rgba(255, 255, 255, .18); font-size: 11px; font-weight: 800;
+        }
+        .admin-tab:not(.active) .tab-badge:not([data-zero="1"]) { background: var(--danger-bg); color: var(--danger); }
+        .admin-tab.active .tab-badge[data-zero="1"] { display: none; }
+        .admin-tab:not(.active) .tab-badge[data-zero="1"] { display: none; }
+
+        .admin-tabpanel[hidden] { display: none; }
+
+        /* 패널 */
+        .admin-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+        .admin-panel {
+            padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel);
+            position: relative; overflow: hidden;
+        }
+        .admin-panel::before {
+            content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--accent), transparent 75%); opacity: .8;
+        }
+        .admin-panel h2 { margin: 0 0 14px; font-size: 16.5px; display: flex; align-items: center; gap: 9px; }
+        .admin-panel h2 i { color: var(--accent-strong); font-size: 14px; }
+        .admin-panel-hint { margin: -8px 0 14px; color: var(--text-mute); font-size: 12.5px; line-height: 1.5; }
+        .admin-panel-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
         .admin-panel-heading-row h2 { margin: 0; }
-        .admin-refresh-btn { padding: 6px 10px; border: 1px solid #3a465d; border-radius: 7px; color: #d8e4ff; background: #293348; font-size: 12px; cursor: pointer; }
-        .admin-refresh-btn:hover { background: #324063; }
-        .admin-stat-number { margin: -10px 0 14px; color: #89b0ff; font-size: 28px; font-weight: 800; }
-        .admin-panel label { display: block; margin: 12px 0 6px; color: #b9c5da; font-size: 13px; font-weight: 700; }
-        .admin-panel input, .admin-panel textarea, .admin-panel select { width: 100%; padding: 11px 12px; border: 1px solid #3a465d; border-radius: 9px; color: #edf2ff; font: inherit; background: #121722; }
-        .admin-panel textarea { min-height: 120px; resize: vertical; }
-        .admin-action { margin-top: 14px; padding: 11px 14px; border: 0; border-radius: 9px; color: #fff; font: inherit; font-weight: 800; cursor: pointer; background: #397ef0; }
-        .admin-action:hover { background: #4d8afb; }
-        .admin-list { display: grid; gap: 10px; max-height: 480px; overflow-y: auto; }
-        .admin-item { padding: 13px; border: 1px solid #303b50; border-radius: 10px; background: #202838; }
-        .admin-item strong, .admin-item p { display: block; margin: 0; }
-        .admin-item p { margin-top: 6px; color: #afbad0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }
-        .admin-item small { display: block; margin-top: 9px; color: #77849c; }
-        .admin-item-actions { display: flex; gap: 8px; margin-top: 11px; }
-        .admin-item-actions button { padding: 7px 9px; border: 1px solid #3a465d; border-radius: 7px; color: #d8e4ff; background: #293348; cursor: pointer; }
-        .admin-item-actions button.danger { color: #ffb5bd; }
-        .admin-bulk-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid #344057; border-radius:9px; background:#172030; }
-        .admin-bulk-actions label { margin:0; display:flex; align-items:center; gap:7px; color:#c7d4eb; }
-        .admin-bulk-actions button { padding:7px 10px; border:1px solid #754a55; border-radius:7px; color:#ffbdc4; background:#3b2931; cursor:pointer; }
-        .admin-item { position:relative; padding-left:42px; }
-        .admin-item-check { position:absolute; top:14px; left:13px; margin:0 !important; }
-        @media (max-width: 720px) {
-            .admin-shell { width: min(100% - 28px, 560px); padding-top: 25px; }
-            .admin-header { align-items: flex-start; flex-direction: column; }
-            .admin-actions { width:100%; justify-items:stretch; }
-            .console-status { justify-content:center; }
-            .back-link { width: 100%; justify-content: center; }
+        .admin-refresh-btn {
+            padding: 6px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim);
+            background: var(--panel-2); font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s;
+        }
+        .admin-refresh-btn:hover { background: var(--item-hover); }
+        .admin-stat-number { margin: -6px 0 14px; color: var(--accent-strong); font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+
+        .admin-panel label { display: block; margin: 14px 0 6px; color: var(--text-dim); font-size: 13px; font-weight: 700; }
+        .admin-panel label:first-of-type { margin-top: 0; }
+        .admin-panel input[type="text"], .admin-panel input:not([type]), .admin-panel textarea, .admin-panel select {
+            width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            color: var(--text); font: inherit; font-size: 14px; background: #10141c; transition: border-color .15s;
+        }
+        .admin-panel input:focus, .admin-panel textarea:focus { outline: none; border-color: var(--accent); }
+        .admin-panel textarea { min-height: 130px; resize: vertical; }
+        .admin-panel label:has(input[type="checkbox"]) { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-mute); }
+        .admin-action {
+            margin-top: 16px; padding: 12px 16px; border: 0; border-radius: var(--radius-sm); color: #fff; font: inherit;
+            font-weight: 800; font-size: 14px; cursor: pointer; background: var(--accent);
+            display: inline-flex; align-items: center; gap: 8px; transition: background .15s, transform .1s;
+        }
+        .admin-action:hover { background: var(--accent-strong); }
+        .admin-action:active { transform: scale(.98); }
+
+        /* 목록 카드 */
+        .admin-list { display: grid; gap: 10px; max-height: 620px; overflow-y: auto; padding-right: 2px; }
+        .admin-list::-webkit-scrollbar { width: 8px; }
+        .admin-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+        .admin-item {
+            padding: 14px 16px; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--item);
+            transition: border-color .15s;
+        }
+        .admin-item:hover { border-color: var(--border); }
+        .admin-item strong { display: block; margin: 0; font-size: 14.5px; letter-spacing: -.01em; }
+        .admin-item p { display: block; margin: 7px 0 0; color: var(--text-dim); font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+        .admin-item small { display: block; margin-top: 10px; color: var(--text-mute); font-size: 12px; }
+        .admin-item-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+        .admin-item-actions button {
+            padding: 7px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim);
+            background: var(--panel-2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s;
+        }
+        .admin-item-actions button:hover { background: var(--item-hover); border-color: #3d4a63; }
+        .admin-item-actions button.danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+        .admin-item-actions button.danger:hover { background: #4a2c34; }
+        .admin-list > p { color: var(--text-mute); font-size: 13.5px; padding: 8px 2px; }
+
+        .admin-bulk-actions {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 13px;
+            border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--panel-2); margin-bottom: 2px;
+        }
+        .admin-bulk-actions label { margin: 0 !important; display: flex; align-items: center; gap: 7px; color: var(--text-dim); font-weight: 600; font-size: 13px; }
+        .admin-bulk-actions button { padding: 7px 11px; border: 1px solid var(--danger-border); border-radius: var(--radius-sm); color: var(--danger); background: var(--danger-bg); cursor: pointer; font-weight: 600; font-size: 12.5px; }
+
+        .admin-item { position: relative; }
+        .admin-item:has(.admin-item-check) { padding-left: 44px; }
+        .admin-item-check { position: absolute; top: 16px; left: 15px; margin: 0 !important; }
+
+        @media (max-width: 860px) {
+            .admin-grid-2 { grid-template-columns: 1fr; }
             .dashboard { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 720px) {
+            .admin-shell { width: min(100% - 24px, 560px); padding-top: 20px; }
+            .admin-header { align-items: flex-start; flex-direction: column; }
+            .admin-actions { width: 100%; justify-items: stretch; }
+            .console-status { justify-content: center; }
+            .back-link { width: 100%; justify-content: center; }
+            .admin-tabs { position: static; overflow-x: auto; flex-wrap: nowrap; }
+            .admin-tab { flex: 0 0 auto; }
         }
     </style>
 </head>
@@ -97,83 +224,132 @@
 
         <section class="notice" aria-label="관리자 안내">
             <i class="fa-solid fa-lock"></i>
-            <div>
-                <strong>관리자 권한이 확인되었습니다.</strong>
-                <p>이 페이지는 서버에서 권한을 확인한 계정만 열 수 있습니다. 다음 단계에서 각 관리 메뉴를 연결합니다.</p>
+            <p>이 페이지는 서버에서 권한을 확인한 계정만 열 수 있습니다. 아래 탭에서 항목별로 처리하세요.</p>
+        </section>
+
+        <section class="dashboard" aria-label="요약">
+            <article class="card">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fa-regular fa-envelope"></i></div>
+                    <span id="card-badge-inquiries" class="card-badge" data-zero="1">0</span>
+                </div>
+                <h2>답변 대기 문의</h2>
+                <p>사용자가 보낸 문의 중 아직 처리하지 않은 건수입니다.</p>
+            </article>
+            <article class="card">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fa-solid fa-flag"></i></div>
+                    <span id="card-badge-reports" class="card-badge" data-zero="1">0</span>
+                </div>
+                <h2>대기 중인 신고</h2>
+                <p>검토가 필요한 신고 접수 건수입니다.</p>
+            </article>
+            <article class="card">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fa-solid fa-signal"></i></div>
+                    <span id="card-badge-online" class="card-badge" data-zero="1">0</span>
+                </div>
+                <h2>현재 접속자</h2>
+                <p>지금 실시간으로 연결되어 있는 사용자 수입니다.</p>
+            </article>
+        </section>
+
+        <nav class="admin-tabs" role="tablist">
+            <button type="button" class="admin-tab active" data-tab="notices"><i class="fa-solid fa-bullhorn"></i> 공지사항</button>
+            <button type="button" class="admin-tab" data-tab="inquiries"><i class="fa-regular fa-envelope"></i> 문의 <span id="tab-badge-inquiries" class="tab-badge" data-zero="1">0</span></button>
+            <button type="button" class="admin-tab" data-tab="reports"><i class="fa-solid fa-flag"></i> 신고 <span id="tab-badge-reports" class="tab-badge" data-zero="1">0</span></button>
+            <button type="button" class="admin-tab" data-tab="users"><i class="fa-solid fa-users"></i> 사용자</button>
+            <button type="button" class="admin-tab" data-tab="reviews"><i class="fa-solid fa-star"></i> 리뷰</button>
+            <button type="button" class="admin-tab" data-tab="ops"><i class="fa-solid fa-server"></i> 운영 현황</button>
+        </nav>
+
+        <section class="admin-tabpanel" data-tabpanel="notices">
+            <div class="admin-grid-2">
+                <article class="admin-panel">
+                    <h2><i class="fa-solid fa-bullhorn"></i> 공지사항 작성</h2>
+                    <label for="notice-title">제목</label><input id="notice-title" maxlength="200" placeholder="사용자에게 표시할 공지 제목">
+                    <label for="notice-content">내용</label><textarea id="notice-content" maxlength="5000" placeholder="공지 내용을 작성하세요."></textarea>
+                    <label><input id="notice-published" type="checkbox" checked> 바로 게시하기</label>
+                    <button id="notice-submit" class="admin-action"><i class="fa-solid fa-paper-plane"></i> 공지 등록</button>
+                </article>
+                <article class="admin-panel">
+                    <h2><i class="fa-regular fa-rectangle-list"></i> 최근 공지</h2>
+                    <div id="notice-list" class="admin-list"><p>불러오는 중...</p></div>
+                </article>
             </div>
         </section>
 
-        <section class="dashboard" aria-label="관리 메뉴">
-            <article class="card">
-                <div class="card-icon"><i class="fa-solid fa-bullhorn"></i></div>
-                <h2>공지사항 관리</h2>
-                <p>새 공지 작성과 게시 상태를 한곳에서 관리합니다.</p>
-                <span class="status">작성 기능 연결됨</span>
-            </article>
-            <article class="card">
-                <div class="card-icon"><i class="fa-regular fa-envelope"></i></div>
-                <h2>문의 내역</h2>
-                <p>사용자가 보낸 문의와 첨부 파일을 확인하고 처리합니다.</p>
-                <span class="status">답변·상태 처리 연결됨</span>
-            </article>
-            <article class="card">
-                <div class="card-icon"><i class="fa-solid fa-flag"></i></div>
-                <h2>신고 관리</h2>
-                <p>신고된 내용과 처리 결과를 안전하게 관리합니다.</p>
-                <span class="status">접수 내역 확인 가능</span>
-            </article>
-        </section>
-
-        <section class="admin-workspace">
-            <article class="admin-panel">
-                <h2><i class="fa-solid fa-bullhorn"></i> 공지사항 작성</h2>
-                <label for="notice-title">제목</label><input id="notice-title" maxlength="200" placeholder="사용자에게 표시할 공지 제목">
-                <label for="notice-content">내용</label><textarea id="notice-content" maxlength="5000" placeholder="공지 내용을 작성하세요."></textarea>
-                <label><input id="notice-published" type="checkbox" checked> 바로 게시하기</label>
-                <button id="notice-submit" class="admin-action"><i class="fa-solid fa-paper-plane"></i> 공지 등록</button>
-            </article>
-            <article class="admin-panel">
-                <h2><i class="fa-regular fa-rectangle-list"></i> 최근 공지</h2>
-                <div id="notice-list" class="admin-list"><p>불러오는 중...</p></div>
-            </article>
+        <section class="admin-tabpanel" data-tabpanel="inquiries" hidden>
             <article class="admin-panel">
                 <h2><i class="fa-regular fa-envelope"></i> 문의 내역</h2>
                 <div id="inquiry-list" class="admin-list"><p>불러오는 중...</p></div>
             </article>
+        </section>
+
+        <section class="admin-tabpanel" data-tabpanel="reports" hidden>
             <article class="admin-panel">
                 <h2><i class="fa-solid fa-flag"></i> 신고 내역</h2>
                 <div id="report-list" class="admin-list"><p>불러오는 중...</p></div>
             </article>
-            <article class="admin-panel">
-                <h2><i class="fa-solid fa-users"></i> 전체 가입자</h2>
-                <div id="all-user-list" class="admin-list"><p>불러오는 중...</p></div>
-            </article>
-            <article class="admin-panel">
-                <h2><i class="fa-solid fa-user-lock"></i> 이용 제한 계정</h2>
-                <div id="suspended-user-list" class="admin-list"><p>불러오는 중...</p></div>
-            </article>
+        </section>
+
+        <section class="admin-tabpanel" data-tabpanel="users" hidden>
+            <div class="admin-grid-2">
+                <article class="admin-panel">
+                    <h2><i class="fa-solid fa-users"></i> 전체 가입자</h2>
+                    <div id="all-user-list" class="admin-list"><p>불러오는 중...</p></div>
+                </article>
+                <article class="admin-panel">
+                    <h2><i class="fa-solid fa-user-lock"></i> 이용 제한 계정</h2>
+                    <div id="suspended-user-list" class="admin-list"><p>불러오는 중...</p></div>
+                </article>
+            </div>
+        </section>
+
+        <section class="admin-tabpanel" data-tabpanel="reviews" hidden>
             <article class="admin-panel">
                 <h2><i class="fa-solid fa-star"></i> 사용자 리뷰</h2>
                 <div id="review-list" class="admin-list"><p>불러오는 중...</p></div>
             </article>
-            <article class="admin-panel">
-                <div class="admin-panel-heading-row">
-                    <h2><i class="fa-solid fa-signal"></i> 현재 접속자</h2>
-                    <button id="refresh-online-users" type="button" class="admin-refresh-btn"><i class="fa-solid fa-rotate"></i> 새로고침</button>
-                </div>
-                <p class="admin-panel-hint">지금 실시간으로 연결되어 있는 사용자 수입니다.</p>
-                <div id="online-user-count" class="admin-stat-number">0명 접속 중</div>
-                <div id="online-user-list" class="admin-list"><p>불러오는 중...</p></div>
-            </article>
-            <article class="admin-panel">
-                <h2><i class="fa-solid fa-bug"></i> 서버 오류 로그</h2>
-                <p class="admin-panel-hint">서버가 재시작되기 전까지 최근 500 오류 최대 50건을 보여줍니다.</p>
-                <div id="error-log-list" class="admin-list"><p>불러오는 중...</p></div>
-            </article>
+        </section>
+
+        <section class="admin-tabpanel" data-tabpanel="ops" hidden>
+            <div class="admin-grid-2">
+                <article class="admin-panel">
+                    <div class="admin-panel-heading-row">
+                        <h2><i class="fa-solid fa-signal"></i> 현재 접속자</h2>
+                        <button id="refresh-online-users" type="button" class="admin-refresh-btn"><i class="fa-solid fa-rotate"></i> 새로고침</button>
+                    </div>
+                    <p class="admin-panel-hint">지금 실시간으로 연결되어 있는 사용자 수입니다.</p>
+                    <div id="online-user-count" class="admin-stat-number">0명 접속 중</div>
+                    <div id="online-user-list" class="admin-list"><p>불러오는 중...</p></div>
+                </article>
+                <article class="admin-panel">
+                    <h2><i class="fa-solid fa-bug"></i> 서버 오류 로그</h2>
+                    <p class="admin-panel-hint">서버가 재시작되기 전까지 최근 500 오류 최대 50건을 보여줍니다.</p>
+                    <div id="error-log-list" class="admin-list"><p>불러오는 중...</p></div>
+                </article>
+            </div>
         </section>
     </main>
     <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script>
+        document.querySelectorAll(".admin-tab").forEach(tab => {
+            tab.addEventListener("click", () => {
+                document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
+                tab.classList.add("active");
+                const target = tab.dataset.tab;
+                document.querySelectorAll(".admin-tabpanel").forEach(panel => {
+                    panel.hidden = panel.dataset.tabpanel !== target;
+                });
+            });
+        });
+        function setBadge(el, count) {
+            if (!el) return;
+            el.textContent = String(count);
+            el.dataset.zero = count > 0 ? "0" : "1";
+        }
+
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const originalFetch = window.fetch;
         window.fetch = function(resource, options = {}) {
@@ -213,10 +389,16 @@
         async function loadInquiries() {
             const items = await api("/api/admin/inquiries");
             lastInquiries = items;
+            const pending = items.filter(i => i.status === "pending").length;
+            setBadge(document.querySelector("#tab-badge-inquiries"), pending);
+            setBadge(document.querySelector("#card-badge-inquiries"), pending);
             inquiryList.innerHTML = items.length ? `<div class="admin-bulk-actions"><label><input id="select-all-inquiries" type="checkbox"> 전체 선택</label><button id="bulk-delete-inquiries" class="danger" type="button">선택 삭제</button></div>` + items.map(i => `<article class="admin-item"><label class="admin-item-check"><input type="checkbox" class="inquiry-select" value="${i.id}" aria-label="문의 선택"></label><strong>${escapeHTML(i.display_name || i.username)} · ${inquiryStatusLabel[i.status] || escapeHTML(i.status)}</strong><p>${escapeHTML(i.message)}</p>${i.attachment_url ? `<p><a href="${escapeHTML(i.attachment_url)}" target="_blank">첨부 파일 열기</a></p>` : ""}${i.admin_reply ? `<p><strong>관리자 답변</strong> (${escapeHTML((i.answered_at || "").slice(0,16))})<br>${escapeHTML(i.admin_reply)}</p>` : ""}<small>@${escapeHTML(i.username)} · ${i.email || "이메일 없음"} · ${i.created_at}</small><div class="admin-item-actions"><button data-answer-inquiry="${i.id}">${i.admin_reply ? "답변 수정" : "답변/처리"}</button><button data-delete-inquiry="${i.id}" class="danger">삭제</button></div></article>`).join("") : "<p>문의가 없습니다.</p>";
         }
         async function loadReports() {
             const items = await api("/api/admin/reports");
+            const pending = items.filter(r => r.status === "pending").length;
+            setBadge(document.querySelector("#tab-badge-reports"), pending);
+            setBadge(document.querySelector("#card-badge-reports"), pending);
             reportList.innerHTML = items.length ? items.map(r => {
                 const moderation = r.is_suspended
                     ? `<button data-lift-user="${r.target_user_id}" data-report-id="${r.id}">정지 해제</button>`
@@ -264,7 +446,8 @@
         async function loadOnlineUsers() {
             const data = await api("/api/admin/online-users");
             onlineUserCount.textContent = `${data.count}명 접속 중`;
-            onlineUserList.innerHTML = data.users.length ? data.users.map(u => `<article class="admin-item"><img src="${escapeHTML(u.profileImage || "/static/default_profile.png")}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;position:absolute;left:13px;top:13px;"><strong>${escapeHTML(u.displayName)}</strong><p>@${escapeHTML(u.username)}</p></article>`).join("") : "<p>지금 접속 중인 사용자가 없습니다.</p>";
+            setBadge(document.querySelector("#card-badge-online"), data.count);
+            onlineUserList.innerHTML = data.users.length ? data.users.map(u => `<article class="admin-item"><img src="${escapeHTML(u.profileImage || "/static/default_profile.png")}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;position:absolute;left:15px;top:16px;"><strong>${escapeHTML(u.displayName)}</strong><p>@${escapeHTML(u.username)}</p></article>`).join("") : "<p>지금 접속 중인 사용자가 없습니다.</p>";
         }
         document.querySelector("#refresh-online-users").addEventListener("click", () => { loadOnlineUsers().catch(error => alert(error.message)); });
         document.querySelector("#notice-submit").addEventListener("click", async () => {
