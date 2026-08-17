@@ -1766,6 +1766,28 @@ def admin_recent_errors():
         return jsonify(list(_recent_errors))
 
 
+@app.route("/api/admin/online-users", methods=["GET"])
+@admin_required_api
+def admin_online_users():
+    """지금 소켓으로 연결되어 있는(=실시간으로 접속 중인) 사용자 수와 목록을 보여준다."""
+    with active_socket_ids_lock:
+        user_ids = list(active_socket_ids.keys())
+    if not user_ids:
+        return jsonify({"count": 0, "users": []})
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, username, display_name, profile_image FROM users WHERE id = ANY(%s) ORDER BY display_name, username",
+            (user_ids,)
+        ).fetchall()
+    return jsonify({
+        "count": len(rows),
+        "users": [
+            {"id": row["id"], "username": row["username"], "displayName": row["display_name"] or row["username"], "profileImage": row["profile_image"]}
+            for row in rows
+        ],
+    })
+
+
 @app.route("/api/admin/reviews", methods=["GET"])
 @admin_required_api
 def admin_reviews():
