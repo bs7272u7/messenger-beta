@@ -4,8 +4,12 @@
 # eventlet은 다른 어떤 import보다도 먼저 몽키패치해야 socket/threading이 전부
 # 그린스레드 친화적으로 바뀐다 — 동시 접속자를 스레드 대신 가벼운 그린스레드로 처리해
 # 같은 서버 자원으로 훨씬 많은 대기 연결을 버티기 위함이다.
+# psycopg2는 patch 대상에서 제외한다 — eventlet이 psycopg2를 비동기(green) 모드로
+# 자동 전환시키면 SSL 연결(Render Postgres는 SSL 필수)에서 상태가 꼬여
+# "SSL error: decryption failed or bad record mac"가 간헐적으로 발생하는
+# 알려진 문제가 있다. DB 쿼리는 짧게 끝나므로 그린스레드를 잠깐 막아도 영향이 작다.
 import eventlet
-eventlet.monkey_patch()
+eventlet.monkey_patch(psycopg=False)
 
 from functools import wraps
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, abort
