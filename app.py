@@ -1,16 +1,6 @@
 # Cloud Chatting 서버의 중심 파일입니다.
 # 기능을 추가할 때는 "입력 검증 → 권한 확인 → DB 저장 → 실시간 알림" 순서를 먼저 확인합니다.
 
-# eventlet은 다른 어떤 import보다도 먼저 몽키패치해야 socket/threading이 전부
-# 그린스레드 친화적으로 바뀐다 — 동시 접속자를 스레드 대신 가벼운 그린스레드로 처리해
-# 같은 서버 자원으로 훨씬 많은 대기 연결을 버티기 위함이다.
-# psycopg2는 patch 대상에서 제외한다 — eventlet이 psycopg2를 비동기(green) 모드로
-# 자동 전환시키면 SSL 연결(Render Postgres는 SSL 필수)에서 상태가 꼬여
-# "SSL error: decryption failed or bad record mac"가 간헐적으로 발생하는
-# 알려진 문제가 있다. DB 쿼리는 짧게 끝나므로 그린스레드를 잠깐 막아도 영향이 작다.
-import eventlet
-eventlet.monkey_patch(psycopg=False)
-
 from functools import wraps
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, abort
 from flask_socketio import SocketIO, join_room
@@ -80,11 +70,9 @@ app.config.update(
 )
 
 # 별도 외부 도메인 연결은 허용하지 않고, 서비스와 같은 출처의 웹소켓만 받는다.
-socketio = SocketIO(app, async_mode="eventlet")
+socketio = SocketIO(app, async_mode="threading")
 
-# eventlet에서 서로 다른 그린스레드(요청 처리 vs 백그라운드 작업)가 같은 소켓에
-# 동시에 쓰기를 시도하면 "Second simultaneous write on fileno" 오류가 난다.
-# 모든 emit을 이 락으로 직렬화해 방지한다.
+# 여러 스레드가 동시에 emit을 호출할 때를 대비해 직렬화한다.
 _emit_lock = Lock()
 
 
