@@ -1,5 +1,12 @@
 # Cloud Chatting 서버의 중심 파일입니다.
 # 기능을 추가할 때는 "입력 검증 → 권한 확인 → DB 저장 → 실시간 알림" 순서를 먼저 확인합니다.
+
+# eventlet은 다른 어떤 import보다도 먼저 몽키패치해야 socket/threading이 전부
+# 그린스레드 친화적으로 바뀐다 — 동시 접속자를 스레드 대신 가벼운 그린스레드로 처리해
+# 같은 서버 자원으로 훨씬 많은 대기 연결을 버티기 위함이다.
+import eventlet
+eventlet.monkey_patch()
+
 from functools import wraps
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, abort
 from flask_socketio import SocketIO, join_room
@@ -69,7 +76,7 @@ app.config.update(
 )
 
 # 별도 외부 도메인 연결은 허용하지 않고, 서비스와 같은 출처의 웹소켓만 받는다.
-socketio = SocketIO(app, async_mode="threading")
+socketio = SocketIO(app, async_mode="eventlet")
 
 # 이미지/동영상이 저장될 폴더와 기본 프로필 사진 경로
 UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads")
