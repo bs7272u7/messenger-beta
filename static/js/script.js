@@ -4057,6 +4057,12 @@ async function sendVideo(file) {
             });
         });
 
+        socket.on("account_deleted", function () {
+            showAlert("계정이 삭제되었습니다.", function () {
+                window.location.href = "/login";
+            });
+        });
+
         /* ======================================================
          * 초기 렌더링
          * ====================================================== */

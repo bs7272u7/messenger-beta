@@ -229,7 +229,7 @@
             const users = await api("/api/admin/users/suspended");
             suspendedUserList.innerHTML = users.length ? users.map(user => {
                 const until = user.suspended_until ? new Date(user.suspended_until * 1000).toLocaleString("ko-KR") : "영구 이용 제한";
-                return `<article class="admin-item"><strong>${escapeHTML(user.display_name || user.username)}</strong><p>${escapeHTML(user.username)} · ${escapeHTML(user.suspension_reason || "운영 정책 위반")}</p><small>${until}</small><div class="admin-item-actions"><button data-lift-user="${user.id}">이용 제한 해제</button></div></article>`;
+                return `<article class="admin-item"><strong>${escapeHTML(user.display_name || user.username)}</strong><p>${escapeHTML(user.username)} · ${escapeHTML(user.suspension_reason || "운영 정책 위반")}</p><small>${until}</small><div class="admin-item-actions"><button data-lift-user="${user.id}">이용 제한 해제</button><button data-delete-user="${user.id}" data-username="${escapeHTML(user.username)}" class="danger">계정 삭제</button></div></article>`;
             }).join("") : "<p>이용 제한 중인 계정이 없습니다.</p>";
         }
         async function loadAllUsers() {
@@ -244,10 +244,10 @@
                 } else if (user.is_suspended) {
                     const until = user.suspended_until ? new Date(user.suspended_until * 1000).toLocaleString("ko-KR") + "까지 정지" : "영구 정지";
                     statusLine = `정지 중 · ${escapeHTML(user.suspension_reason || "운영 정책 위반")} (${until})`;
-                    actions = `<button data-lift-user="${user.id}">정지 해제</button>`;
+                    actions = `<button data-lift-user="${user.id}">정지 해제</button><button data-delete-user="${user.id}" data-username="${escapeHTML(user.username)}" class="danger">계정 삭제</button>`;
                 } else {
                     statusLine = "정상";
-                    actions = `<button data-suspend-user="${user.id}" data-duration="24h">24시간 정지</button><button data-suspend-user="${user.id}" data-duration="7d">7일 정지</button><button data-suspend-user="${user.id}" data-duration="permanent" class="danger">영구 정지</button>`;
+                    actions = `<button data-suspend-user="${user.id}" data-duration="24h">24시간 정지</button><button data-suspend-user="${user.id}" data-duration="7d">7일 정지</button><button data-suspend-user="${user.id}" data-duration="permanent" class="danger">영구 정지</button><button data-delete-user="${user.id}" data-username="${escapeHTML(user.username)}" class="danger">계정 삭제</button>`;
                 }
                 return `<article class="admin-item"><strong>@${escapeHTML(user.username)}</strong><p>${email} · 가입일 ${joined}</p><small>${statusLine}</small><div class="admin-item-actions">${actions}</div></article>`;
             }).join("") : "<p>가입한 사용자가 없습니다.</p>";
@@ -328,15 +328,26 @@
         });
         suspendedUserList.addEventListener("click", async event => {
             const userId = event.target.dataset.liftUser;
-            if (!userId || !confirm("이 계정의 이용 제한을 해제할까요?")) return;
+            const deleteId = event.target.dataset.deleteUser;
             try {
-                await api(`/api/admin/users/${userId}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"lift", reason:"관리자 이용 제한 해제"})});
+                if (userId) {
+                    if (!confirm("이 계정의 이용 제한을 해제할까요?")) return;
+                    await api(`/api/admin/users/${userId}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"lift", reason:"관리자 이용 제한 해제"})});
+                } else if (deleteId) {
+                    const username = event.target.dataset.username || "";
+                    const typed = prompt(`이 작업은 되돌릴 수 없습니다. 메시지, 체스 전적, 친구 관계가 함께 삭제됩니다.\n계속하려면 아이디(${username})를 정확히 입력하세요.`);
+                    if (typed !== username) { if (typed !== null) alert("아이디가 일치하지 않아 취소되었습니다."); return; }
+                    await api(`/api/admin/users/${deleteId}`, {method:"DELETE"});
+                } else {
+                    return;
+                }
                 await Promise.all([loadReports(), loadSuspendedUsers(), loadAllUsers()]);
             } catch (error) { alert(error.message); }
         });
         allUserList.addEventListener("click", async event => {
             const liftId = event.target.dataset.liftUser;
             const suspendId = event.target.dataset.suspendUser;
+            const deleteId = event.target.dataset.deleteUser;
             try {
                 if (liftId) {
                     if (!confirm("이 계정의 이용 제한을 해제할까요?")) return;
@@ -348,6 +359,11 @@
                     const reason = prompt("정지 사유를 입력하세요.", "운영 정책 위반");
                     if (reason === null) return;
                     await api(`/api/admin/users/${suspendId}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:duration, reason})});
+                } else if (deleteId) {
+                    const username = event.target.dataset.username || "";
+                    const typed = prompt(`이 작업은 되돌릴 수 없습니다. 메시지, 체스 전적, 친구 관계가 함께 삭제됩니다.\n계속하려면 아이디(${username})를 정확히 입력하세요.`);
+                    if (typed !== username) { if (typed !== null) alert("아이디가 일치하지 않아 취소되었습니다."); return; }
+                    await api(`/api/admin/users/${deleteId}`, {method:"DELETE"});
                 } else {
                     return;
                 }

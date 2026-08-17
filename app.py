@@ -2100,6 +2100,26 @@ def admin_user_suspension(user_id):
     return jsonify({"success": True, "action": action})
 
 
+@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+@admin_required_api
+def admin_delete_user(user_id):
+    """계정을 완전히 삭제한다(하드 삭제). 메시지·체스 초대·친구 관계 등 본인 소유 데이터는
+    DB 외래키(ON DELETE CASCADE)에 따라 함께 삭제되며, 되돌릴 수 없다."""
+    with get_db() as conn:
+        target = conn.execute("SELECT id, is_admin FROM users WHERE id = %s", (user_id,)).fetchone()
+        if not target:
+            return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
+        if target["is_admin"] or user_id == session["user_id"]:
+            return jsonify({"success": False, "error": "관리자 계정은 삭제할 수 없습니다."}), 403
+        conn.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+
+    with active_socket_ids_lock:
+        active_socket_ids.pop(user_id, None)
+    emit_safe("account_deleted", {}, room=f"user_{user_id}")
+    return jsonify({"success": True})
+
+
 # ----------------------------------------------------------------
 # 인증 API
 # ----------------------------------------------------------------
