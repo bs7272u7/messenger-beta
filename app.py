@@ -82,6 +82,16 @@ app.config.update(
 # 별도 외부 도메인 연결은 허용하지 않고, 서비스와 같은 출처의 웹소켓만 받는다.
 socketio = SocketIO(app, async_mode="eventlet")
 
+# eventlet에서 서로 다른 그린스레드(요청 처리 vs 백그라운드 작업)가 같은 소켓에
+# 동시에 쓰기를 시도하면 "Second simultaneous write on fileno" 오류가 난다.
+# 모든 emit을 이 락으로 직렬화해 방지한다.
+_emit_lock = Lock()
+
+
+def emit_safe(*args, **kwargs):
+    with _emit_lock:
+        socketio.emit(*args, **kwargs)
+
 # 이미지/동영상이 저장될 폴더와 기본 프로필 사진 경로
 UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -643,7 +653,7 @@ def handle_socket_connect():
     with active_socket_ids_lock:
         active_socket_ids.setdefault(user_id, set()).add(request.sid)
     join_room(f"user_{user_id}")
-    socketio.emit("presence_updated", {"userId": user_id, "online": True})
+    emit_safe("presence_updated", {"userId": user_id, "online": True})
 
 
 @socketio.on("disconnect")
@@ -657,7 +667,7 @@ def handle_socket_disconnect():
         if socket_ids:
             return
         active_socket_ids.pop(user_id, None)
-    socketio.emit("presence_updated", {"userId": user_id, "online": False})
+    emit_safe("presence_updated", {"userId": user_id, "online": False})
     mark_chess_disconnect(user_id)
 
 
@@ -678,7 +688,7 @@ def get_conversation_member_ids(conn, conversation_id):
 def broadcast_to_conversation(conn, conversation_id, event, payload):
     # 메시지 수정·삭제처럼 대화방 전체가 알아야 하는 일은 참여자별 Socket.IO 방으로 보낸다.
     for uid in get_conversation_member_ids(conn, conversation_id):
-        socketio.emit(event, payload, room=f"user_{uid}")
+        emit_safe(event, payload, room=f"user_{uid}")
 
 
 def unhide_conversation(conn, conversation_id):
@@ -689,7 +699,7 @@ def unhide_conversation(conn, conversation_id):
 
 
 def notify_user(user_id, event, payload):
-    socketio.emit(event, payload, room=f"user_{user_id}")
+    emit_safe(event, payload, room=f"user_{user_id}")
 
 
 def send_push_notification(conn, user_id, title, body, url="/"):
@@ -2098,7 +2108,7 @@ def admin_user_suspension(user_id):
     if action in {"24h", "7d", "permanent"}:
         with active_socket_ids_lock:
             active_socket_ids.pop(user_id, None)
-        socketio.emit("account_suspended", {"reason": reason}, room=f"user_{user_id}")
+        emit_safe("account_suspended", {"reason": reason}, room=f"user_{user_id}")
     return jsonify({"success": True, "action": action})
 
 
@@ -4131,7 +4141,7 @@ def refresh_chess_clock(conn, game):
         winner = "b" if key == "white_remaining_ms" else "w"
         result = {"status": "timeout", "winner": winner}
         conn.execute("UPDATE chess_games SET %s = %%s, status = 'finished', result = %%s, updated_at = %%s WHERE id = %%s" % key, (0, json.dumps(result), now_str(), game["id"]))
-        socketio.emit("game:timeout", {"gameId": str(game["id"]), "winner": winner}, room=f"chess_{game['id']}")
+        emit_safe("game:timeout", {"gameId": str(game["id"]), "winner": winner}, room=f"chess_{game['id']}")
     else:
         conn.execute("UPDATE chess_games SET %s = %%s, turn_started_ms = %%s, updated_at = %%s WHERE id = %%s" % key, (remaining, now, now_str(), game["id"]))
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()
@@ -4271,7 +4281,7 @@ def finalize_chess_disconnect(game_id, user_id, deadline):
         game = chess_game_or_404(conn, game_id)
         state = chess_game_state(conn, game)
         conn.commit()
-    socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+    emit_safe("game:state_update", state, room=f"chess_{game_id}")
 
 
 @app.route("/chess")
@@ -4355,7 +4365,7 @@ def chess_accept_invite_api(invite_id):
         conn.execute("UPDATE chess_invites SET status = CASE WHEN id = %s THEN 'accepted' ELSE 'expired' END WHERE game_id = %s AND status = 'pending'", (invite_id, game["id"]))
         state = chess_game_state(conn, game, session["user_id"])
         conn.commit()
-    socketio.emit("game:start", state, room=f"chess_{game['id']}")
+    emit_safe("game:start", state, room=f"chess_{game['id']}")
     return jsonify({"success": True, "game": state})
 
 
@@ -4612,7 +4622,7 @@ def chess_move_api(game_id):
             game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
             state = chess_game_state(conn, game, session["user_id"])
             conn.commit()
-        socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+        emit_safe("game:state_update", state, room=f"chess_{game_id}")
         return jsonify({"success": True, "game": state})
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 400
@@ -4630,7 +4640,7 @@ def chess_resign_api(game_id):
         result = {"status": "resignation", "winner": opponent(color)}
         conn.execute("UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s", (json.dumps(result), now_str(), game_id))
         game = chess_game_or_404(conn, game_id); state = chess_game_state(conn, game, user_id); conn.commit()
-    socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+    emit_safe("game:state_update", state, room=f"chess_{game_id}")
     return jsonify({"success": True, "game": state})
 
 
@@ -4652,7 +4662,7 @@ def chess_draw_api(game_id):
         else:
             conn.execute("UPDATE chess_games SET draw_offer_user_id = %s, updated_at = %s WHERE id = %s", (user_id, now_str(), game_id))
         game = chess_game_or_404(conn, game_id); state = chess_game_state(conn, game, user_id); conn.commit()
-    socketio.emit("game:state_update", state, room=f"chess_{game_id}")
+    emit_safe("game:state_update", state, room=f"chess_{game_id}")
     return jsonify({"success": True, "game": state})
 
 
@@ -4669,7 +4679,7 @@ def chess_join_game_api():
         except ValueError as error:
             return jsonify({"success": False, "error": str(error)}), 400
         state = chess_game_state(conn, game, session["user_id"]); conn.commit()
-    socketio.emit("game:start", state, room=f"chess_{game['id']}")
+    emit_safe("game:start", state, room=f"chess_{game['id']}")
     return jsonify({"success": True, "game": state})
 
 
@@ -4691,7 +4701,7 @@ def chess_socket_create(data):
         state = chess_game_state(conn, game, session["user_id"])
         conn.commit()
     join_room(f"chess_{game['id']}")
-    socketio.emit("room:created", state, room=f"user_{session['user_id']}")
+    emit_safe("room:created", state, room=f"user_{session['user_id']}")
 
 
 @socketio.on("game:move")
@@ -4704,9 +4714,9 @@ def chess_socket_move(data):
             game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
             state = chess_game_state(conn, game, session["user_id"])
             conn.commit()
-        socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+        emit_safe("game:state_update", state, room=f"chess_{game['id']}")
     except (ValueError, TypeError) as error:
-        socketio.emit("game:error", {"error": str(error)}, room=f"user_{session['user_id']}")
+        emit_safe("game:error", {"error": str(error)}, room=f"user_{session['user_id']}")
 
 
 @socketio.on("game:resign")
@@ -4720,7 +4730,7 @@ def chess_socket_resign(data):
         color = "w" if user_id == game["white_player_id"] else "b"
         conn.execute("UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s", (json.dumps({"status": "resignation", "winner": opponent(color)}), now_str(), game["id"]))
         game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, user_id); conn.commit()
-    socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+    emit_safe("game:state_update", state, room=f"chess_{game['id']}")
 
 
 @socketio.on("game:offer_draw")
@@ -4736,7 +4746,7 @@ def chess_socket_offer_draw(data):
         else:
             conn.execute("UPDATE chess_games SET draw_offer_user_id = %s, updated_at = %s WHERE id = %s", (user_id, now_str(), game["id"]))
         game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, user_id); conn.commit()
-    socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+    emit_safe("game:state_update", state, room=f"chess_{game['id']}")
 
 
 @socketio.on("game:reconnect")
@@ -4750,7 +4760,7 @@ def chess_socket_reconnect(data):
         conn.execute("UPDATE chess_games SET disconnected_user_id = NULL, disconnect_deadline_ms = NULL WHERE id = %s", (game["id"],))
         game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, session["user_id"]); conn.commit()
     join_room(f"chess_{game['id']}")
-    socketio.emit("game:state_update", state, room=f"chess_{game['id']}")
+    emit_safe("game:state_update", state, room=f"chess_{game['id']}")
 
 
 @socketio.on("chat:message")
@@ -4766,7 +4776,7 @@ def chess_socket_chat_message(data):
             return
         row = conn.execute("INSERT INTO chess_game_chat_messages (game_id, sender_id, text, created_at) VALUES (%s, %s, %s, %s) RETURNING id", (game["id"], user_id, text, now_str())).fetchone()
         user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone(); conn.commit()
-    socketio.emit("chat:message", {"id": row["id"], "sender_id": user_id, "display_name": user["display_name"], "username": user["username"], "text": text}, room=f"chess_{game['id']}")
+    emit_safe("chat:message", {"id": row["id"], "sender_id": user_id, "display_name": user["display_name"], "username": user["username"], "text": text}, room=f"chess_{game['id']}")
 
 
 @socketio.on("emote:send")
@@ -4783,7 +4793,7 @@ def chess_socket_emote(data):
         if game["status"] != "active" or user_id not in {game["white_player_id"], game["black_player_id"]}:
             return
         user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
-    socketio.emit("emote:receive", {"emoji": emojis[emote], "label": labels[emote], "sender": user["display_name"] or user["username"]}, room=f"chess_{game['id']}")
+    emit_safe("emote:receive", {"emoji": emojis[emote], "label": labels[emote], "sender": user["display_name"] or user["username"]}, room=f"chess_{game['id']}")
 
 
 @socketio.on("room:leave")
