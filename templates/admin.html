@@ -10,26 +10,28 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         :root {
-            color-scheme: dark;
-            --bg: #12151c;
-            --panel: #1b212c;
-            --panel-2: #212836;
-            --item: #252d3c;
-            --item-hover: #2c3546;
-            --border: #313c50;
-            --border-soft: #262e3e;
-            --text: #f2f4fa;
-            --text-dim: #c1cae0;
-            --text-mute: #93a0bb;
-            --accent: #529bff;
-            --accent-strong: #6facff;
-            --accent-soft: rgba(82, 155, 255, .14);
-            --danger: #ff8f97;
-            --danger-bg: #3d2730;
-            --danger-border: #6b3742;
-            --success: #6fe3a8;
-            --radius-lg: 16px;
-            --radius-md: 12px;
+            color-scheme: light;
+            --bg: #eef0f4;
+            --panel: #ffffff;
+            --panel-2: #f5f6f9;
+            --item: #f8f9fb;
+            --item-hover: #eef1f6;
+            --border: #dde1e9;
+            --border-soft: #e7eaf0;
+            --text: #262a33;
+            --text-dim: #4c5266;
+            --text-mute: #767d90;
+            --accent: #2f6fed;
+            --accent-strong: #1f56c9;
+            --accent-soft: #e8f0fe;
+            --danger: #c62828;
+            --danger-bg: #fdecec;
+            --danger-border: #f2b8b8;
+            --success: #1e8e5a;
+            --success-bg: #e7f6ee;
+            --success-border: #b7e4cb;
+            --radius-lg: 14px;
+            --radius-md: 10px;
             --radius-sm: 8px;
         }
         * { box-sizing: border-box; }
@@ -38,9 +40,9 @@
             margin: 0;
             color: var(--text);
             font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: radial-gradient(circle at 10% -10%, #26355a 0, transparent 38%), var(--bg);
+            background: var(--bg);
             font-size: 15px;
-            line-height: 1.5;
+            line-height: 1.55;
         }
         ::selection { background: var(--accent-soft); }
         .admin-shell { width: min(1240px, calc(100% - 40px)); margin: 0 auto; padding: 26px 0 64px; }
@@ -48,46 +50,46 @@
         /* 헤더 */
         .admin-header {
             display: flex; align-items: center; justify-content: space-between; gap: 18px;
-            margin-bottom: 18px; padding: 20px 24px; border: 1px solid var(--border); border-radius: var(--radius-lg);
-            background: linear-gradient(110deg, rgba(33, 44, 68, .95), rgba(23, 29, 42, .95));
-            box-shadow: 0 14px 32px rgba(0, 0, 0, .22);
+            margin-bottom: 16px; padding: 18px 22px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+            background: var(--panel);
+            box-shadow: 0 1px 2px rgba(20, 24, 34, .04);
         }
-        .eyebrow { margin: 0 0 6px; color: var(--accent-strong); font-size: 12.5px; font-weight: 700; letter-spacing: .08em; }
-        h1 { margin: 0; font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -.03em; }
-        .subtitle { margin: 8px 0 0; color: var(--text-mute); font-size: 14px; }
+        .eyebrow { margin: 0 0 5px; color: var(--accent-strong); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+        h1 { margin: 0; font-size: clamp(22px, 3vw, 28px); letter-spacing: -.02em; color: var(--text); }
+        .subtitle { margin: 6px 0 0; color: var(--text-mute); font-size: 13.5px; }
         .back-link {
             display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
-            padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-            color: var(--text); text-decoration: none; font-weight: 700; font-size: 13.5px; background: var(--panel-2);
+            padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            color: var(--text-dim); text-decoration: none; font-weight: 700; font-size: 13px; background: var(--panel-2);
             transition: background .15s;
         }
         .back-link:hover { background: var(--item-hover); }
         .admin-actions { display: grid; justify-items: end; gap: 9px; }
         .console-status {
-            display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid #2f5b4c;
-            border-radius: 999px; background: rgba(56, 139, 104, .14); color: var(--success); font-size: 11.5px; font-weight: 700;
+            display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid var(--success-border);
+            border-radius: 999px; background: var(--success-bg); color: var(--success); font-size: 11.5px; font-weight: 700;
         }
         .console-status i { color: var(--success); font-size: 8px; }
 
         .notice {
-            display: flex; gap: 12px; align-items: center; padding: 13px 18px; margin-bottom: 20px;
-            border: 1px solid #2d5aa4; border-radius: var(--radius-md); background: #16233c; color: #c9dbff;
+            display: flex; gap: 11px; align-items: center; padding: 12px 16px; margin-bottom: 18px;
+            border: 1px solid #cfdff9; border-radius: var(--radius-md); background: var(--accent-soft); color: #16407e;
         }
-        .notice i { color: var(--accent-strong); font-size: 14px; }
+        .notice i { color: var(--accent-strong); font-size: 13px; }
         .notice p { margin: 0; font-size: 13px; line-height: 1.5; }
 
         /* 개요 카드 */
-        .dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 22px; }
+        .dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-bottom: 20px; }
         .card {
-            padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md);
-            background: linear-gradient(150deg, var(--panel-2), var(--panel));
-            box-shadow: 0 10px 22px rgba(0, 0, 0, .16);
-            display: flex; flex-direction: column; gap: 6px;
+            padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md);
+            background: var(--panel);
+            box-shadow: 0 1px 2px rgba(20, 24, 34, .04);
+            display: flex; flex-direction: column; gap: 5px;
         }
         .card-top { display: flex; align-items: center; justify-content: space-between; }
         .card-icon {
-            display: grid; width: 38px; height: 38px; place-items: center; border-radius: 10px;
-            background: var(--accent-soft); color: var(--accent-strong); font-size: 16px;
+            display: grid; width: 36px; height: 36px; place-items: center; border-radius: 9px;
+            background: var(--accent-soft); color: var(--accent-strong); font-size: 15px;
         }
         .card-badge {
             display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px;
@@ -95,25 +97,25 @@
             font-size: 12px; font-weight: 800; border: 1px solid var(--danger-border);
         }
         .card-badge[data-zero="1"] { background: var(--panel-2); color: var(--text-mute); border-color: var(--border-soft); }
-        .card h2 { margin: 2px 0 0; font-size: 16.5px; letter-spacing: -.01em; }
-        .card p { margin: 0; color: var(--text-mute); font-size: 13px; line-height: 1.5; }
+        .card h2 { margin: 2px 0 0; font-size: 15.5px; letter-spacing: -.01em; color: var(--text); }
+        .card p { margin: 0; color: var(--text-mute); font-size: 12.5px; line-height: 1.5; }
 
         /* 탭 */
         .admin-tabs {
-            display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; padding: 6px;
+            display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 5px;
             border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel);
-            position: sticky; top: 12px; z-index: 5;
+            position: sticky; top: 12px; z-index: 5; box-shadow: 0 1px 2px rgba(20, 24, 34, .04);
         }
         .admin-tab {
             display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: var(--radius-sm);
             background: transparent; color: var(--text-mute); font: inherit; font-weight: 700; font-size: 13.5px; cursor: pointer;
             transition: background .15s, color .15s;
         }
-        .admin-tab:hover { background: var(--item); color: var(--text-dim); }
+        .admin-tab:hover { background: var(--item-hover); color: var(--text-dim); }
         .admin-tab.active { background: var(--accent); color: #fff; }
         .admin-tab .tab-badge {
             display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px;
-            border-radius: 999px; background: rgba(255, 255, 255, .18); font-size: 11px; font-weight: 800;
+            border-radius: 999px; background: rgba(255, 255, 255, .28); font-size: 11px; font-weight: 800;
         }
         .admin-tab:not(.active) .tab-badge:not([data-zero="1"]) { background: var(--danger-bg); color: var(--danger); }
         .admin-tab.active .tab-badge[data-zero="1"] { display: none; }
@@ -122,76 +124,80 @@
         .admin-tabpanel[hidden] { display: none; }
 
         /* 패널 */
-        .admin-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+        .admin-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
         .admin-panel {
-            padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel);
-            position: relative; overflow: hidden;
+            padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel);
+            box-shadow: 0 1px 2px rgba(20, 24, 34, .04);
         }
-        .admin-panel::before {
-            content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, var(--accent), transparent 75%); opacity: .8;
-        }
-        .admin-panel h2 { margin: 0 0 14px; font-size: 16.5px; display: flex; align-items: center; gap: 9px; }
-        .admin-panel h2 i { color: var(--accent-strong); font-size: 14px; }
-        .admin-panel-hint { margin: -8px 0 14px; color: var(--text-mute); font-size: 12.5px; line-height: 1.5; }
-        .admin-panel-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+        .admin-panel h2 { margin: 0 0 13px; font-size: 15.5px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+        .admin-panel h2 i { color: var(--accent-strong); font-size: 13.5px; }
+        .admin-panel-hint { margin: -7px 0 13px; color: var(--text-mute); font-size: 12.5px; line-height: 1.5; }
+        .admin-panel-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 13px; }
         .admin-panel-heading-row h2 { margin: 0; }
         .admin-refresh-btn {
             padding: 6px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim);
             background: var(--panel-2); font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s;
         }
         .admin-refresh-btn:hover { background: var(--item-hover); }
-        .admin-stat-number { margin: -6px 0 14px; color: var(--accent-strong); font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+        .admin-refresh-btn:disabled { opacity: .45; cursor: not-allowed; }
+        .admin-stat-number { margin: -5px 0 13px; color: var(--accent-strong); font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
 
-        .admin-panel label { display: block; margin: 14px 0 6px; color: var(--text-dim); font-size: 13px; font-weight: 700; }
+        .admin-panel label { display: block; margin: 13px 0 6px; color: var(--text-dim); font-size: 13px; font-weight: 700; }
         .admin-panel label:first-of-type { margin-top: 0; }
         .admin-panel input[type="text"], .admin-panel input:not([type]), .admin-panel textarea, .admin-panel select {
-            width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-            color: var(--text); font: inherit; font-size: 14px; background: #10141c; transition: border-color .15s;
+            width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            color: var(--text); font: inherit; font-size: 14px; background: #fff; transition: border-color .15s, box-shadow .15s;
         }
-        .admin-panel input:focus, .admin-panel textarea:focus { outline: none; border-color: var(--accent); }
+        .admin-panel input:focus, .admin-panel textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
         .admin-panel textarea { min-height: 130px; resize: vertical; }
         .admin-panel label:has(input[type="checkbox"]) { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-mute); }
         .admin-action {
-            margin-top: 16px; padding: 12px 16px; border: 0; border-radius: var(--radius-sm); color: #fff; font: inherit;
+            margin-top: 15px; padding: 11px 16px; border: 0; border-radius: var(--radius-sm); color: #fff; font: inherit;
             font-weight: 800; font-size: 14px; cursor: pointer; background: var(--accent);
             display: inline-flex; align-items: center; gap: 8px; transition: background .15s, transform .1s;
         }
         .admin-action:hover { background: var(--accent-strong); }
         .admin-action:active { transform: scale(.98); }
 
+        .admin-search-row { margin-bottom: 12px; }
+
+        .admin-pager {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px;
+        }
+        .admin-pager-info { color: var(--text-mute); font-size: 12.5px; font-weight: 600; }
+
         /* 목록 카드 */
-        .admin-list { display: grid; gap: 10px; max-height: 620px; overflow-y: auto; padding-right: 2px; }
+        .admin-list { display: grid; gap: 9px; max-height: 560px; overflow-y: auto; padding-right: 2px; }
         .admin-list::-webkit-scrollbar { width: 8px; }
         .admin-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
         .admin-item {
-            padding: 14px 16px; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--item);
-            transition: border-color .15s;
+            padding: 13px 15px; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--item);
+            transition: border-color .15s, background .15s;
         }
-        .admin-item:hover { border-color: var(--border); }
-        .admin-item strong { display: block; margin: 0; font-size: 14.5px; letter-spacing: -.01em; }
-        .admin-item p { display: block; margin: 7px 0 0; color: var(--text-dim); font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
-        .admin-item small { display: block; margin-top: 10px; color: var(--text-mute); font-size: 12px; }
-        .admin-item-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+        .admin-item:hover { border-color: var(--border); background: var(--item-hover); }
+        .admin-item strong { display: block; margin: 0; font-size: 14px; letter-spacing: -.01em; color: var(--text); }
+        .admin-item p { display: block; margin: 6px 0 0; color: var(--text-dim); font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+        .admin-item small { display: block; margin-top: 9px; color: var(--text-mute); font-size: 12px; }
+        .admin-item-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
         .admin-item-actions button {
             padding: 7px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim);
-            background: var(--panel-2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s;
+            background: #fff; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s;
         }
-        .admin-item-actions button:hover { background: var(--item-hover); border-color: #3d4a63; }
+        .admin-item-actions button:hover { background: var(--item-hover); border-color: #c7cede; }
         .admin-item-actions button.danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
-        .admin-item-actions button.danger:hover { background: #4a2c34; }
+        .admin-item-actions button.danger:hover { background: #fbdada; }
         .admin-list > p { color: var(--text-mute); font-size: 13.5px; padding: 8px 2px; }
 
         .admin-bulk-actions {
-            display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 13px;
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px;
             border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--panel-2); margin-bottom: 2px;
         }
         .admin-bulk-actions label { margin: 0 !important; display: flex; align-items: center; gap: 7px; color: var(--text-dim); font-weight: 600; font-size: 13px; }
         .admin-bulk-actions button { padding: 7px 11px; border: 1px solid var(--danger-border); border-radius: var(--radius-sm); color: var(--danger); background: var(--danger-bg); cursor: pointer; font-weight: 600; font-size: 12.5px; }
 
         .admin-item { position: relative; }
-        .admin-item:has(.admin-item-check) { padding-left: 44px; }
-        .admin-item-check { position: absolute; top: 16px; left: 15px; margin: 0 !important; }
+        .admin-item:has(.admin-item-check) { padding-left: 42px; }
+        .admin-item-check { position: absolute; top: 15px; left: 14px; margin: 0 !important; }
 
         @media (max-width: 860px) {
             .admin-grid-2 { grid-template-columns: 1fr; }
@@ -297,7 +303,13 @@
             <div class="admin-grid-2">
                 <article class="admin-panel">
                     <h2><i class="fa-solid fa-users"></i> 전체 가입자</h2>
+                    <div class="admin-search-row"><input id="user-search" type="text" placeholder="아이디, 이메일, 이름으로 검색"></div>
                     <div id="all-user-list" class="admin-list"><p>불러오는 중...</p></div>
+                    <div class="admin-pager">
+                        <button id="user-prev-page" type="button" class="admin-refresh-btn"><i class="fa-solid fa-chevron-left"></i> 이전</button>
+                        <span id="user-page-info" class="admin-pager-info"></span>
+                        <button id="user-next-page" type="button" class="admin-refresh-btn">다음 <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
                 </article>
                 <article class="admin-panel">
                     <h2><i class="fa-solid fa-user-lock"></i> 이용 제한 계정</h2>
@@ -414,8 +426,18 @@
                 return `<article class="admin-item"><strong>${escapeHTML(user.display_name || user.username)}</strong><p>${escapeHTML(user.username)} · ${escapeHTML(user.suspension_reason || "운영 정책 위반")}</p><small>${until}</small><div class="admin-item-actions"><button data-lift-user="${user.id}">이용 제한 해제</button><button data-delete-user="${user.id}" data-username="${escapeHTML(user.username)}" class="danger">계정 삭제</button></div></article>`;
             }).join("") : "<p>이용 제한 중인 계정이 없습니다.</p>";
         }
+        const USER_PAGE_SIZE = 30;
+        let userPage = 1;
+        let userSearch = "";
+        function debounce(fn, delay) {
+            let timer;
+            return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+        }
         async function loadAllUsers() {
-            const users = await api("/api/admin/users");
+            const params = new URLSearchParams({page: userPage, page_size: USER_PAGE_SIZE});
+            if (userSearch) params.set("search", userSearch);
+            const data = await api(`/api/admin/users?${params}`);
+            const users = data.users;
             allUserList.innerHTML = users.length ? users.map(user => {
                 const joined = user.created_at ? escapeHTML(user.created_at.slice(0, 10)) : "가입일 없음";
                 const email = user.email ? escapeHTML(user.email) : "이메일 없음";
@@ -432,8 +454,27 @@
                     actions = `<button data-suspend-user="${user.id}" data-duration="24h">24시간 정지</button><button data-suspend-user="${user.id}" data-duration="7d">7일 정지</button><button data-suspend-user="${user.id}" data-duration="permanent" class="danger">영구 정지</button><button data-delete-user="${user.id}" data-username="${escapeHTML(user.username)}" class="danger">계정 삭제</button>`;
                 }
                 return `<article class="admin-item"><strong>@${escapeHTML(user.username)}</strong><p>${email} · 가입일 ${joined}</p><small>${statusLine}</small><div class="admin-item-actions">${actions}</div></article>`;
-            }).join("") : "<p>가입한 사용자가 없습니다.</p>";
+            }).join("") : `<p>${userSearch ? "검색 결과가 없습니다." : "가입한 사용자가 없습니다."}</p>`;
+
+            const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
+            document.querySelector("#user-page-info").textContent = `${data.page} / ${totalPages} 페이지 · 총 ${data.total}명`;
+            document.querySelector("#user-prev-page").disabled = data.page <= 1;
+            document.querySelector("#user-next-page").disabled = data.page >= totalPages;
         }
+        document.querySelector("#user-search").addEventListener("input", debounce(event => {
+            userSearch = event.target.value.trim();
+            userPage = 1;
+            loadAllUsers().catch(error => alert(error.message));
+        }, 350));
+        document.querySelector("#user-prev-page").addEventListener("click", () => {
+            if (userPage <= 1) return;
+            userPage -= 1;
+            loadAllUsers().catch(error => alert(error.message));
+        });
+        document.querySelector("#user-next-page").addEventListener("click", () => {
+            userPage += 1;
+            loadAllUsers().catch(error => alert(error.message));
+        });
         async function loadReviews() {
             const items = await api("/api/admin/reviews");
             lastReviews = items;

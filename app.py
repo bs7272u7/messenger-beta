@@ -1980,7 +1980,12 @@ def admin_reports():
 @app.route("/api/admin/users", methods=["GET"])
 @admin_required_api
 def admin_all_users():
-    """가입한 전체 사용자 목록을 아이디/이메일/가입일/정지 상태와 함께 보여준다."""
+    """가입한 전체 사용자 목록을 아이디/이메일/가입일/정지 상태와 함께 페이지 단위로 보여준다."""
+    page = max(1, request.args.get("page", 1, type=int) or 1)
+    page_size = min(100, max(1, request.args.get("page_size", 50, type=int) or 50))
+    search = (request.args.get("search") or "").strip()
+    offset = (page - 1) * page_size
+
     with get_db() as conn:
         # 만료된 기간 정지는 목록을 보여주기 전에 먼저 자동 해제한다(로그인 시 판정과 동일한 규칙).
         conn.execute(
@@ -1989,14 +1994,28 @@ def admin_all_users():
                WHERE is_suspended = TRUE AND suspended_until > 0 AND suspended_until <= %s""",
             (time.time(),),
         )
-        rows = conn.execute("""
+        where_sql, params = "", []
+        if search:
+            where_sql = "WHERE username ILIKE %s OR email ILIKE %s OR display_name ILIKE %s"
+            like = f"%{search}%"
+            params = [like, like, like]
+
+        total = conn.execute(f"SELECT COUNT(*) AS c FROM users {where_sql}", params).fetchone()["c"]
+        rows = conn.execute(f"""
             SELECT id, username, email, display_name, created_at, is_admin,
                    is_suspended, suspended_until, suspension_reason
             FROM users
+            {where_sql}
             ORDER BY id DESC
-        """).fetchall()
+            LIMIT %s OFFSET %s
+        """, params + [page_size, offset]).fetchall()
         conn.commit()
-    return jsonify([dict(row) for row in rows])
+    return jsonify({
+        "users": [dict(row) for row in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    })
 
 
 @app.route("/api/admin/users/suspended", methods=["GET"])
