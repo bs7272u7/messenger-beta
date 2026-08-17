@@ -198,6 +198,8 @@
         .admin-item { position: relative; }
         .admin-item:has(.admin-item-check) { padding-left: 42px; }
         .admin-item-check { position: absolute; top: 15px; left: 14px; margin: 0 !important; }
+        .admin-item-avatar { padding-left: 58px; min-height: 46px; }
+        .admin-item-avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; position: absolute; left: 15px; top: 13px; }
 
         @media (max-width: 860px) {
             .admin-grid-2 { grid-template-columns: 1fr; }
@@ -488,7 +490,7 @@
             const data = await api("/api/admin/online-users");
             onlineUserCount.textContent = `${data.count}명 접속 중`;
             setBadge(document.querySelector("#card-badge-online"), data.count);
-            onlineUserList.innerHTML = data.users.length ? data.users.map(u => `<article class="admin-item"><img src="${escapeHTML(u.profileImage || "/static/default_profile.png")}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;position:absolute;left:15px;top:16px;"><strong>${escapeHTML(u.displayName)}</strong><p>@${escapeHTML(u.username)}</p></article>`).join("") : "<p>지금 접속 중인 사용자가 없습니다.</p>";
+            onlineUserList.innerHTML = data.users.length ? data.users.map(u => `<article class="admin-item admin-item-avatar"><img src="${escapeHTML(u.profileImage || "/static/default_profile.png")}" alt="" class="admin-item-avatar-img"><strong>${escapeHTML(u.displayName)}</strong><p>@${escapeHTML(u.username)}</p></article>`).join("") : "<p>지금 접속 중인 사용자가 없습니다.</p>";
         }
         document.querySelector("#refresh-online-users").addEventListener("click", () => { loadOnlineUsers().catch(error => alert(error.message)); });
         document.querySelector("#notice-submit").addEventListener("click", async () => {
