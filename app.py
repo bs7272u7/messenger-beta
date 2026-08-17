@@ -820,6 +820,13 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'ko'")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_rating INT NOT NULL DEFAULT 400")
         cur.execute("ALTER TABLE users ALTER COLUMN chess_rating SET DEFAULT 400")
+        # 승/무/패는 게임 행을 세어 계산하지 않고 레이팅처럼 계정에 직접 누적한다.
+        # 그래야 전적(기보) 삭제 후에도 프로필의 승/무/패 숫자가 그대로 남는다.
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'chess_wins'")
+        chess_stats_columns_existed = cur.fetchone() is not None
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_wins INT NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_draws INT NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_losses INT NOT NULL DEFAULT 0")
         # 기존 가입자는 가입 시점을 소급할 수 없어 NULL로 남는다 — 관리자 목록에서 "가입일 없음"으로 표시한다.
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
@@ -1121,6 +1128,33 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at)",
         ]:
             cur.execute(stmt)
+
+        if not chess_stats_columns_existed:
+            # 승/무/패 컬럼을 새로 추가하는 시점에만, 현재 남아있는 완료된 게임을 기준으로 초기값을 채운다.
+            # (이후에는 게임 결과가 반영되는 시점에만 누적되고, 기보 삭제로는 줄어들지 않는다.)
+            cur.execute("""
+                SELECT result, white_player_id, black_player_id FROM chess_games
+                WHERE status = 'finished' AND mode = 'online'
+            """)
+            player_stats = {}
+            for game in cur.fetchall():
+                result = json.loads(game["result"] or "{}")
+                winner = result.get("winner")
+                for player_id, color in ((game["white_player_id"], "w"), (game["black_player_id"], "b")):
+                    if not player_id:
+                        continue
+                    stats = player_stats.setdefault(player_id, {"wins": 0, "draws": 0, "losses": 0})
+                    if winner is None:
+                        stats["draws"] += 1
+                    elif winner == color:
+                        stats["wins"] += 1
+                    else:
+                        stats["losses"] += 1
+            for player_id, stats in player_stats.items():
+                cur.execute(
+                    "UPDATE users SET chess_wins = %s, chess_draws = %s, chess_losses = %s WHERE id = %s",
+                    (stats["wins"], stats["draws"], stats["losses"], player_id)
+                )
 
         conn.commit()
     except Exception:
@@ -4026,31 +4060,16 @@ def create_chess_game(conn, user_id, mode, time_control="unlimited", color="w"):
 def chess_player_summary(conn, user_id):
     """메신저의 프로필 카드 정보에 체스 레이팅과 전적을 덧붙여 재사용한다. user_id는 항상 실제 계정이어야 한다."""
     user = conn.execute(
-        "SELECT id, username, display_name, profile_image, chess_rating FROM users WHERE id = %s", (user_id,)
+        "SELECT id, username, display_name, profile_image, chess_rating, chess_wins, chess_draws, chess_losses FROM users WHERE id = %s",
+        (user_id,)
     ).fetchone()
     if not user:
         return {"id": user_id, "name": "알 수 없음", "username": "", "profileImage": DEFAULT_PROFILE_IMAGE,
                 "rating": 400, "record": {"wins": 0, "draws": 0, "losses": 0}}
-    games = conn.execute("""
-        SELECT result, white_player_id FROM chess_games
-        WHERE status = 'finished' AND mode = 'online'
-          AND (white_player_id = %s OR black_player_id = %s)
-    """, (user_id, user_id)).fetchall()
-    wins = draws = losses = 0
-    for game in games:
-        result = json.loads(game["result"] or "{}")
-        winner = result.get("winner")
-        color = "w" if game["white_player_id"] == user_id else "b"
-        if winner is None:
-            draws += 1
-        elif winner == color:
-            wins += 1
-        else:
-            losses += 1
     return {
         "id": user["id"], "name": user["display_name"] or user["username"], "username": user["username"],
         "profileImage": user["profile_image"] or DEFAULT_PROFILE_IMAGE, "rating": user["chess_rating"] or 400,
-        "record": {"wins": wins, "draws": draws, "losses": losses},
+        "record": {"wins": user["chess_wins"] or 0, "draws": user["chess_draws"] or 0, "losses": user["chess_losses"] or 0},
     }
 
 
@@ -4117,10 +4136,14 @@ def apply_chess_ratings(conn, game):
         return game
     rows = conn.execute("SELECT id, chess_rating FROM users WHERE id IN (%s, %s)", (game["white_player_id"], game["black_player_id"])).fetchall()
     ratings = {row["id"]: row["chess_rating"] for row in rows}; white, black = ratings[game["white_player_id"]], ratings[game["black_player_id"]]
-    expected = 1 / (1 + 10 ** ((black - white) / 400)); score = 1 if result.get("winner") == "w" else 0 if result.get("winner") == "b" else .5
+    winner = result.get("winner")
+    expected = 1 / (1 + 10 ** ((black - white) / 400)); score = 1 if winner == "w" else 0 if winner == "b" else .5
     change = round(24 * (score - expected)); result["ratingChanges"] = {"white": change, "black": -change}
-    conn.execute("UPDATE users SET chess_rating = chess_rating + %s WHERE id = %s", (change, game["white_player_id"]))
-    conn.execute("UPDATE users SET chess_rating = chess_rating - %s WHERE id = %s", (change, game["black_player_id"]))
+    # 전적(승/무/패)도 레이팅처럼 계정에 직접 누적해, 기보를 삭제해도 프로필 전적은 그대로 남는다.
+    white_column = "chess_wins" if winner == "w" else "chess_draws" if winner is None else "chess_losses"
+    black_column = "chess_wins" if winner == "b" else "chess_draws" if winner is None else "chess_losses"
+    conn.execute(f"UPDATE users SET chess_rating = chess_rating + %s, {white_column} = {white_column} + 1 WHERE id = %s", (change, game["white_player_id"]))
+    conn.execute(f"UPDATE users SET chess_rating = chess_rating - %s, {black_column} = {black_column} + 1 WHERE id = %s", (change, game["black_player_id"]))
     conn.execute("UPDATE chess_games SET ratings_applied = TRUE, result = %s WHERE id = %s", (json.dumps(result), game["id"]))
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()
 
@@ -4486,7 +4509,7 @@ def chess_history_api():
         rows = conn.execute("""
             SELECT id, mode, result, status, created_at, white_player_id, black_player_id FROM chess_games
             WHERE status = 'finished' AND (white_player_id = %s OR black_player_id = %s)
-            ORDER BY created_at DESC LIMIT 20
+            ORDER BY created_at DESC LIMIT 5
         """, (session["user_id"], session["user_id"])).fetchall()
     return jsonify([{
         "id": str(row["id"]),
