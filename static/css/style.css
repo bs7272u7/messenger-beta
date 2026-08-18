@@ -3305,9 +3305,10 @@
 
             .input-area button {
                 width: 36px;
-                height: 34px;
+                height: 36px;
                 margin-left: 7px;
-                border-radius: 17px;
+                border-radius: 18px;
+                font-size: 14px;
             }
 
             #plus-btn {
