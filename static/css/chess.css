@@ -460,7 +460,7 @@ body.chess-page::before {
     .cc-cta { flex:1; width:auto; min-width:0; min-height:112px; padding:14px 10px; }
     .chess-board-area { padding:10px; }
     .chess-board { border-width:9px; border-radius:10px; }
-    .chess-square { font-size:min(8vw,40px); }
+    .chess-square { font-size:min(9vw,40px); }
     .chess-side-panel { padding:14px; }
     .game-status { bottom:14px; padding:12px 24px; font-size:15px; }
     .chess-primary,.chess-secondary,.danger-button { padding:13px 16px; }
