@@ -1388,7 +1388,7 @@
             box-shadow: none;
             border-radius: 12px;
             width: fit-content;
-            max-width: 400px;
+            max-width: min(68px, 340px);
         }
 
         .chat-file-card {
@@ -3288,8 +3288,9 @@
             .message-left,
             .bubble,
             .image-bubble {
-                max-width: min(78vw, 420px);
-                font-size: 15px;
+                max-width: min(68vw, 340px);
+                padding: 9px 13px;
+                font-size: 14.5px;
             }
 
             .input-area {
@@ -3297,16 +3298,16 @@
             }
 
             .input-area textarea {
-                min-height: 44px;
-                padding: 11px 14px;
+                min-height: 38px;
+                padding: 8px 14px;
                 font-size: 16px;
             }
 
             .input-area button {
-                width: 46px;
-                height: 44px;
+                width: 40px;
+                height: 38px;
                 margin-left: 7px;
-                border-radius: 22px;
+                border-radius: 19px;
             }
 
             #plus-btn {
