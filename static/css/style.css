@@ -3761,7 +3761,7 @@
         body.office-density-comfortable .messages { padding:28px; gap:12px; }
         body.office-density-comfortable .message-right { margin-top:18px; }
         body.office-density-comfortable .message-left,
-        body.office-density-comfortable .bubble { padding:15px 20px; }
+        body.office-density-comfortable .bubble { padding:7px 11px; }
         body.office-density-normal .messages { padding:25px; gap:8px; }
         body.office-density-compact .messages { padding:19px 21px; gap:5px; }
         body.office-density-compact .message-right { margin-top:9px; }
