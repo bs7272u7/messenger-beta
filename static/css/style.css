@@ -1388,7 +1388,7 @@
             box-shadow: none;
             border-radius: 12px;
             width: fit-content;
-            max-width: min(68px, 340px);
+            max-width: min(60px, 280px);
         }
 
         .chat-file-card {
@@ -3288,9 +3288,9 @@
             .message-left,
             .bubble,
             .image-bubble {
-                max-width: min(68vw, 340px);
-                padding: 9px 13px;
-                font-size: 14.5px;
+                max-width: min(60vw, 280px);
+                padding: 7px 11px;
+                font-size: 13px;
             }
 
             .input-area {
