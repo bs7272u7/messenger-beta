@@ -3166,10 +3166,17 @@
             }
 
             .friend {
-                padding: 11px 8px;
-                margin-top: 6px;
+                padding: 12px 10px;
+                margin-top: 5px;
                 border-radius: 12px;
+                font-size: 15px;
             }
+
+            .friend .profile {
+                width: 46px;
+                height: 46px;
+            }
+            
 
             .friend:hover {
                 transform: none;
