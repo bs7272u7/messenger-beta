@@ -1402,6 +1402,22 @@
             white-space: pre-wrap;
         }
 
+        /* PC에서는 넓은 대화 영역에 맞춰 말풍선의 읽기 크기와 여백을 키운다. */
+        @media (min-width: 768px) {
+            .messages {
+                padding: 30px 34px;
+                gap: 10px;
+            }
+
+            .message-left,
+            .bubble {
+                max-width: min(62%, 620px);
+                padding: 16px 22px;
+                font-size: 17px;
+                line-height: 1.55;
+            }
+        }
+
         .image-bubble {
             padding: 0;
             background: none;
