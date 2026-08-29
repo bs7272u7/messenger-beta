@@ -3820,6 +3820,21 @@
         body.office-density-compact .message-left,
         body.office-density-compact .bubble { padding:10px 15px; }
 
+        /* 오피스 모드의 세부 설정이 PC 기본 말풍선 크기를 다시 작게 덮지 않도록 맞춘다. */
+        @media (min-width: 768px) {
+            body.office-text-small .bubble,
+            body.office-text-small .message-left { font-size:18px; line-height:1.55; }
+            body.office-text-medium .bubble,
+            body.office-text-medium .message-left { font-size:20px; line-height:1.6; }
+            body.office-text-large .bubble,
+            body.office-text-large .message-left { font-size:22px; line-height:1.65; }
+
+            body.office-density-comfortable .message-left,
+            body.office-density-comfortable .bubble { padding:22px 30px; }
+            body.office-density-compact .message-left,
+            body.office-density-compact .bubble { padding:18px 26px; }
+        }
+
         body.office-reduce-motion *,
         body.office-reduce-motion *::before,
         body.office-reduce-motion *::after {
