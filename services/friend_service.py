@@ -39,9 +39,16 @@ class FriendService:
             target_id = target["id"]
             if self._blocked_either_way(conn, requester_id, target_id):
                 raise FriendServiceError("차단 관계에서는 친구 요청을 보낼 수 없습니다.")
+            # 채팅방 존재 여부와 친구 관계는 별개다. 숨긴 과거 대화방이 있어도
+            # 친구 삭제 후 다시 요청할 수 있어야 하므로 수락된 요청만 확인한다.
             if conn.execute(
-                "SELECT c.id FROM conversations c JOIN conversation_members m1 ON m1.conversation_id = c.id AND m1.user_id = %s JOIN conversation_members m2 ON m2.conversation_id = c.id AND m2.user_id = %s WHERE c.is_group = FALSE",
-                (requester_id, target_id),
+                """
+                SELECT id FROM friend_requests
+                WHERE status = 'accepted'
+                  AND ((requester_id = %s AND addressee_id = %s)
+                    OR (requester_id = %s AND addressee_id = %s))
+                """,
+                (requester_id, target_id, target_id, requester_id),
             ).fetchone():
                 raise FriendServiceError("이미 친구입니다.")
             reverse = conn.execute(
@@ -99,6 +106,61 @@ class FriendService:
             conn.execute("DELETE FROM friend_requests WHERE id = %s", (request_id,))
             conn.commit()
         return request_row["addressee_id"]
+
+    def list_friends(self, user_id: int) -> list[dict]:
+        """숨긴 채팅방과 무관하게 실제 수락된 친구 관계를 반환한다."""
+        with self._connection_factory() as conn:
+            rows = conn.execute(
+                """
+                SELECT peer.id, peer.username, peer.display_name, peer.profile_image,
+                       EXISTS(
+                           SELECT 1 FROM blocks
+                           WHERE blocker_id = %s AND blocked_id = peer.id
+                       ) AS blocked_by_me,
+                       EXISTS(
+                           SELECT 1 FROM blocks
+                           WHERE blocker_id = peer.id AND blocked_id = %s
+                       ) AS blocked_me
+                FROM friend_requests request
+                JOIN users peer ON peer.id = CASE
+                    WHEN request.requester_id = %s THEN request.addressee_id
+                    ELSE request.requester_id
+                END
+                WHERE request.status = 'accepted'
+                  AND (request.requester_id = %s OR request.addressee_id = %s)
+                ORDER BY COALESCE(peer.display_name, peer.username), peer.username
+                """,
+                (user_id, user_id, user_id, user_id, user_id),
+            ).fetchall()
+        return [
+            {
+                "peerId": row["id"],
+                "peerUsername": row["username"],
+                "name": row["display_name"] or row["username"],
+                "peerProfileImage": row["profile_image"],
+                "blockedByMe": bool(row["blocked_by_me"]),
+                "blockedMe": bool(row["blocked_me"]),
+            }
+            for row in rows
+        ]
+
+    def remove_friend(self, user_id: int, target_id: int) -> int:
+        """친구 관계만 해제한다. 채팅방 숨김·삭제와는 별개의 동작이다."""
+        with self._connection_factory() as conn:
+            request_row = conn.execute(
+                """
+                SELECT id FROM friend_requests
+                WHERE status = 'accepted'
+                  AND ((requester_id = %s AND addressee_id = %s)
+                    OR (requester_id = %s AND addressee_id = %s))
+                """,
+                (user_id, target_id, target_id, user_id),
+            ).fetchone()
+            if not request_row:
+                raise FriendServiceError("친구 관계를 찾을 수 없습니다.", 404)
+            conn.execute("DELETE FROM friend_requests WHERE id = %s", (request_row["id"],))
+            conn.commit()
+        return target_id
 
     def list_blocks(self, user_id: int) -> list[dict]:
         with self._connection_factory() as conn:

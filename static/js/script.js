@@ -42,6 +42,7 @@
 
         const chats = {};
         let friends = [];
+        let friendDirectory = [];
         let messageRefreshPromise = null;
         let lastMessageRefreshAt = 0;
         let pendingProfileImageData = null;
@@ -52,6 +53,12 @@
             const response  = await fetch("/api/conversations");
             friends = await response.json();
             readFriends();
+        }
+
+        async function loadFriendDirectory() {
+            const response = await fetch("/api/friends");
+            const result = await response.json();
+            friendDirectory = result.friends || [];
         }
             
 
@@ -1684,7 +1691,7 @@
                     newFriend.addEventListener("contextmenu", function (event) {
                         event.preventDefault();
 
-                        showConfirm("채팅방을 삭제 하시겠습니까?", async function (confirmDelete) {
+                        showConfirm("채팅방을 목록에서 숨기시겠습니까? 친구 관계와 이전 대화는 유지됩니다.", async function (confirmDelete) {
                             if(!confirmDelete) return;
 
                             await fetch(`/api/conversations/${friend.id}/hide`, { method: "POST" });
@@ -2055,8 +2062,8 @@
             inviteMemberList.innerHTML = "";
 
             const memberUsernames = new Set(currentGroupMembers.map(function (m) { return m.username; }));
-            const invitableFriends = friends.filter(function (friend) {
-                return !friend.isGroup && !memberUsernames.has(friend.peerUsername);
+            const invitableFriends = friendDirectory.filter(function (friend) {
+                return !memberUsernames.has(friend.peerUsername);
             });
 
             if (invitableFriends.length === 0) {
@@ -2120,7 +2127,7 @@
         function renderFriendPanelList() {
             friendPanelList.innerHTML = "";
 
-            friends.filter(function (friend) { return !friend.isGroup; }).forEach(function (friend) {
+            friendDirectory.forEach(function (friend) {
                 const item = document.createElement("div");
                 item.className = "friend-panel-item";
 
@@ -2193,14 +2200,13 @@
                     showConfirm(`"${friend.name}"님을 삭제하시겠습니까?`, async function (confirmDelete) {
                         if (!confirmDelete) return;
 
-                        await fetch(`/api/conversations/${friend.id}/leave`, { method: "DELETE"});
-
-                        if (currentConversationID === friend.id) {
-                            currentConversationID = friends.length > 0 ? friends[0].id : null;
-                            updateChatHeader(friends.length > 0 ? friends[0] : null);
-                            readMessages();
+                        const response = await fetch(`/api/friends/${friend.peerId}`, { method: "DELETE" });
+                        const result = await response.json();
+                        if (!response.ok || !result.success) {
+                            showAlert(result.error || "친구를 삭제하지 못했습니다.");
+                            return;
                         }
-
+                        await loadFriendDirectory();
                         await loadFriends();
                         renderFriendPanelList();
                         updateBlockState();
@@ -2215,6 +2221,7 @@
 
                             await fetch(`/api/blocks/${friend.peerId}`, { method: "DELETE" });
 
+                            await loadFriendDirectory();
                             await loadFriends();
                             renderFriendPanelList();
                             updateBlockState();
@@ -2239,6 +2246,7 @@
                                 return;
                             }
 
+                            await loadFriendDirectory();
                             await loadFriends();
                             renderFriendPanelList();
                             updateBlockState();
@@ -2253,7 +2261,7 @@
         function renderNewGroupMemberList() {
             newGroupMemberList.innerHTML = "";
 
-            const oneOnOnFriends = friends.filter(function (friend) { return !friend.isGroup; });
+            const oneOnOnFriends = friendDirectory;
 
             if (oneOnOnFriends.length === 0) {
                 newGroupMemberList.innerHTML = `<div style="padding: 10px; font-size: 13px; color: #999;">함께 그룹을 만들 친구가 없습니다.</div>`;
@@ -4051,6 +4059,7 @@ async function sendVideo(file) {
 
         // 친구 요청 도착/수락/거절, 차단/차단해제 — 친구 관계가 바뀔 때마다 여기로 신호가 옴
         socket.on("friend_updated", async function () {
+            await loadFriendDirectory();
             await loadFriends();
             readFriends();
             updateBlockState();
@@ -4082,7 +4091,7 @@ async function sendVideo(file) {
          * ====================================================== */
 
         readMessages();
-        loadFriends().then(updateBlockState);
+        Promise.all([loadFriends(), loadFriendDirectory()]).then(updateBlockState);
         loadFriendRequests();
         loadUpdateHistory();
         loadUnreadModerationWarnings();

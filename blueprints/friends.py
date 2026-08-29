@@ -48,6 +48,22 @@ def create_friends_blueprint(
     def list_blocks():
         return jsonify({"blocked": friend_service.list_blocks(session["user_id"])})
 
+    @friends_bp.route("/api/friends", methods=["GET"])
+    @api_login_required
+    def list_friends():
+        return jsonify({"friends": friend_service.list_friends(session["user_id"])})
+
+    @friends_bp.route("/api/friends/<int:target_id>", methods=["DELETE"])
+    @api_login_required
+    def remove_friend(target_id):
+        user_id = session["user_id"]
+        try:
+            peer_id = friend_service.remove_friend(user_id, target_id)
+        except FriendServiceError as error:
+            return jsonify({"success": False, "error": str(error)}), error.status_code
+        notify_user(peer_id, "friend_updated", {})
+        return jsonify({"success": True})
+
     @friends_bp.route("/api/blocks", methods=["POST"])
     @api_login_required
     def block_user():

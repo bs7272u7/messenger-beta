@@ -706,6 +706,17 @@
             align-items: center;
         }
 
+        /* 기본 입력 영역의 밝은 반투명 배경을 다크 모드에서 확실히 덮어쓴다. */
+        body.dark-mode .input-area {
+            background: var(--panel-bg);
+            border-top-color: var(--border-color);
+        }
+
+        body.dark-mode .input-area textarea {
+            background: var(--panel-bg);
+            border-color: var(--input-border);
+        }
+
         .input-area textarea {
             flex: 1;
             min-height: 48px;
