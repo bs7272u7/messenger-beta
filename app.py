@@ -1941,7 +1941,8 @@ def privacy_page():
 def login_page():
     if "user_id" in session:
         return redirect(url_for("home"))
-    return render_template("login.html")
+    initial_mode = "register" if request.args.get("mode") == "register" else "login"
+    return render_template("login.html", initial_mode=initial_mode)
 
 
 @app.route("/api/push-config", methods=["GET"])
