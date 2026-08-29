@@ -1411,10 +1411,15 @@
 
             .message-left,
             .bubble {
-                max-width: min(62%, 620px);
-                padding: 16px 22px;
-                font-size: 17px;
-                line-height: 1.55;
+                max-width: min(72%, 780px);
+                padding: 22px 30px;
+                font-size: 20px;
+                line-height: 1.6;
+                border-radius: 26px 26px 26px 6px;
+            }
+
+            .bubble {
+                border-radius: 26px 26px 6px 26px;
             }
         }
 

@@ -14,13 +14,13 @@ class HealthCheckTests(unittest.TestCase):
         self.assertIn(payload["status"], {"ok", "degraded"})
         self.assertIn(payload["database"], {"available", "unavailable"})
 
-    def test_landing_page_is_available_without_login(self):
+    def test_root_redirects_to_login_while_landing_is_disabled(self):
         client = application_module.app.test_client()
 
         response = client.get("/")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Cloud Chatting", response.data)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/login"))
 
     def test_login_page_supports_register_mode_link(self):
         client = application_module.app.test_client()

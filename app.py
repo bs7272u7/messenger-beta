@@ -1721,10 +1721,10 @@ def health_check():
 
 @app.route("/")
 def landing_page():
-    """비로그인 사용자에게 Cloud Chatting 소개 화면을 제공한다."""
+    """랜딩 페이지는 재작업 전까지 비활성화하고 인증 흐름으로 보낸다."""
     if session.get("user_id"):
         return redirect(url_for("home"))
-    return render_template("landing.html")
+    return redirect(url_for("login_page"))
 
 
 @app.route("/chat")
