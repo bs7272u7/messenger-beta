@@ -150,6 +150,9 @@ CHAT_FILE_EXTENSIONS = {
     "wav",
     "m4a",
 }
+# 체스 기능은 보존하되, 정식 채팅 화면에서는 기본적으로 노출하지 않는다.
+# 다시 공개할 때만 CHESS_UI_ENABLED=true로 설정한다.
+CHESS_UI_ENABLED = os.environ.get("CHESS_UI_ENABLED", "false").strip().lower() == "true"
 IMAGE_MAX_BYTES = 10 * 1024 * 1024
 IMAGE_MAX_PIXELS = 40_000_000
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY")
@@ -1752,6 +1755,7 @@ def home():
         profile_image=profile_image,
         user_email=user["email"],
         user_language=session["language"],
+        chess_ui_enabled=CHESS_UI_ENABLED,
     )
 
 

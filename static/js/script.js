@@ -1780,9 +1780,13 @@
         }
 
         async function loadFriendRequests() {
-            const [response, chessResponse] = await Promise.all([fetch("/api/friend-requests"), fetch("/api/chess/invites")]);
+            const response = await fetch("/api/friend-requests");
             const result = await response.json();
-            const chessResult = chessResponse.ok ? await chessResponse.json() : { invites: [] };
+            const chessResult = window.CLOUD_CHESS_UI_ENABLED
+                ? await fetch("/api/chess/invites").then(async function (chessResponse) {
+                    return chessResponse.ok ? chessResponse.json() : { invites: [] };
+                })
+                : { invites: [] };
             const incoming = result.incoming || [];
             const outgoing = result.outgoing || [];
             const chessInvites = chessResult.invites || [];
@@ -2127,7 +2131,7 @@
                         ? `<span class="unblock-friend-icon" title="차단 해제"><i class="fa-solid fa-lock-open"></i></span>`
                         : `<span class="block-friend-icon" title="차단"><i class="fa-solid fa-ban"></i></span>`);
 
-                const chessInviteIconHTML = friend.blockedByMe || friend.blockedMe
+                const chessInviteIconHTML = !window.CLOUD_CHESS_UI_ENABLED || friend.blockedByMe || friend.blockedMe
                     ? ""
                     : `<span class="chess-invite-friend-icon" title="체스 초대" role="button" tabindex="0" aria-label="${escapeHTML(friend.name)}님에게 체스 초대">
                         <i class="fa-solid fa-chess-knight"></i>
@@ -4040,6 +4044,7 @@ async function sendVideo(file) {
             updateBlockState();
         });
         socket.on("chess_invite", async function () {
+            if (!window.CLOUD_CHESS_UI_ENABLED) return;
             await loadFriendRequests();
             showToast("메시지함에 체스 대국 초대가 도착했습니다.", "info");
         });

@@ -108,9 +108,11 @@
     <button id="mobile-friends-nav-btn" type="button" aria-label="친구 관리">
         <i class="fa-solid fa-user-group"></i><span>친구</span>
     </button>
+    {% if chess_ui_enabled %}
     <a id="mobile-play-nav-link" href="/chess" aria-label="플레이">
         <i class="fa-solid fa-chess-knight"></i><span>플레이</span>
     </a>
+    {% endif %}
     <button id="mobile-profile-nav-btn" type="button" aria-label="프로필 편집">
         <i class="fa-solid fa-user-pen"></i><span>프로필</span>
     </button>
@@ -141,7 +143,9 @@
         </div>
         <div class="desktop-quick-actions">
             <button id="friend-inbox-btn" type="button"><i class="fa-regular fa-envelope"></i> 메시지함 <span id="friend-inbox-badge" class="friend-inbox-badge" hidden>0</span></button>
+            {% if chess_ui_enabled %}
             <a id="play-launch-btn" href="/chess" title="플레이" aria-label="플레이"><i class="fa-solid fa-chess-knight"></i><span>플레이</span></a>
+            {% endif %}
             <button class="side-nav-settings" type="button" aria-label="설정"><i class="fa-solid fa-gear"></i></button>
         </div>
         <div class="friend-list-heading">
@@ -200,7 +204,9 @@
                 <span id="chat-header-member-count" style="display:none; font-size:13px; font-weight:500; color:var(--text-color); opacity:0.6;"></span>
             </div>
             <div id="chat-header-actions" style="display: flex; gap: 12px;">
+                {% if chess_ui_enabled %}
                 <a id="chat-chess-btn" class="chat-secondary-action" href="/chess" title="체스 플레이" aria-label="체스 플레이"><i class="fa-solid fa-chess-knight"></i></a>
+                {% endif %}
                 <button id="chat-theme-btn" class="chat-secondary-action" title="채팅 테마" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-solid fa-palette"></i></button>
                 <button id="group-members-btn" class="chat-secondary-action" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer; display: none;"><i class="fa-solid fa-users-gear"></i></button>
                 <button id="gallery-toggle-btn" class="chat-secondary-action" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-regular fa-images"></i></button>
@@ -209,7 +215,9 @@
             </div>
         </div>
         <div id="mobile-chat-actions-sheet" aria-hidden="true">
+            {% if chess_ui_enabled %}
             <a class="mobile-chat-chess-link" href="/chess"><i class="fa-solid fa-chess-knight"></i> 체스 플레이</a>
+            {% endif %}
             <button type="button" data-chat-action="theme"><i class="fa-solid fa-palette"></i> 채팅 테마</button>
             <button type="button" data-chat-action="gallery"><i class="fa-regular fa-images"></i> 사진 모아보기</button>
             <button type="button" data-chat-action="pin"><i class="fa-solid fa-thumbtack"></i> 채팅방 고정</button>
@@ -859,7 +867,11 @@
 
 </div>
 
-    <script>const MY_USER_ID = {{ user_id }}; window.CLOUD_LANGUAGE = {{ user_language|tojson }};</script>
+    <script>
+        const MY_USER_ID = {{ user_id }};
+        window.CLOUD_LANGUAGE = {{ user_language|tojson }};
+        window.CLOUD_CHESS_UI_ENABLED = {{ chess_ui_enabled|tojson }};
+    </script>
     <script src="{{ url_for('static', filename='js/i18n.js', v='20260817.1') }}"></script>
     <script src="{{ url_for('static', filename='js/script.js', v='20260816.6') }}"></script>
     <script>

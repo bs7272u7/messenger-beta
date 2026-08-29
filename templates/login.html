@@ -622,14 +622,21 @@
         // 서버가 렌더링한 초기 모드와 화면 전환 상태를 하나로 맞춘다.
         let mode = document.body.dataset.authMode === "register" ? "register" : "login";
 
+        function setLocalizedText(element, koreanText) {
+            // i18n은 최초 문구를 data-i18n-text에 보관한다. 화면 모드가 바뀌면
+            // 그 기준값도 함께 바꿔야 이전 모드의 번역이 다시 덮어쓰이지 않는다.
+            element.dataset.i18nText = koreanText;
+            element.textContent = window.CloudI18n ? window.CloudI18n.t(koreanText) : koreanText;
+        }
+
         function applyMode() {
             errorText.textContent = "";
             if (mode === "login") {
-                formTitle.textContent = "로그인";
-                formSubtitle.textContent = "계정으로 로그인해서 대화를 이어가세요.";
-                submitBtn.textContent = "로그인";
-                switchLabel.textContent = "계정이 없으신가요?";
-                switchLink.textContent = "회원가입";
+                setLocalizedText(formTitle, "로그인");
+                setLocalizedText(formSubtitle, "계정으로 로그인해서 대화를 이어가세요.");
+                setLocalizedText(submitBtn, "로그인");
+                setLocalizedText(switchLabel, "계정이 없으신가요?");
+                setLocalizedText(switchLink, "회원가입");
                 passwordInput.setAttribute("autocomplete", "current-password");
                 passwordInput.placeholder = "비밀번호";
                 usernameField.style.display = "block";
@@ -646,11 +653,11 @@
                 passwordConfirmationInput.value = "";
                 passwordConfirmationStatus.textContent = "";
             } else {
-                formSubtitle.textContent = "Cloud Chatting 계정을 만들고 대화를 시작하세요.";
-                formTitle.textContent = "회원가입";
-                submitBtn.textContent = "회원가입";
-                switchLabel.textContent = "계정이 있으신가요?";
-                switchLink.textContent = "로그인";
+                setLocalizedText(formSubtitle, "Cloud Chatting 계정을 만들고 대화를 시작하세요.");
+                setLocalizedText(formTitle, "회원가입");
+                setLocalizedText(submitBtn, "회원가입");
+                setLocalizedText(switchLabel, "계정이 있으신가요?");
+                setLocalizedText(switchLink, "로그인");
                 passwordInput.setAttribute("autocomplete", "new-password");
                 // 회원가입 화면에서는 서버가 검사하는 조건을 그대로 안내한다.
                 passwordInput.placeholder = "영문 소문자, 숫자, 특수문자 7자 이상";
