@@ -1402,8 +1402,9 @@
             white-space: pre-wrap;
         }
 
-        /* PC에서는 화면이 넓어진 만큼 말풍선이 가로로만 더 늘어나게 한다.
-           글자 크기·여백·모서리는 모바일과 같은 값을 써서 두 화면의 인상을 맞춘다. */
+        /* PC에서는 화면이 넓어진 만큼 말풍선도 가로로 더 늘어나게 한다.
+           글자 크기와 여백은 오피스 모드 설정과 함께 걸려야 하므로 아래쪽
+           office-* 규칙 뒤에서 단계별로 지정한다. */
         @media (min-width: 768px) {
             .message-left,
             .bubble {
@@ -3807,6 +3808,26 @@
         body.office-density-compact .message-right { margin-top:9px; }
         body.office-density-compact .message-left,
         body.office-density-compact .bubble { padding:10px 15px; }
+
+        /* PC 전용 말풍선 크기.
+           오피스 모드 설정(body.office-*)이 우선순위가 높아 일반 규칙으로는 덮이지 않으므로,
+           같은 선택자 구조로 단계마다 한 단계씩 올린다. 기본값인
+           medium + comfortable 조합이 18px / 16px 24px가 된다. */
+        @media (min-width: 768px) {
+            body.office-text-small .bubble,
+            body.office-text-small .message-left { font-size:17px; line-height:1.5; }
+            body.office-text-medium .bubble,
+            body.office-text-medium .message-left { font-size:18px; line-height:1.5; }
+            body.office-text-large .bubble,
+            body.office-text-large .message-left { font-size:19px; line-height:1.55; }
+
+            body.office-density-comfortable .message-left,
+            body.office-density-comfortable .bubble { padding:16px 24px; }
+            body.office-density-normal .message-left,
+            body.office-density-normal .bubble { padding:14px 21px; }
+            body.office-density-compact .message-left,
+            body.office-density-compact .bubble { padding:11px 17px; }
+        }
 
         body.office-reduce-motion *,
         body.office-reduce-motion *::before,
