@@ -453,7 +453,7 @@
 
     </style>
 </head>
-<body>
+<body data-auth-mode="{{ initial_mode }}">
     <select class="auth-language-select" data-language-select aria-label="언어">
         <option value="ko">한국어</option><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option><option value="es">español</option>
     </select>
@@ -619,7 +619,8 @@
         let emailVerified = false;
         let timerInterval = null;
 
-        let mode = "login"; // "login" | "register"
+        // 서버가 렌더링한 초기 모드와 화면 전환 상태를 하나로 맞춘다.
+        let mode = document.body.dataset.authMode === "register" ? "register" : "login";
 
         function applyMode() {
             errorText.textContent = "";
@@ -892,8 +893,6 @@
             rememberCheckbox.checked = true;
         }
 
-        applyMode();
-
         window.addEventListener("DOMContentLoaded", function () {
             const findUsernameLink = document.getElementById("find-username-link");
             const findUsernameOverlay = document.getElementById("find-username-overlay");
@@ -1008,11 +1007,6 @@
                 }
             });
         });
-
-        const requestMode = new URLSearchParams(window.location.search).get("mode");
-        if (requestMode === "register") {
-            mode = "register";
-        }
 
         applyMode();
 
