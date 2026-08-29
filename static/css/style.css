@@ -1402,24 +1402,12 @@
             white-space: pre-wrap;
         }
 
-        /* PC에서는 넓은 대화 영역에 맞춰 말풍선의 읽기 크기와 여백을 키운다. */
+        /* PC에서는 화면이 넓어진 만큼 말풍선이 가로로만 더 늘어나게 한다.
+           글자 크기·여백·모서리는 모바일과 같은 값을 써서 두 화면의 인상을 맞춘다. */
         @media (min-width: 768px) {
-            .messages {
-                padding: 30px 34px;
-                gap: 10px;
-            }
-
             .message-left,
             .bubble {
-                max-width: min(72%, 780px);
-                padding: 22px 30px;
-                font-size: 20px;
-                line-height: 1.6;
-                border-radius: 26px 26px 26px 6px;
-            }
-
-            .bubble {
-                border-radius: 26px 26px 6px 26px;
+                max-width: min(62%, 560px);
             }
         }
 
@@ -3819,21 +3807,6 @@
         body.office-density-compact .message-right { margin-top:9px; }
         body.office-density-compact .message-left,
         body.office-density-compact .bubble { padding:10px 15px; }
-
-        /* 오피스 모드의 세부 설정이 PC 기본 말풍선 크기를 다시 작게 덮지 않도록 맞춘다. */
-        @media (min-width: 768px) {
-            body.office-text-small .bubble,
-            body.office-text-small .message-left { font-size:18px; line-height:1.55; }
-            body.office-text-medium .bubble,
-            body.office-text-medium .message-left { font-size:20px; line-height:1.6; }
-            body.office-text-large .bubble,
-            body.office-text-large .message-left { font-size:22px; line-height:1.65; }
-
-            body.office-density-comfortable .message-left,
-            body.office-density-comfortable .bubble { padding:22px 30px; }
-            body.office-density-compact .message-left,
-            body.office-density-compact .bubble { padding:18px 26px; }
-        }
 
         body.office-reduce-motion *,
         body.office-reduce-motion *::before,
