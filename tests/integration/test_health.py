@@ -14,13 +14,26 @@ class HealthCheckTests(unittest.TestCase):
         self.assertIn(payload["status"], {"ok", "degraded"})
         self.assertIn(payload["database"], {"available", "unavailable"})
 
-    def test_root_redirects_to_login_while_landing_is_disabled(self):
+    def test_root_serves_the_landing_page_to_signed_out_visitors(self):
         client = application_module.app.test_client()
 
         response = client.get("/")
 
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertIn("편안하게", page)
+        # 랜딩의 목적은 가입 유도이므로 회원가입 경로가 살아 있어야 한다.
+        self.assertIn('href="/login?mode=register"', page)
+
+    def test_root_redirects_signed_in_users_to_the_chat_screen(self):
+        client = application_module.app.test_client()
+        with client.session_transaction() as session:
+            session["user_id"] = 1
+
+        response = client.get("/")
+
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.headers["Location"].endswith("/login"))
+        self.assertTrue(response.headers["Location"].endswith("/chat"))
 
     def test_login_page_supports_register_mode_link(self):
         client = application_module.app.test_client()

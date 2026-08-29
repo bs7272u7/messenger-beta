@@ -1721,10 +1721,10 @@ def health_check():
 
 @app.route("/")
 def landing_page():
-    """랜딩 페이지는 재작업 전까지 비활성화하고 인증 흐름으로 보낸다."""
+    """로그인한 사용자는 대화 화면으로, 처음 온 방문자는 소개 페이지로 보낸다."""
     if session.get("user_id"):
         return redirect(url_for("home"))
-    return redirect(url_for("login_page"))
+    return render_template("landing.html")
 
 
 @app.route("/chat")

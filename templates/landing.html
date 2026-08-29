@@ -4,225 +4,341 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cloud Chatting</title>
+  <meta name="description" content="친구와 메시지, 사진, 파일을 편안하게 주고받는 실시간 채팅 서비스. 설치 없이 브라우저에서 바로 시작하세요.">
 
-  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Cloud Chatting">
+  <meta property="og:description" content="대화가 자연스럽게 이어지는 곳.">
+  <meta property="og:image" content="{{ url_for('static', filename='favicon-180x180.png', _external=True) }}">
+
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='favicon-180x180.png') }}">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-
-  <!-- Font Awesome: 필요한 경우에만 사용 -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 
   <style>
+    /* 색은 브랜드 파랑과 무채색으로만 제한한다.
+       삽화를 두지 않는 대신 타이포와 여백으로 화면을 지탱한다. */
     :root {
-      --primary: #4a90e2;
-      --primary-dark: #2f72c4;
-      --text: #172033;
-      --muted: #687386;
-      --line: #e8edf5;
-      --surface: #ffffff;
-      --soft-blue: #f4f8ff;
-      --gradient: linear-gradient(135deg, #4a90e2 0%, #78b8ff 100%);
+      --accent:      #4a90e2;
+      --accent-cta:  #2f72c4;
+      --accent-cta-hover: #275fa6;
+
+      --text:        #172033;
+      --text-muted:  #626d80;
+
+      --surface:     #ffffff;
+      --band:        #f6f8fb;
+      --line:        #e6ebf2;
+
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --container: 1136px;
+      --gutter: 32px;
+      --header-h: 64px;
     }
 
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
 
     body {
       margin: 0;
-      color: var(--text);
       background: var(--surface);
-      font-family: Inter, "Noto Sans KR", sans-serif;
-    }
-
-    .landing-header {
-      height: 76px;
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 0 32px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .brand {
-      display: inline-flex;
-      gap: 10px;
-      align-items: center;
       color: var(--text);
-      font-size: 18px;
-      font-weight: 800;
-      text-decoration: none;
+      font-family: 'Inter', 'Noto Sans KR', -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      letter-spacing: -0.01em;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
 
-    .brand img {
-      width: 34px;
-      height: 34px;
-      border-radius: 10px;
+    h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.02em; }
+    p { margin: 0; }
+    a { color: inherit; text-decoration: none; }
+
+    .container { max-width: var(--container); margin: 0 auto; padding-inline: var(--gutter); }
+
+    .skip-link {
+      position: absolute; left: -9999px; top: 12px; z-index: 100;
+      padding: 8px 16px; border-radius: 999px; background: var(--surface);
+      box-shadow: 0 4px 16px rgba(23,32,51,.14); font-weight: 700;
+    }
+    .skip-link:focus { left: 24px; }
+
+    a:focus-visible, button:focus-visible {
+      outline: 3px solid rgba(74,144,226,.45); outline-offset: 3px; border-radius: 999px;
     }
 
-    .nav {
-      display: flex;
-      gap: 10px;
-      align-items: center;
+    /* ---------------- 버튼 ---------------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 48px; padding: 0 24px;
+      border: 1px solid transparent; border-radius: 999px;
+      font: inherit; font-size: 16px; font-weight: 700; letter-spacing: -0.02em;
+      white-space: nowrap; cursor: pointer;
+      transition: background-color .18s var(--ease), border-color .18s var(--ease), transform .18s var(--ease);
     }
+    .btn-primary { background: var(--accent-cta); color: #fff; }
+    .btn-primary:hover { background: var(--accent-cta-hover); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
 
-    .nav-link,
-    .button {
-      border: 0;
-      border-radius: 12px;
-      padding: 11px 16px;
-      font: inherit;
-      font-weight: 700;
-      text-decoration: none;
-      cursor: pointer;
+    .btn-outline { background: var(--surface); color: var(--text); border-color: var(--line); }
+    .btn-outline:hover { border-color: #cfdae8; background: #fbfcfe; transform: translateY(-1px); }
+    .btn-outline:active { transform: translateY(0); }
+
+    .btn-sm { height: 40px; padding: 0 18px; font-size: 15px; }
+
+    /* ---------------- 헤더 ---------------- */
+    .site-header {
+      position: sticky; top: 0; z-index: 40;
+      height: var(--header-h); display: flex; align-items: center;
+      background: rgba(255,255,255,.9);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+              backdrop-filter: saturate(180%) blur(12px);
+      transition: box-shadow .24s var(--ease);
     }
+    .site-header.is-stuck { box-shadow: inset 0 -1px 0 var(--line); }
 
+    .header-inner {
+      display: flex; align-items: center; justify-content: space-between; gap: 24px;
+      width: 100%; padding: 0 var(--gutter);
+    }
+    .brand { display: inline-flex; align-items: center; gap: 9px; }
+    .brand img { width: 26px; height: 26px; border-radius: 7px; }
+    .brand span { font-size: 16px; font-weight: 700; letter-spacing: -0.03em; }
+
+    .header-right { display: flex; align-items: center; gap: 8px; }
     .nav-link {
-      color: var(--text);
-      background: transparent;
+      padding: 8px 12px; border-radius: 999px;
+      color: var(--text-muted); font-size: 15px; font-weight: 500;
+      transition: color .15s var(--ease), background-color .15s var(--ease);
     }
+    .nav-link:hover { color: var(--text); background: var(--band); }
 
-    .button-primary {
-      color: white;
-      background: var(--gradient);
-      box-shadow: 0 10px 24px rgba(74, 144, 226, .24);
-    }
-
-    .button-secondary {
-      color: var(--text);
-      background: #f1f4f8;
-    }
-
-    .brand:focus-visible,
-    .nav-link:focus-visible,
-    .button:focus-visible {
-      outline: 3px solid rgba(74, 144, 226, .45);
-      outline-offset: 3px;
-    }
-
-    .hero {
-      min-height: calc(100vh - 76px);
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 72px 32px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 64px;
-      align-items: center;
-    }
-
+    /* ---------------- 히어로 ---------------- */
+    .hero { padding: 96px 0 104px; }
+    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
     .hero h1 {
-      margin: 0;
-      font-size: clamp(44px, 6vw, 76px);
-      line-height: 1.05;
-      letter-spacing: -0.06em;
+      font-size: clamp(34px, 3.6vw, 48px);
+      font-weight: 700; line-height: 1.18; letter-spacing: -0.02em;
+    }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .hero-lead {
+      max-width: 420px; margin-top: 20px;
+      color: var(--text-muted); font-size: 18px; line-height: 1.65;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 36px; }
+    .hero-note { margin-top: 20px; color: var(--text-muted); font-size: 14px; }
+
+    /* 실제 서비스 화면. PNG의 둥근 모서리가 투명이라 box-shadow 대신
+       알파를 따라가는 drop-shadow를 쓴다. */
+    .hero-shot {
+      display: block;
+      width: 100%; max-width: 560px; height: auto;
+      margin-inline: auto;
+      filter: drop-shadow(0 18px 38px rgba(49, 104, 164, 0.22));
     }
 
-    .hero h1 span {
-      color: var(--primary);
-    }
+    /* ---------------- 기능 ----------------
+       카드나 큰 패널 없이 줄글과 여백으로만 정리한다. */
+    .features { padding: 96px 0; background: var(--band); border-block: 1px solid var(--line); }
+    .features h2 { font-size: clamp(26px, 2.6vw, 34px); line-height: 1.25; }
+    .features > .container > p { margin-top: 12px; max-width: 460px; color: var(--text-muted); font-size: 17px; }
 
-    .hero p {
-      max-width: 480px;
-      margin: 24px 0 32px;
-      color: var(--muted);
-      font-size: 18px;
-      line-height: 1.7;
-    }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 56px; }
+    .item svg { width: 19px; height: 19px; color: var(--accent-cta); }
+    .item h3 { margin: 14px 0 6px; font-size: 17px; }
+    .item p { color: var(--text-muted); font-size: 15px; line-height: 1.6; }
 
-    .hero-actions {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
+    /* ---------------- 마무리 ---------------- */
+    .closing { padding: 104px 0; text-align: center; }
+    .closing h2 { font-size: clamp(26px, 2.8vw, 36px); line-height: 1.25; }
+    .closing p { margin: 14px auto 32px; max-width: 400px; color: var(--text-muted); font-size: 17px; }
 
-    .hero-art {
-      min-height: 390px;
-      border: 1px solid var(--line);
-      border-radius: 32px;
-      background:
-        radial-gradient(circle at 80% 15%, #cfe6ff 0, transparent 30%),
-        radial-gradient(circle at 15% 85%, #e6f1ff 0, transparent 35%),
-        var(--soft-blue);
-      display: grid;
-      place-items: center;
-    }
+    /* ---------------- 푸터 ---------------- */
+    .site-footer { border-top: 1px solid var(--line); padding: 36px 0; }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--text-muted); font-size: 14.5px; }
+    .footer-links a:hover { color: var(--accent-cta); }
+    .footer-copy { color: var(--text-muted); font-size: 14.5px; }
 
-    .cloud-card {
-      width: min(80%, 330px);
-      padding: 28px;
-      border-radius: 24px;
-      color: white;
-      background: var(--gradient);
-      box-shadow: 0 24px 50px rgba(74, 144, 226, .3);
-      text-align: center;
-    }
+    /* ---------------- 등장 ---------------- */
+    .js .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
+    .js .reveal.shown { opacity: 1; transform: none; }
 
-    .cloud-card i {
-      width: 64px;
-      height: 64px;
-      margin-bottom: 16px;
-    }
+    /* ---------------- 반응형 ---------------- */
+    @media (max-width: 900px) { .grid { gap: 32px; } }
 
-    @media (max-width: 760px) {
-      .landing-header { padding: 0 20px; }
+    @media (max-width: 768px) {
+      :root { --gutter: 20px; }
       .nav-link { display: none; }
-      .hero {
-        grid-template-columns: 1fr;
-        padding: 42px 20px;
-        gap: 38px;
+      .header-right .btn-sm { height: 44px; padding: 0 16px; }
+
+      .hero { padding: 56px 0 72px; }
+      /* 문구가 항상 먼저 오도록 한 열로 세운다 */
+      .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+      .hero-lead { max-width: none; }
+      .hero-actions .btn { flex: 1 1 auto; }
+
+      .features { padding: 64px 0; }
+      .grid { grid-template-columns: 1fr; gap: 32px; margin-top: 40px; }
+      .closing { padding: 72px 0; }
+
+      .footer-inner { flex-direction: column; align-items: flex-start; gap: 14px; }
+      .hero-note, .footer-links, .footer-copy, .item p { font-size: 16px; }
+    }
+
+    @media (max-width: 480px) {
+      .hero { padding: 48px 0 64px; }
+      .hero h1 { font-size: 32px; }
+      .hero-lead { font-size: 17px; }
+      .hero-actions .btn, .closing .btn { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
       }
-      .hero-art { min-height: 260px; }
-      .button { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; }
+      .js .reveal { opacity: 1; transform: none; }
     }
   </style>
+
+  <script>document.documentElement.classList.add('js');</script>
 </head>
 
 <body>
-  <header class="landing-header">
-    <a class="brand" href="/">
-      <img src="{{ url_for('static', filename='favicon-180x180.png') }}" alt="">
-      <span>Cloud Chatting</span>
-    </a>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
 
-    <nav class="nav">
-      <a class="nav-link" href="#about">소개</a>
-      <a class="nav-link" href="/login">로그인</a>
-      <a class="button button-primary" href="/login?mode=register">회원가입</a>
-    </nav>
+  <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+    <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13 2 4.1 13.1a1 1 0 0 0 .8 1.6H11l-1 7.3 8.9-11.1a1 1 0 0 0-.8-1.6H12z"/>
+    </symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+    </symbol>
+  </svg>
+
+  <header class="site-header" id="header">
+    <div class="header-inner">
+      <a class="brand" href="/">
+        <img src="{{ url_for('static', filename='favicon-180x180.png') }}" alt="">
+        <span>Cloud Chatting</span>
+      </a>
+      <nav class="header-right" aria-label="주요">
+        <a class="nav-link" href="#features">기능</a>
+        <a class="btn btn-primary btn-sm" href="/login">로그인</a>
+        <a class="btn btn-outline btn-sm" href="/login?mode=register">가입하기</a>
+      </nav>
+    </div>
   </header>
 
-  <main class="hero">
-    <section>
-      <h1>가볍게 연결되는<br><span>Cloud Chatting</span></h1>
+  <main id="main">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <h1 class="reveal">Cloud Chatting에서<br><em>편안하게</em> 대화하세요</h1>
+          <p class="hero-lead reveal">메시지, 사진, 파일을 한자리에서 주고받습니다. 설치할 것은 없습니다.</p>
+          <div class="hero-actions reveal">
+            <a class="btn btn-primary" href="/login?mode=register">무료로 시작하기</a>
+            <a class="btn btn-outline" href="/login">로그인</a>
+          </div>
+          <p class="hero-note reveal">이메일 인증 한 번이면 가입이 끝납니다.</p>
+        </div>
 
-      <!-- 랜딩 문구를 정하면 이 문장만 교체하시면 됩니다. -->
-      <p>언제 어디서나, 소중한 사람들과 편안하게 대화를 이어가세요.</p>
-
-      <div class="hero-actions">
-        <a class="button button-primary" href="/login?mode=register">
-          Cloud Chatting 회원가입
-        </a>
-        <a class="button button-secondary" href="/login">
-          이미 계정이 있습니다
-        </a>
+        <div class="reveal">
+          <img
+            class="hero-shot"
+            src="{{ url_for('static', filename='images/chat-preview.png') }}"
+            alt="Cloud Chatting 대화 화면"
+            width="712" height="438" loading="eager" decoding="async">
+        </div>
       </div>
     </section>
 
-    <aside class="hero-art" aria-hidden="true">
-      <div class="cloud-card">
-        <i data-lucide="cloud"></i>
-        <strong>Cloud Chatting</strong>
-        <p>대화가 자연스럽게 이어지는 공간</p>
+    <section class="features" id="features">
+      <div class="container">
+        <h2 class="reveal">대화에 필요한 것만</h2>
+        <p class="reveal">복잡한 설정 없이, 실제로 쓰이는 기능만 담았습니다.</p>
+
+        <div class="grid">
+          <div class="item reveal">
+            <svg><use href="#i-bolt"/></svg>
+            <h3>실시간 전달</h3>
+            <p>새로고침 없이 바로 도착하고, 상대가 읽었는지 그 자리에서 확인됩니다.</p>
+          </div>
+          <div class="item reveal">
+            <svg><use href="#i-users"/></svg>
+            <h3>친구와 그룹</h3>
+            <p>친구를 추가해 1:1로 대화하거나 여러 명이 함께 이야기할 수 있습니다.</p>
+          </div>
+          <div class="item reveal">
+            <svg><use href="#i-lock"/></svg>
+            <h3>안전한 계정</h3>
+            <p>이메일 인증으로 계정을 보호하고, 원하지 않는 상대는 차단합니다.</p>
+          </div>
+        </div>
       </div>
-    </aside>
+    </section>
+
+    <section class="closing">
+      <div class="container">
+        <h2 class="reveal">대화를 시작해보세요</h2>
+        <p class="reveal">이메일 인증만 마치면 바로 친구를 추가하고 대화할 수 있습니다.</p>
+        <a class="btn btn-primary reveal" href="/login?mode=register">무료로 시작하기</a>
+      </div>
+    </section>
   </main>
 
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <a class="brand" href="/">
+        <img src="{{ url_for('static', filename='favicon-180x180.png') }}" alt="">
+        <span>Cloud Chatting</span>
+      </a>
+      <nav class="footer-links" aria-label="푸터">
+        <a href="/terms">이용약관</a>
+        <a href="/privacy">개인정보처리방침</a>
+        <a href="/login">로그인</a>
+        <a href="/login?mode=register">회원가입</a>
+      </nav>
+      <p class="footer-copy">&copy; {{ current_year or 2026 }} Cloud Chatting</p>
+    </div>
+  </footer>
+
   <script>
-    lucide.createIcons();
+    (function () {
+      var header = document.getElementById('header');
+      var ticking = false;
+      function onScroll() { header.classList.toggle('is-stuck', scrollY > 4); ticking = false; }
+      addEventListener('scroll', function () {
+        if (!ticking) { ticking = true; requestAnimationFrame(onScroll); }
+      }, { passive: true });
+      onScroll();
+
+      var items = document.querySelectorAll('.reveal');
+      if (!('IntersectionObserver' in window)) {
+        items.forEach(function (el) { el.classList.add('shown'); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          e.target.classList.add('shown');
+          io.unobserve(e.target);
+        });
+      }, { threshold: .15 });
+      items.forEach(function (el) { io.observe(el); });
+    })();
   </script>
 </body>
 </html>
