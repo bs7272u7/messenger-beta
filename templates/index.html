@@ -141,7 +141,7 @@
             </div>
             <button id="edit-profile-btn" type="button" title="프로필 편집" aria-label="프로필 편집"><i class="fa-solid fa-pen"></i></button>
         </div>
-        <div class="desktop-quick-actions">
+        <div class="desktop-quick-actions{% if not chess_ui_enabled %} chess-ui-hidden{% endif %}">
             <button id="friend-inbox-btn" type="button"><i class="fa-regular fa-envelope"></i> 메시지함 <span id="friend-inbox-badge" class="friend-inbox-badge" hidden>0</span></button>
             {% if chess_ui_enabled %}
             <a id="play-launch-btn" href="/chess" title="플레이" aria-label="플레이"><i class="fa-solid fa-chess-knight"></i><span>플레이</span></a>

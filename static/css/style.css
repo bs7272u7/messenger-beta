@@ -72,6 +72,11 @@
                 border-bottom: 1px solid var(--border-color);
             }
 
+            /* 체스 UI가 숨겨진 정식 채팅 화면에서는 남는 열을 만들지 않는다. */
+            .desktop-quick-actions.chess-ui-hidden {
+                grid-template-columns: minmax(0, 1fr) 34px;
+            }
+
             #friend-inbox-btn {
                 display: flex;
                 align-items: center;
