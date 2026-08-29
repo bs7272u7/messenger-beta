@@ -3799,15 +3799,19 @@
         body.office-text-medium .input-area textarea { font-size:15px; }
         body.office-text-large .input-area textarea { font-size:16px; }
 
+        /* 밀도 3단계는 넉넉히 > 보통 > 촘촘히 순서로 벌어져야 한다.
+           말풍선 여백만 반대로 들어가 있어 촘촘히가 가장 넓었다. */
         body.office-density-comfortable .messages { padding:28px; gap:12px; }
         body.office-density-comfortable .message-right { margin-top:18px; }
         body.office-density-comfortable .message-left,
-        body.office-density-comfortable .bubble { padding:9px 14px; }
+        body.office-density-comfortable .bubble { padding:11px 16px; }
         body.office-density-normal .messages { padding:25px; gap:8px; }
+        body.office-density-normal .message-left,
+        body.office-density-normal .bubble { padding:9px 14px; }
         body.office-density-compact .messages { padding:19px 21px; gap:5px; }
         body.office-density-compact .message-right { margin-top:9px; }
         body.office-density-compact .message-left,
-        body.office-density-compact .bubble { padding:10px 15px; }
+        body.office-density-compact .bubble { padding:7px 11px; }
 
         /* PC 전용 말풍선 크기.
            오피스 모드 설정(body.office-*)이 우선순위가 높아 일반 규칙으로는 덮이지 않으므로,
