@@ -1,0 +1,25 @@
+name: Backend checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      # app.py와 체스 엔진은 단계적 리팩터링 중이므로, 새 계층부터 품질 게이트를 적용합니다.
+      - run: python -m ruff check blueprints services repositories models tests/unit tests/integration
+      - run: python -m black --check blueprints services repositories models tests/unit tests/integration
+      - run: python -m py_compile app.py blueprints/*.py services/*.py repositories/*.py models/*.py
+      - run: python -m unittest discover -s tests -v

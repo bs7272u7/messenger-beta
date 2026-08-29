@@ -171,30 +171,35 @@
         }
 
         :root {
-            --bg-color: #f0f2f5;
-            --text-color: #1c1e21;
-            --border-color: #e4e6eb;
+            --bg-color: #f7fbff;
+            --text-color: #172033;
+            --border-color: #dce9f8;
             --panel-bg: #ffffff;
-            --chat-bg: #e5ebf2; /* 은은한 채팅방 배경색 */
-            --friend-hover: #f2f2f2;
-            --message-left-bg: #e4e9f8; /* 상대방 말풍선 - 은은한 라벤더 블루 */
-            --bubble-bg: #eef1fb; /* 내 말풍선 - 은은한 라벤더 블루 */
-            --bubble-text: #1e2749; /* 내 말풍선 안 텍스트 색 */
-            --bubble-reply-bg: rgba(30, 39, 73, 0.08);
-            --profile-bg: #d9d9d9;
-            --input-border: #ccd0d5;
-            --brand-color: #3b82f6; /* 메인 포인트 블루 */
-            --brand-hover: #2563eb;
 
-            /* 채팅창 은은한 배경 애니메이션용 톤 (메신저 고유 컬러 #4a90e2 기반) */
-            --decor-1: 74, 144, 226;   /* #4a90e2 */
-            --decor-2: 124, 196, 247;  /* #7cc4f7 - 헤더 그라데이션과 동일 톤 */
+            --chat-bg: #f4f8ff;
+            --friend-hover: #edf5ff;
+
+            /* 상대 메시지 */
+            --message-left-bg: #e8f2ff;
+
+            /* 내 메시지 */
+            --bubble-bg: #4a90e2;
+            --bubble-text: #ffffff;
+            --bubble-reply-bg: rgba(255, 255, 255, 0.18);
+
+            --profile-bg: #dbeafe;
+            --input-border: #c9dcf4;
+
+            --brand-color: #4a90e2;
+            --brand-hover: #2f72c4;
+
+            --decor-1: 74, 144, 226;
+            --decor-2: 120, 184, 255;
             --decor-opacity: 0.05;
 
-            /* 사이드 내비 · 친구목록 패널에 쓰는 브랜드 블루 포인트 */
             --panel-tint: rgba(74, 144, 226, 0.045);
             --panel-tint-strong: rgba(74, 144, 226, 0.09);
-            --ring-color: rgba(74, 144, 226, 0.28);
+            --ring-color: rgba(74, 144, 226, 0.32);
         }
 
         body.dark-mode {
@@ -569,10 +574,10 @@
             padding: 20px 28px;
             font-size: 20px;
             font-weight: 600;
-            background: linear-gradient(140deg, #ffffff 0%, #eef4fc 60%, #e6eefb 100%);
+            background: linear-gradient(135deg, #ffffff 0%, #f4f8ff 58%, #e4f1ff 100%);
             color: var(--text-color);
             border-bottom: 1px solid var(--border-color);
-            box-shadow: 0 2px 10px rgba(74, 144, 226, 0.06);
+            box-shadow: 0 2px 14px rgba(74, 144, 226, 0.08);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -689,7 +694,8 @@
         .input-area {
             display: flex;
             padding: 15px 20px;
-            border-top: 2px solid var(--border-color);
+            border-top: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.88);
 
             position: relative;
             align-items: center;
@@ -710,6 +716,13 @@
             box-sizing: border-box;
             resize: none;
             overflow-y: auto;
+            transition: border-color .18s ease, box-shadow .18s ease;
+        }
+
+        .input-area textarea:focus {
+            outline: none;
+            border-color: var(--brand-color);
+            box-shadow: 0 0 0 3px var(--ring-color);
         }
 
         .input-area button {
@@ -719,16 +732,18 @@
             font-size: 18px;
             border-radius: 24px;
 
-            background: #4a90e2;
+            background: linear-gradient(135deg, #4a90e2, #78b8ff);
             color: white;
 
             border: none;
-            transition: background-color 0.2s;
+            transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
             cursor: pointer;
+            box-shadow: 0 8px 18px rgba(74, 144, 226, .22);
         }
 
         .input-area button:hover {
-            background: #357abd;
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(74, 144, 226, .3);
         }
 
         .input-area #send-btn.is-busy {
@@ -1829,6 +1844,7 @@
             justify-content: space-between;
             padding: 19px 22px;
             border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(135deg, #ffffff, #f3f8ff);
         }
 
         .settings-modal-header h3 {
@@ -1842,7 +1858,8 @@
             height: 30px;
             border-radius: 50%;
             border: none;
-            background: var(--bg-color);
+            background: #edf5ff;
+            color: var(--brand-color);
             color: var(--text-color);
             display: flex;
             align-items: center;
@@ -1854,7 +1871,7 @@
         }
 
         .settings-modal-close:hover {
-            background: var(--input-border);
+            background: #dcecff;
         }
 
         .image-crop-modal {

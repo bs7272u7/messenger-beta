@@ -1,0 +1,5 @@
+# 개발·검증 전용 의존성입니다. 운영 서버에는 requirements.txt만 설치합니다.
+pytest>=8,<9
+ruff>=0.8,<1
+black>=24,<26
+mypy>=1.13,<2

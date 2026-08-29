@@ -30,11 +30,30 @@ from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, UnidentifiedImageError
 from dotenv import load_dotenv
+from extensions import init_extensions, login_manager
+from models.user import User
+from flask_login import current_user, login_user, logout_user
+from repositories.user_repository import UserRepository
+from services.auth_service import AuthService
+from services.password_policy import PasswordPolicy
+from services.registration_service import RegistrationService
+from services.friend_service import FriendService
+from services.chat_service import ChatService, ChatServiceError
+from services.message_service import MessageService, MessageServiceError
+from services.admin_service import AdminService, AdminServiceError
+from blueprints.auth import create_auth_blueprint
+from blueprints.profile import create_profile_blueprint
+from blueprints.support import create_support_blueprint
+from blueprints.friends import create_friends_blueprint
+from blueprints.chat import CHAT_ROUTES, create_chat_blueprint
+from blueprints.admin import ADMIN_ROUTES, create_admin_blueprint
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
 from chess_engine import ChessBoard, STARTING_FEN
 from chess_engine.board import opponent
+from config import AppConfig
+
 try:
     from pywebpush import webpush, WebPushException
 except ImportError:
@@ -50,24 +69,32 @@ load_dotenv()
 resend.api_key = os.environ.get("RESEND_API_KEY")
 
 app = Flask(__name__)
+app_config = AppConfig.from_env(app.root_path)
 
 # SENTRY_DSN이 설정된 경우에만 활성화된다. 초기화 자체가 실패해도(DSN 형식 오류 등)
 # 서버 전체가 못 뜨는 일이 없도록 반드시 감싸서 실행한다.
 if sentry_sdk and os.environ.get("SENTRY_DSN"):
     try:
-        sentry_sdk.init(dsn=os.environ["SENTRY_DSN"].strip().strip('"\''), send_default_pii=True)
+        sentry_sdk.init(dsn=os.environ["SENTRY_DSN"].strip().strip("\"'"), send_default_pii=True)
     except Exception as e:
         app.logger.warning("Sentry 초기화 실패, 에러 추적 없이 계속 진행합니다: %s", e)
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 요청 본문 최대 50MB
+
+app.config["MAX_CONTENT_LENGTH"] = app_config.max_content_length
+
 if not os.environ.get("SECRET_KEY") and os.environ.get("RENDER_EXTERNAL_URL"):
     raise RuntimeError("운영 환경에서는 SECRET_KEY를 반드시 설정해야 합니다.")
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-this-in-production")
+
+app.secret_key = app_config.secret_key or "dev-secret-key-change-this-in-production"
+
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     # 로컬 HTTP 개발은 유지하고, Render HTTPS에서는 보안 쿠키를 강제한다.
-    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER_EXTERNAL_URL")) or os.environ.get("SESSION_COOKIE_SECURE", "").lower() == "true",
+    SESSION_COOKIE_SECURE=app_config.session_cookie_secure,
+    WTF_CSRF_CHECK_DEFAULT=False,
 )
+
+init_extensions(app)
 
 # 별도 외부 도메인 연결은 허용하지 않고, 서비스와 같은 출처의 웹소켓만 받는다.
 socketio = SocketIO(app, async_mode="threading")
@@ -80,13 +107,18 @@ def emit_safe(*args, **kwargs):
     with _emit_lock:
         socketio.emit(*args, **kwargs)
 
+
 # 이미지/동영상이 저장될 폴더와 기본 프로필 사진 경로
-UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads")
+UPLOAD_DIR = app_config.upload_directory
+SUPPORT_EMAIL = app_config.support_email
+ADMIN_EMAIL = app_config.admin_email or ""
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 DEFAULT_PROFILE_IMAGE = "/static/default_profile.png"
-CLOUDINARY_ENABLED = all(os.environ.get(name) for name in (
-    "CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"
-))
+CLOUDINARY_ENABLED = all(
+    os.environ.get(name)
+    for name in ("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")
+)
 GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "bs7272u7/messenger-beta")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 UPDATE_HISTORY_CACHE_SECONDS = 600
@@ -94,8 +126,6 @@ _update_history_cache = {
     "recent": {"expires_at": 0, "data": None},
     "all": {"expires_at": 0, "data": None},
 }
-SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL")
-ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
 ADMIN_ACCESS_KEY_HASH = os.environ.get("ADMIN_ACCESS_KEY_HASH")
 ADMIN_ACCESS_SESSION_SECONDS = 30 * 60
 ADMIN_ACCESS_MAX_FAILURES = 5
@@ -106,7 +136,20 @@ SUPPORT_ATTACHMENT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "mp4", "we
 SUPPORT_INQUIRY_MAX_PER_USER = 1
 REVIEW_MAX_PER_USER = 1
 CHAT_FILE_MAX_BYTES = 20 * 1024 * 1024
-CHAT_FILE_EXTENSIONS = {"pdf", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "mp3", "wav", "m4a"}
+CHAT_FILE_EXTENSIONS = {
+    "pdf",
+    "txt",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx",
+    "zip",
+    "mp3",
+    "wav",
+    "m4a",
+}
 IMAGE_MAX_BYTES = 10 * 1024 * 1024
 IMAGE_MAX_PIXELS = 40_000_000
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY")
@@ -155,7 +198,15 @@ def protect_from_csrf():
         return None
     supplied = request.headers.get("X-CSRF-Token", "")
     if not supplied or not hmac.compare_digest(supplied, get_csrf_token()):
-        return jsonify({"success": False, "error": "보안 토큰이 올바르지 않습니다. 페이지를 새로고침한 뒤 다시 시도해주세요."}), 403
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "보안 토큰이 올바르지 않습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.",
+                }
+            ),
+            403,
+        )
     return None
 
 
@@ -164,9 +215,13 @@ def add_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
+    response.headers.setdefault(
+        "Permissions-Policy", "camera=(), microphone=(self), geolocation=()"
+    )
     if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
-        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
     return response
 
 
@@ -190,15 +245,22 @@ def handle_api_405(error):
 def handle_api_500(error):
     app.logger.exception("처리되지 않은 서버 오류")
     with _recent_errors_lock:
-        _recent_errors.appendleft({
-            "at": now_str(),
-            "path": request.path,
-            "method": request.method,
-            "userId": session.get("user_id"),
-            "traceback": traceback.format_exc()[-4000:],
-        })
+        _recent_errors.appendleft(
+            {
+                "at": now_str(),
+                "path": request.path,
+                "method": request.method,
+                "userId": session.get("user_id"),
+                "traceback": traceback.format_exc()[-4000:],
+            }
+        )
     if request.path.startswith("/api/"):
-        return jsonify({"success": False, "error": "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}), 500
+        return (
+            jsonify(
+                {"success": False, "error": "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
+            ),
+            500,
+        )
     return error
 
 
@@ -208,23 +270,48 @@ def get_client_ip():
     return forwarded.split(",", 1)[0].strip() if forwarded else (request.remote_addr or "unknown")
 
 
+def get_authenticated_user_id() -> int | None:
+    """새 Flask-Login 세션과 기존 세션을 모두 지원한다."""
+    if current_user.is_authenticated:
+        return int(current_user.id)
+
+    legacy_user_id = session.get("user_id")
+    return int(legacy_user_id) if legacy_user_id is not None else None
+
+
 def rate_limit(limit, window_seconds, scope):
     """로그인·인증 메일 API의 자동화 남용을 줄이는 가벼운 IP 단위 제한이다."""
+
     def decorator(view):
         @wraps(view)
         def wrapped(*args, **kwargs):
             now = time.time()
             key = (scope, get_client_ip())
             with _rate_limit_lock:
-                attempts = [stamp for stamp in _rate_limit_buckets.get(key, []) if stamp > now - window_seconds]
+                attempts = [
+                    stamp
+                    for stamp in _rate_limit_buckets.get(key, [])
+                    if stamp > now - window_seconds
+                ]
                 if len(attempts) >= limit:
                     retry_after = max(1, int(window_seconds - (now - attempts[0])))
                     app.logger.warning("Rate limit blocked: scope=%s ip=%s", scope, get_client_ip())
-                    return jsonify({"success": False, "error": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", "retry_after": retry_after}), 429
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+                                "retry_after": retry_after,
+                            }
+                        ),
+                        429,
+                    )
                 attempts.append(now)
                 _rate_limit_buckets[key] = attempts
             return view(*args, **kwargs)
+
         return wrapped
+
     return decorator
 
 
@@ -238,7 +325,8 @@ def cleanup_rate_limit_buckets():
         now = time.time()
         with _rate_limit_lock:
             stale_keys = [
-                key for key, attempts in _rate_limit_buckets.items()
+                key
+                for key, attempts in _rate_limit_buckets.items()
                 if not attempts or attempts[-1] < now - _RATE_LIMIT_RETENTION_SECONDS
             ]
             for key in stale_keys:
@@ -257,24 +345,43 @@ def cleanup_stale_db_rows():
 
                 # 48시간 넘게 상대가 들어오지 않은 대기 중 체스방은 방치된 것으로 보고 정리한다.
                 # (일부 초기 배포 DB에는 CASCADE 제약이 없을 수 있어 자식 테이블부터 명시적으로 지운다.)
-                waiting_cutoff = (datetime.now(KST) - timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S")
+                waiting_cutoff = (datetime.now(KST) - timedelta(hours=48)).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
                 stale_games = conn.execute(
-                    "SELECT id FROM chess_games WHERE status = 'waiting' AND created_at < %s", (waiting_cutoff,)
+                    "SELECT id FROM chess_games WHERE status = 'waiting' AND created_at < %s",
+                    (waiting_cutoff,),
                 ).fetchall()
                 stale_game_ids = [row["id"] for row in stale_games]
                 if stale_game_ids:
-                    conn.execute("DELETE FROM chess_game_moves WHERE game_id = ANY(%s::uuid[])", (stale_game_ids,))
-                    conn.execute("DELETE FROM chess_game_chat_messages WHERE game_id = ANY(%s::uuid[])", (stale_game_ids,))
-                    conn.execute("DELETE FROM chess_invites WHERE game_id = ANY(%s::uuid[])", (stale_game_ids,))
-                    conn.execute("DELETE FROM chess_games WHERE id = ANY(%s::uuid[])", (stale_game_ids,))
+                    conn.execute(
+                        "DELETE FROM chess_game_moves WHERE game_id = ANY(%s::uuid[])",
+                        (stale_game_ids,),
+                    )
+                    conn.execute(
+                        "DELETE FROM chess_game_chat_messages WHERE game_id = ANY(%s::uuid[])",
+                        (stale_game_ids,),
+                    )
+                    conn.execute(
+                        "DELETE FROM chess_invites WHERE game_id = ANY(%s::uuid[])",
+                        (stale_game_ids,),
+                    )
+                    conn.execute(
+                        "DELETE FROM chess_games WHERE id = ANY(%s::uuid[])", (stale_game_ids,)
+                    )
 
                 # 만료된 인증/재설정 코드는 재요청 전까지 쓸모가 없으니 바로 지운다.
                 conn.execute("DELETE FROM email_verification_codes WHERE expires_at < %s", (now,))
                 conn.execute("DELETE FROM password_reset_codes WHERE expires_at < %s", (now,))
 
                 # 처리 완료된(대기 중이 아닌) 체스 초대는 7일 지나면 기록만 남기지 않고 정리한다.
-                invite_cutoff = (datetime.now(KST) - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
-                conn.execute("DELETE FROM chess_invites WHERE status != 'pending' AND created_at < %s", (invite_cutoff,))
+                invite_cutoff = (datetime.now(KST) - timedelta(days=7)).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                conn.execute(
+                    "DELETE FROM chess_invites WHERE status != 'pending' AND created_at < %s",
+                    (invite_cutoff,),
+                )
 
                 conn.commit()
         except Exception as e:
@@ -283,6 +390,7 @@ def cleanup_stale_db_rows():
 
 class OpenGraphParser(HTMLParser):
     """Extract a small, safe subset of Open Graph metadata from a page."""
+
     def __init__(self):
         super().__init__()
         self.metadata = {}
@@ -294,7 +402,18 @@ class OpenGraphParser(HTMLParser):
         if tag == "meta":
             key = (attributes.get("property") or attributes.get("name") or "").lower()
             content = attributes.get("content", "").strip()
-            if key in {"og:title", "og:description", "og:image", "twitter:title", "twitter:description", "twitter:image"} and content:
+            if (
+                key
+                in {
+                    "og:title",
+                    "og:description",
+                    "og:image",
+                    "twitter:title",
+                    "twitter:description",
+                    "twitter:image",
+                }
+                and content
+            ):
                 self.metadata.setdefault(key, content)
         elif tag == "title":
             self._in_title = True
@@ -311,7 +430,12 @@ class OpenGraphParser(HTMLParser):
 def is_public_web_url(url):
     """Reject local/private addresses so the preview endpoint cannot be used for SSRF."""
     parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+    ):
         return False
     try:
         addresses = socket.getaddrinfo(parsed.hostname, None, type=socket.SOCK_STREAM)
@@ -362,16 +486,33 @@ def get_link_preview(url):
             return None
         if "text/html" not in response.headers.get("Content-Type", "").lower():
             return None
-        content = response.raw.read(512 * 1024, decode_content=True).decode(response.encoding or "utf-8", errors="replace")
+        content = response.raw.read(512 * 1024, decode_content=True).decode(
+            response.encoding or "utf-8", errors="replace"
+        )
         parser = OpenGraphParser()
         parser.feed(content)
         parsed = urlparse(current_url)
-        title = parser.metadata.get("og:title") or parser.metadata.get("twitter:title") or parser.title.strip() or parsed.hostname
-        description = parser.metadata.get("og:description") or parser.metadata.get("twitter:description") or ""
+        title = (
+            parser.metadata.get("og:title")
+            or parser.metadata.get("twitter:title")
+            or parser.title.strip()
+            or parsed.hostname
+        )
+        description = (
+            parser.metadata.get("og:description")
+            or parser.metadata.get("twitter:description")
+            or ""
+        )
         image = parser.metadata.get("og:image") or parser.metadata.get("twitter:image") or ""
         if image and urlparse(image).scheme not in {"http", "https"}:
             image = ""
-        return {"url": url, "domain": parsed.hostname, "title": title[:200], "description": description[:300], "image": image}
+        return {
+            "url": url,
+            "domain": parsed.hostname,
+            "title": title[:200],
+            "description": description[:300],
+            "image": image,
+        }
     except (requests.RequestException, OSError, ValueError):
         return None
 
@@ -408,25 +549,30 @@ def get_update_history(include_all=False):
             for commit in commits:
                 committed_at = commit["commit"]["author"]["date"]
                 date = datetime.fromisoformat(committed_at.replace("Z", "+00:00"))
-                updates.append({
-                    "version": commit["sha"][:7],
-                    "date": date.astimezone(timezone(timedelta(hours=9))).strftime("%Y.%m.%d"),
-                    "message": commit["commit"]["message"].splitlines()[0][:160],
-                })
+                updates.append(
+                    {
+                        "version": commit["sha"][:7],
+                        "date": date.astimezone(timezone(timedelta(hours=9))).strftime("%Y.%m.%d"),
+                        "message": commit["commit"]["message"].splitlines()[0][:160],
+                    }
+                )
 
             if not include_all or "next" not in response.links:
                 break
             page += 1
 
         result = {"updates": updates, "latest_version": updates[0]["version"] if updates else ""}
-        _update_history_cache[cache_key].update({
-            "expires_at": time.time() + UPDATE_HISTORY_CACHE_SECONDS,
-            "data": result,
-        })
+        _update_history_cache[cache_key].update(
+            {
+                "expires_at": time.time() + UPDATE_HISTORY_CACHE_SECONDS,
+                "data": result,
+            }
+        )
         return result
     except (requests.RequestException, KeyError, TypeError, ValueError):
         app.logger.warning("GitHub 업데이트 내역을 불러오지 못했습니다.")
         return None
+
 
 # PostgreSQL 접속 정보 정규화
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -435,7 +581,7 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 
 DB_HOST = os.environ.get("DB_HOST", "localhost")
 DB_USER = os.environ.get("DB_USER", "postgres")
-DB_PASSWORD = os.environ.get("DB_PASSWORD", "re_Rxxxxx")
+DB_PASSWORD = os.environ.get("DB_PASSWORD")
 DB_NAME = os.environ.get("DB_NAME", "messenger-beta")
 DB_PORT = int(os.environ.get("DB_PORT", 5432))
 DB_SSLMODE = os.environ.get("DB_SSLMODE", "require" if DATABASE_URL else "prefer")
@@ -451,14 +597,19 @@ DB_KEEPALIVE_KWARGS = dict(
 try:
     if DATABASE_URL:
         db_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=1, maxconn=25, dsn=DATABASE_URL, sslmode=DB_SSLMODE,
-            **DB_KEEPALIVE_KWARGS
+            minconn=1, maxconn=25, dsn=DATABASE_URL, sslmode=DB_SSLMODE, **DB_KEEPALIVE_KWARGS
         )
     else:
         db_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=1, maxconn=25, host=DB_HOST, user=DB_USER,
-            password=DB_PASSWORD, dbname=DB_NAME, port=DB_PORT, sslmode=DB_SSLMODE,
-            **DB_KEEPALIVE_KWARGS
+            minconn=1,
+            maxconn=25,
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            dbname=DB_NAME,
+            port=DB_PORT,
+            sslmode=DB_SSLMODE,
+            **DB_KEEPALIVE_KWARGS,
         )
 except Exception as e:
     app.logger.error(f"DB Connection Pool 초기화 실패: {e}")
@@ -467,6 +618,7 @@ except Exception as e:
 
 class PGConn:
     """psycopg2용 커넥션 Wrapper 어댑터 (순수 PostgreSQL 호환)"""
+
     def __init__(self, raw_conn, pool_obj=None):
         self.raw_conn = raw_conn
         self.pool_obj = pool_obj
@@ -530,31 +682,87 @@ def get_db():
             raw_conn = psycopg2.connect(DATABASE_URL, sslmode=DB_SSLMODE)
         else:
             raw_conn = psycopg2.connect(
-                host=DB_HOST, user=DB_USER, password=DB_PASSWORD,
-                dbname=DB_NAME, port=DB_PORT, sslmode=DB_SSLMODE
+                host=DB_HOST,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                dbname=DB_NAME,
+                port=DB_PORT,
+                sslmode=DB_SSLMODE,
             )
         raw_conn.autocommit = False
         return PGConn(raw_conn)
+
+
+user_repository = UserRepository(get_db)
+auth_service = AuthService(user_repository)
+registration_service = RegistrationService(
+    get_db, lambda: now_str(), DEFAULT_PROFILE_IMAGE, ADMIN_EMAIL
+)
+friend_service = FriendService(
+    get_db,
+    lambda: now_str(),
+    lambda conn, user_a, user_b: is_blocked_either_way(conn, user_a, user_b),
+    lambda conn, request_id: accept_friend_request(conn, request_id),
+)
+chat_service = ChatService(get_db, lambda: now_str(), DEFAULT_PROFILE_IMAGE)
+message_service = MessageService(
+    get_db,
+    lambda: now_str(),
+    lambda: current_message_timestamp_ms(),
+    lambda sent_at: legacy_message_labels(sent_at),
+    lambda conn, conversation_id: unhide_conversation(conn, conversation_id),
+)
+admin_service = AdminService()
+
+
+@login_manager.user_loader
+def load_user(user_id: str) -> User | None:
+    """Flask-Login이 세션의 사용자 ID로 현재 사용자를 복원할 때 사용한다."""
+    if not user_id.isdigit():
+        return None
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            """
+        SELECT id, username, display_name, email, is_admin,
+                   profile_visibility, is_suspended, suspended_until,
+                   language, chess_rating, chess_wins, chess_draws,
+                   chess_losses, created_at
+            FROM users
+            WHERE id = %s
+
+        """,
+            (int(user_id),),
+        ).fetchone()
+
+        return User.from_row(row) if row else None
+    finally:
+        conn.close()
 
 
 # ----------------------------------------------------------------
 # 헬퍼 함수
 # ----------------------------------------------------------------
 
+
 def get_membership(conn, conversation_id, user_id):
     return conn.execute(
         "SELECT * FROM conversation_members WHERE conversation_id = %s AND user_id = %s",
-        (conversation_id, user_id)
+        (conversation_id, user_id),
     ).fetchone()
 
 
 def get_owned_message(conn, user_id, message_id):
-    return conn.execute("""
+    return conn.execute(
+        """
         SELECT messages.* FROM messages
         JOIN conversation_members
           ON conversation_members.conversation_id = messages.conversation_id
         WHERE messages.id = %s AND conversation_members.user_id = %s
-    """, (message_id, user_id)).fetchone()
+    """,
+        (message_id, user_id),
+    ).fetchone()
 
 
 def now_str():
@@ -597,8 +805,15 @@ def legacy_message_timestamp_ms(date_text, time_text):
                 hour += 12
         else:
             plain_time = re.search(r"(\d{1,2}):(\d{2})", str(time_text or ""))
-            hour, minute = (int(plain_time.group(1)), int(plain_time.group(2))) if plain_time else (12, 0)
-        return int(datetime(date_value.year, date_value.month, date_value.day, hour, minute, tzinfo=KST).timestamp() * 1000)
+            hour, minute = (
+                (int(plain_time.group(1)), int(plain_time.group(2))) if plain_time else (12, 0)
+            )
+        return int(
+            datetime(
+                date_value.year, date_value.month, date_value.day, hour, minute, tzinfo=KST
+            ).timestamp()
+            * 1000
+        )
     except (TypeError, ValueError):
         return None
 
@@ -613,12 +828,14 @@ def backfill_message_timestamps(conn):
 
 
 def get_peer_id(conn, conversation_id, user_id):
-    conv = conn.execute("SELECT is_group FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+    conv = conn.execute(
+        "SELECT is_group FROM conversations WHERE id = %s", (conversation_id,)
+    ).fetchone()
     if not conv or conv["is_group"]:
         return None
     row = conn.execute(
         "SELECT user_id FROM conversation_members WHERE conversation_id = %s AND user_id != %s",
-        (conversation_id, user_id)
+        (conversation_id, user_id),
     ).fetchone()
     return row["user_id"] if row else None
 
@@ -626,7 +843,7 @@ def get_peer_id(conn, conversation_id, user_id):
 def is_blocked_either_way(conn, user_a, user_b):
     row = conn.execute(
         "SELECT 1 FROM blocks WHERE (blocker_id = %s AND blocked_id = %s) OR (blocker_id = %s AND blocked_id = %s)",
-        (user_a, user_b, user_b, user_a)
+        (user_a, user_b, user_b, user_a),
     ).fetchone()
     return row is not None
 
@@ -667,8 +884,7 @@ def is_user_online(user_id):
 
 def get_conversation_member_ids(conn, conversation_id):
     rows = conn.execute(
-        "SELECT user_id FROM conversation_members WHERE conversation_id = %s",
-        (conversation_id,)
+        "SELECT user_id FROM conversation_members WHERE conversation_id = %s", (conversation_id,)
     ).fetchall()
     return [row["user_id"] for row in rows]
 
@@ -682,7 +898,7 @@ def broadcast_to_conversation(conn, conversation_id, event, payload):
 def unhide_conversation(conn, conversation_id):
     conn.execute(
         "UPDATE conversation_members SET hidden_at = NULL WHERE conversation_id = %s",
-        (conversation_id,)
+        (conversation_id,),
     )
 
 
@@ -712,20 +928,32 @@ def send_push_notification(conn, user_id, title, body, url="/"):
         except WebPushException as exc:
             # 더 이상 유효하지 않은 브라우저 구독은 다음 전송부터 제외한다.
             if getattr(exc, "response", None) and exc.response.status_code in {404, 410}:
-                conn.execute("DELETE FROM push_subscriptions WHERE endpoint = %s", (subscription["endpoint"],))
+                conn.execute(
+                    "DELETE FROM push_subscriptions WHERE endpoint = %s",
+                    (subscription["endpoint"],),
+                )
             else:
                 app.logger.warning("푸시 알림 전송 실패: %s", exc)
 
 
 def notify_conversation_message(conn, conversation_id, sender_id, preview):
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT cm.user_id, cm.is_muted, COALESCE(c.name, '') AS conversation_name
         FROM conversation_members cm JOIN conversations c ON c.id = cm.conversation_id
         WHERE cm.conversation_id = %s AND cm.user_id != %s
-    """, (conversation_id, sender_id)).fetchall()
+    """,
+        (conversation_id, sender_id),
+    ).fetchall()
     for row in rows:
         if not row["is_muted"]:
-            send_push_notification(conn, row["user_id"], row["conversation_name"] or "Cloud Chatting", preview, f"/?conversation={conversation_id}")
+            send_push_notification(
+                conn,
+                row["user_id"],
+                row["conversation_name"] or "Cloud Chatting",
+                preview,
+                f"/?conversation={conversation_id}",
+            )
 
 
 def validate_base64_image(data_url):
@@ -823,45 +1051,66 @@ def init_db():
     conn = get_db()
     cur = conn.cursor()
     try:
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(255) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL
             )
-        """)
+        """
+        )
 
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_visibility VARCHAR(20) NOT NULL DEFAULT 'friends'")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_until DOUBLE PRECISION NOT NULL DEFAULT 0")
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_visibility VARCHAR(20) NOT NULL DEFAULT 'friends'"
+        )
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_until DOUBLE PRECISION NOT NULL DEFAULT 0"
+        )
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS suspension_reason TEXT")
         # 기기마다 언어가 달라지지 않도록 사용자 계정에 선택 언어를 함께 저장한다.
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'ko'")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_rating INT NOT NULL DEFAULT 400")
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'ko'"
+        )
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_rating INT NOT NULL DEFAULT 400"
+        )
         cur.execute("ALTER TABLE users ALTER COLUMN chess_rating SET DEFAULT 400")
         # 승/무/패는 게임 행을 세어 계산하지 않고 레이팅처럼 계정에 직접 누적한다.
         # 그래야 전적(기보) 삭제 후에도 프로필의 승/무/패 숫자가 그대로 남는다.
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'chess_wins'")
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'chess_wins'"
+        )
         chess_stats_columns_existed = cur.fetchone() is not None
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_wins INT NOT NULL DEFAULT 0")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_draws INT NOT NULL DEFAULT 0")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_losses INT NOT NULL DEFAULT 0")
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS chess_losses INT NOT NULL DEFAULT 0"
+        )
         # 기존 가입자는 가입 시점을 소급할 수 없어 NULL로 남는다 — 관리자 목록에서 "가입일 없음"으로 표시한다.
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS admin_access_attempts (
                 user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
                 failed_count INT NOT NULL DEFAULT 0,
                 locked_until DOUBLE PRECISION NOT NULL DEFAULT 0
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS moderation_actions (
                 id SERIAL PRIMARY KEY,
                 target_user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -870,11 +1119,13 @@ def init_db():
                 reason TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
-        """)
+        """
+        )
         cur.execute("ALTER TABLE moderation_actions ADD COLUMN IF NOT EXISTS seen_at TEXT")
 
         # 체스는 메신저 DB 연결 방식을 그대로 재사용해 배포 환경에서 ORM 이중화를 만들지 않는다.
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS chess_games (
                 id UUID PRIMARY KEY,
                 room_code VARCHAR(8) UNIQUE NOT NULL,
@@ -895,8 +1146,10 @@ def init_db():
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
-        """)
-        cur.execute("""
+        """
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS chess_game_moves (
                 id SERIAL PRIMARY KEY,
                 game_id UUID NOT NULL REFERENCES chess_games(id) ON DELETE CASCADE,
@@ -905,10 +1158,14 @@ def init_db():
                 fen TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
-        """)
+        """
+        )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_games_room ON chess_games(room_code)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_moves_game ON chess_game_moves(game_id, move_number)")
-        cur.execute("""
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chess_moves_game ON chess_game_moves(game_id, move_number)"
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS chess_invites (
                 id SERIAL PRIMARY KEY,
                 game_id UUID NOT NULL REFERENCES chess_games(id) ON DELETE CASCADE,
@@ -918,14 +1175,23 @@ def init_db():
                 created_at TEXT NOT NULL,
                 UNIQUE (game_id, invitee_id)
             )
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_invites_invitee ON chess_invites(invitee_id, status)")
-        cur.execute("ALTER TABLE chess_games ADD COLUMN IF NOT EXISTS ratings_applied BOOLEAN NOT NULL DEFAULT FALSE")
-        cur.execute("""CREATE TABLE IF NOT EXISTS chess_game_chat_messages (
+        """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chess_invites_invitee ON chess_invites(invitee_id, status)"
+        )
+        cur.execute(
+            "ALTER TABLE chess_games ADD COLUMN IF NOT EXISTS ratings_applied BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        cur.execute(
+            """CREATE TABLE IF NOT EXISTS chess_game_chat_messages (
             id SERIAL PRIMARY KEY, game_id UUID NOT NULL REFERENCES chess_games(id) ON DELETE CASCADE,
             sender_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text VARCHAR(200) NOT NULL, created_at TEXT NOT NULL
-        )""")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_chess_game_chat ON chess_game_chat_messages(game_id, id)")
+        )"""
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chess_game_chat ON chess_game_chat_messages(game_id, id)"
+        )
 
         # ADMIN_EMAIL과 일치하는 계정만 관리자 권한을 부여한다.
         # 권한은 화면이나 세션이 아닌 DB에서 다시 확인하므로 주소를 직접 입력해도 우회할 수 없다.
@@ -935,7 +1201,8 @@ def init_db():
                 (ADMIN_EMAIL,),
             )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS email_verification_codes (
                 id SERIAL PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
@@ -943,9 +1210,11 @@ def init_db():
                 expires_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS password_reset_codes (
                 id SERIAL PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
@@ -953,14 +1222,20 @@ def init_db():
                 expires_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
-        """)
+        """
+        )
 
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS cover_image TEXT")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio VARCHAR(300) NOT NULL DEFAULT ''")
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status_message VARCHAR(100) NOT NULL DEFAULT ''")
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio VARCHAR(300) NOT NULL DEFAULT ''"
+        )
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS status_message VARCHAR(100) NOT NULL DEFAULT ''"
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS notices (
                 id SERIAL PRIMARY KEY,
                 title VARCHAR(200) NOT NULL,
@@ -970,9 +1245,11 @@ def init_db():
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS support_inquiries (
                 id SERIAL PRIMARY KEY,
                 user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -984,9 +1261,11 @@ def init_db():
                 created_at TEXT NOT NULL,
                 answered_at TEXT
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS push_subscriptions (
                 id SERIAL PRIMARY KEY,
                 user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -995,9 +1274,11 @@ def init_db():
                 auth TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS reviews (
                 id SERIAL PRIMARY KEY,
                 user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1007,9 +1288,11 @@ def init_db():
                 created_at TEXT NOT NULL,
                 replied_at TEXT
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS conversations (
                 id SERIAL PRIMARY KEY,
                 is_group BOOLEAN NOT NULL DEFAULT FALSE,
@@ -1022,9 +1305,11 @@ def init_db():
                 last_activity_id INT NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS conversation_members (
                 conversation_id INT NOT NULL,
                 user_id INT NOT NULL,
@@ -1035,9 +1320,11 @@ def init_db():
                 FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY,
                 conversation_id INT NOT NULL,
@@ -1057,9 +1344,11 @@ def init_db():
                 FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
                 FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS reports (
                 id SERIAL PRIMARY KEY,
                 reporter_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1072,14 +1361,20 @@ def init_db():
                 created_at TEXT NOT NULL,
                 UNIQUE (reporter_id, message_id)
             )
-        """)
+        """
+        )
         # 메시지 신고뿐 아니라 프로필에서 "사용자 자체"를 신고할 수 있도록 message_id를 선택 항목으로 바꾼다.
         cur.execute("ALTER TABLE reports ALTER COLUMN message_id DROP NOT NULL")
-        cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS reported_user_id INT REFERENCES users(id) ON DELETE CASCADE")
+        cur.execute(
+            "ALTER TABLE reports ADD COLUMN IF NOT EXISTS reported_user_id INT REFERENCES users(id) ON DELETE CASCADE"
+        )
         # 같은 사람을 중복 신고하지 못하게 막되, 메시지 신고용 UNIQUE(reporter_id, message_id)와는 별개로 관리한다.
-        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_reporter_user ON reports(reporter_id, reported_user_id) WHERE reported_user_id IS NOT NULL")
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_reporter_user ON reports(reporter_id, reported_user_id) WHERE reported_user_id IS NOT NULL"
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS friend_requests (
                 id SERIAL PRIMARY KEY,
                 requester_id INT NOT NULL,
@@ -1090,9 +1385,11 @@ def init_db():
                 FOREIGN KEY (addressee_id) REFERENCES users (id) ON DELETE CASCADE,
                 UNIQUE (requester_id, addressee_id)
             )
-        """)
+        """
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS blocks (
                 id SERIAL PRIMARY KEY,
                 blocker_id INT NOT NULL,
@@ -1102,7 +1399,8 @@ def init_db():
                 FOREIGN KEY (blocked_id) REFERENCES users (id) ON DELETE CASCADE,
                 UNIQUE (blocker_id, blocked_id)
             )
-        """)
+        """
+        )
 
         for stmt in [
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS owner_id INT",
@@ -1128,14 +1426,16 @@ def init_db():
         # 기존 메시지는 당시 한국 시간 문자열을 UTC 기준 원본 시각으로 한 번만 변환한다.
         backfill_message_timestamps(conn)
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE conversations
             SET last_activity_id = COALESCE(
                 (SELECT MAX(id) FROM messages WHERE messages.conversation_id = conversations.id),
                 0
             )
             WHERE last_activity_id = 0
-        """)
+        """
+        )
 
         for stmt in [
             "CREATE INDEX IF NOT EXISTS idx_conv_members_user ON conversation_members(user_id)",
@@ -1154,15 +1454,20 @@ def init_db():
         if not chess_stats_columns_existed:
             # 승/무/패 컬럼을 새로 추가하는 시점에만, 현재 남아있는 완료된 게임을 기준으로 초기값을 채운다.
             # (이후에는 게임 결과가 반영되는 시점에만 누적되고, 기보 삭제로는 줄어들지 않는다.)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT result, white_player_id, black_player_id FROM chess_games
                 WHERE status = 'finished' AND mode = 'online'
-            """)
+            """
+            )
             player_stats = {}
             for game in cur.fetchall():
                 result = json.loads(game["result"] or "{}")
                 winner = result.get("winner")
-                for player_id, color in ((game["white_player_id"], "w"), (game["black_player_id"], "b")):
+                for player_id, color in (
+                    (game["white_player_id"], "w"),
+                    (game["black_player_id"], "b"),
+                ):
                     if not player_id:
                         continue
                     stats = player_stats.setdefault(player_id, {"wins": 0, "draws": 0, "losses": 0})
@@ -1175,7 +1480,7 @@ def init_db():
             for player_id, stats in player_stats.items():
                 cur.execute(
                     "UPDATE users SET chess_wins = %s, chess_draws = %s, chess_losses = %s WHERE id = %s",
-                    (stats["wins"], stats["draws"], stats["losses"], player_id)
+                    (stats["wins"], stats["draws"], stats["losses"], player_id),
                 )
 
         conn.commit()
@@ -1191,27 +1496,47 @@ def init_db():
 # 로그인 보호용 데코레이터
 # ----------------------------------------------------------------
 
+
 def login_required_page(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if "user_id" not in session:
+        user_id = get_authenticated_user_id()
+
+        if user_id is None:
             return redirect(url_for("login_page"))
-        if is_user_suspended(session["user_id"]):
+
+        if is_user_suspended(user_id):
+            logout_user()
             session.clear()
             return redirect(url_for("login_page", suspended="1"))
         return view(*args, **kwargs)
+
     return wrapped
 
 
 def login_required_api(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if "user_id" not in session:
+        user_id = get_authenticated_user_id()
+
+        if user_id is None:
             return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
-        if is_user_suspended(session["user_id"]):
+
+        if is_user_suspended(user_id):
+            logout_user()
             session.clear()
-            return jsonify({"success": False, "error": "이용 정지 상태입니다. 고객센터로 문의해주세요."}), 403
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "이용 정지 상태입니다. 고객센터로 문의해주세요.",
+                    }
+                ),
+                403,
+            )
+
         return view(*args, **kwargs)
+
     return wrapped
 
 
@@ -1245,22 +1570,62 @@ def is_user_suspended(user_id):
         ).fetchone()
         state = get_suspension_state(user)
         if state == "expired":
-            conn.execute("UPDATE users SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL WHERE id = %s", (user_id,))
+            conn.execute(
+                "UPDATE users SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL WHERE id = %s",
+                (user_id,),
+            )
             conn.commit()
             return False
     return bool(state)
 
 
+auth_bp = create_auth_blueprint(
+    auth_service=auth_service,
+    registration_service=registration_service,
+    connection_factory=get_db,
+    user_loader=load_user,
+    suspension_state_getter=get_suspension_state,
+    supported_languages=SUPPORTED_LANGUAGES,
+    login_rate_limit=rate_limit(10, 15 * 60, "login"),
+    client_ip_getter=get_client_ip,
+    api_login_required=login_required_api,
+    register_rate_limit=rate_limit(5, 60 * 60, "register"),
+    register_user_loader=load_user,
+)
+app.register_blueprint(auth_bp)
+
+
 def are_users_friends(conn, user_a, user_b):
     if user_a == user_b:
         return True
-    row = conn.execute("""
+    row = conn.execute(
+        """
         SELECT 1 FROM conversations c
         JOIN conversation_members first_member ON first_member.conversation_id = c.id AND first_member.user_id = %s
         JOIN conversation_members second_member ON second_member.conversation_id = c.id AND second_member.user_id = %s
         WHERE c.is_group = FALSE LIMIT 1
-    """, (user_a, user_b)).fetchone()
+    """,
+        (user_a, user_b),
+    ).fetchone()
     return row is not None
+
+
+def accept_friend_request(conn, request_id):
+    """친구 요청 수락과 1:1 대화방 생성을 한 곳에서 처리한다."""
+    friend_request = conn.execute(
+        "SELECT * FROM friend_requests WHERE id = %s", (request_id,)
+    ).fetchone()
+    conn.execute("UPDATE friend_requests SET status = 'accepted' WHERE id = %s", (request_id,))
+    conversation = conn.execute(
+        "INSERT INTO conversations (is_group, name, created_at) VALUES (FALSE, NULL, %s) RETURNING id",
+        (now_str(),),
+    ).fetchone()
+    for member_id in (friend_request["requester_id"], friend_request["addressee_id"]):
+        conn.execute(
+            "INSERT INTO conversation_members (conversation_id, user_id, last_read_message_id, joined_at) VALUES (%s, %s, 0, %s)",
+            (conversation["id"], member_id, now_str()),
+        )
+    return conversation["id"]
 
 
 def can_view_profile(conn, viewer_id, target):
@@ -1268,7 +1633,9 @@ def can_view_profile(conn, viewer_id, target):
         return False
     if viewer_id == target["id"] or target["profile_visibility"] == "public":
         return True
-    return target["profile_visibility"] == "friends" and are_users_friends(conn, viewer_id, target["id"])
+    return target["profile_visibility"] == "friends" and are_users_friends(
+        conn, viewer_id, target["id"]
+    )
 
 
 def is_admin_access_verified():
@@ -1288,6 +1655,7 @@ def admin_account_required_page(view):
             session.clear()
             return redirect(url_for("login_page", suspended="1"))
         return view(*args, **kwargs)
+
     return wrapped
 
 
@@ -1300,6 +1668,7 @@ def admin_account_required_api(view):
             session.clear()
             return jsonify({"success": False, "error": "이용 정지 상태입니다."}), 403
         return view(*args, **kwargs)
+
     return wrapped
 
 
@@ -1310,8 +1679,9 @@ def admin_required_page(view):
         if not is_current_user_admin():
             abort(404)
         if not is_admin_access_verified():
-            return redirect(url_for("admin_access_verify"))
+            return redirect(url_for("admin.admin_access_verify"))
         return view(*args, **kwargs)
+
     return wrapped
 
 
@@ -1323,6 +1693,7 @@ def admin_required_api(view):
         if not is_admin_access_verified():
             return jsonify({"success": False, "error": "관리자 접근 키를 다시 확인해주세요."}), 403
         return view(*args, **kwargs)
+
     return wrapped
 
 
@@ -1330,7 +1701,30 @@ def admin_required_api(view):
 # 페이지 라우트
 # ----------------------------------------------------------------
 
+
+@app.get("/healthz")
+def health_check():
+    """로드밸런서와 배포 환경이 앱·DB 상태를 확인하는 공개 헬스 체크."""
+    try:
+        with get_db() as conn:
+            conn.execute("SELECT 1")
+            conn.fetchone()
+    except Exception as error:
+        # 로드밸런서는 주기적으로 호출하므로 연결 실패의 전체 스택은 반복 기록하지 않는다.
+        app.logger.warning("헬스 체크 DB 연결 실패: %s", error)
+        return jsonify({"status": "degraded", "database": "unavailable"}), 503
+    return jsonify({"status": "ok", "database": "available"})
+
+
 @app.route("/")
+def landing_page():
+    """비로그인 사용자에게 Cloud Chatting 소개 화면을 제공한다."""
+    if session.get("user_id"):
+        return redirect(url_for("home"))
+    return render_template("landing.html")
+
+
+@app.route("/chat")
 @login_required_page
 def home():
     user_id = session["user_id"]
@@ -1344,7 +1738,7 @@ def home():
         session.clear()
         return redirect(url_for("login_page"))
 
-    display_name = user["display_name"] or user ["username"]
+    display_name = user["display_name"] or user["username"]
     profile_image = user["profile_image"]
 
     session["display_name"] = display_name
@@ -1356,14 +1750,15 @@ def home():
         user_id=user_id,
         username=display_name,
         profile_image=profile_image,
-        user_email=user["email"],  
+        user_email=user["email"],
         user_language=session["language"],
-
     )
 
 
 def conversation_is_disabled(conn, conversation_id):
-    row = conn.execute("SELECT is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+    row = conn.execute(
+        "SELECT is_disabled FROM conversations WHERE id = %s", (conversation_id,)
+    ).fetchone()
     return bool(row and row["is_disabled"])
 
 
@@ -1372,14 +1767,29 @@ def create_system_message(conn, conversation_id, text, actor_id=None):
     # Render 서버는 UTC로 동작할 수 있으므로, 시스템 메시지도 항상 한국 시간으로 기록한다.
     sent_at = current_message_timestamp_ms()
     time_label, date_label = legacy_message_labels(sent_at)
-    row = conn.execute("""
+    row = conn.execute(
+        """
         INSERT INTO messages (conversation_id, sender_id, text, time, date, sent_at, edited, pinned, reactions, message_type)
         SELECT %s, COALESCE(%s, owner_id), %s, %s, %s, %s, FALSE, FALSE, %s, 'system'
         FROM conversations WHERE id = %s
         RETURNING id
-    """, (conversation_id, actor_id, text, time_label, date_label, sent_at, json.dumps([]), conversation_id)).fetchone()
+    """,
+        (
+            conversation_id,
+            actor_id,
+            text,
+            time_label,
+            date_label,
+            sent_at,
+            json.dumps([]),
+            conversation_id,
+        ),
+    ).fetchone()
     if row:
-        conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], conversation_id))
+        conn.execute(
+            "UPDATE conversations SET last_activity_id = %s WHERE id = %s",
+            (row["id"], conversation_id),
+        )
     return row["id"] if row else None
 
 
@@ -1400,27 +1810,66 @@ def notify_profile_updated(recipient_ids, user_id):
         notify_user(recipient_id, "friend_updated", {"userId": user_id})
 
 
-@app.route("/admin")
+profile_bp = create_profile_blueprint(
+    connection_factory=get_db,
+    supported_languages=SUPPORTED_LANGUAGES,
+    api_login_required=login_required_api,
+    profile_update_recipient_ids=profile_update_recipient_ids,
+    profile_updated_notifier=notify_profile_updated,
+)
+app.register_blueprint(profile_bp)
+
+support_bp = create_support_blueprint(
+    get_db,
+    login_required_api,
+    delete_image_file,
+    save_uploaded_file,
+    resend.Emails.send,
+    lambda: get_resend_sender(),
+    SUPPORT_EMAIL,
+    KST,
+    now_str,
+    SUPPORT_INQUIRY_MAX_PER_USER,
+    SUPPORT_ATTACHMENT_EXTENSIONS,
+    SUPPORT_ATTACHMENT_MAX_BYTES,
+    app.logger,
+    rate_limit(5, 60 * 60, "support_inquiry"),
+)
+app.register_blueprint(support_bp)
+
+friends_bp = create_friends_blueprint(
+    get_db,
+    login_required_api,
+    notify_user,
+    now_str,
+    is_blocked_either_way,
+    accept_friend_request,
+    friend_service,
+)
+app.register_blueprint(friends_bp)
+
+
 @admin_required_page
 def admin_page():
     """관리자만 접근할 수 있는 운영 페이지의 시작 화면."""
     return render_template("admin.html")
 
 
-@app.route("/admin/verify")
 @admin_account_required_page
 def admin_access_verify():
     if is_admin_access_verified():
-        return redirect(url_for("admin_page"))
+        return redirect(url_for("admin.admin_page"))
     return render_template("admin_verify.html", access_key_configured=bool(ADMIN_ACCESS_KEY_HASH))
 
 
-@app.route("/api/admin/access-key", methods=["POST"])
 @admin_account_required_api
 @rate_limit(8, 15 * 60, "admin_access")
 def verify_admin_access_key():
     if not ADMIN_ACCESS_KEY_HASH:
-        return jsonify({"success": False, "error": "서버에 관리자 접근 키가 설정되지 않았습니다."}), 503
+        return (
+            jsonify({"success": False, "error": "서버에 관리자 접근 키가 설정되지 않았습니다."}),
+            503,
+        )
 
     user_id = session["user_id"]
     now = time.time()
@@ -1432,7 +1881,15 @@ def verify_admin_access_key():
         ).fetchone()
         if attempt and attempt["locked_until"] > now:
             retry_after = max(1, int(attempt["locked_until"] - now))
-            return jsonify({"success": False, "error": f"보안을 위해 잠시 잠겼습니다. {retry_after // 60 + 1}분 후 다시 시도해주세요."}), 429
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"보안을 위해 잠시 잠겼습니다. {retry_after // 60 + 1}분 후 다시 시도해주세요.",
+                    }
+                ),
+                429,
+            )
 
         if check_password_hash(ADMIN_ACCESS_KEY_HASH, access_key):
             conn.execute("DELETE FROM admin_access_attempts WHERE user_id = %s", (user_id,))
@@ -1440,19 +1897,34 @@ def verify_admin_access_key():
             session["admin_verified_until"] = now + ADMIN_ACCESS_SESSION_SECONDS
             return jsonify({"success": True, "expires_in": ADMIN_ACCESS_SESSION_SECONDS})
 
-        failures = (attempt["failed_count"] if attempt and attempt["locked_until"] <= now else 0) + 1
-        locked_until = now + ADMIN_ACCESS_LOCK_SECONDS if failures >= ADMIN_ACCESS_MAX_FAILURES else 0
-        conn.execute("""
+        failures = (
+            attempt["failed_count"] if attempt and attempt["locked_until"] <= now else 0
+        ) + 1
+        locked_until = (
+            now + ADMIN_ACCESS_LOCK_SECONDS if failures >= ADMIN_ACCESS_MAX_FAILURES else 0
+        )
+        conn.execute(
+            """
             INSERT INTO admin_access_attempts (user_id, failed_count, locked_until)
             VALUES (%s, %s, %s)
             ON CONFLICT (user_id) DO UPDATE SET failed_count = EXCLUDED.failed_count, locked_until = EXCLUDED.locked_until
-        """, (user_id, failures, locked_until))
+        """,
+            (user_id, failures, locked_until),
+        )
         conn.commit()
 
     remaining = ADMIN_ACCESS_MAX_FAILURES - failures
     if remaining <= 0:
-        return jsonify({"success": False, "error": "접근 키 입력을 5회 실패해 15분 동안 잠겼습니다."}), 429
-    return jsonify({"success": False, "error": f"접근 키가 올바르지 않습니다. {remaining}회 남았습니다."}), 401
+        return (
+            jsonify({"success": False, "error": "접근 키 입력을 5회 실패해 15분 동안 잠겼습니다."}),
+            429,
+        )
+    return (
+        jsonify(
+            {"success": False, "error": f"접근 키가 올바르지 않습니다. {remaining}회 남았습니다."}
+        ),
+        401,
+    )
 
 
 @app.route("/terms")
@@ -1472,31 +1944,12 @@ def login_page():
     return render_template("login.html")
 
 
-@app.route("/api/logout", methods=["POST"])
-@login_required_api
-def api_logout():
-    session.clear()
-    return jsonify({"success": True})
-
-
-@app.route("/api/account/language", methods=["PATCH"])
-@login_required_api
-def update_account_language():
-    """화면 언어는 계정에 저장해 PC와 모바일에서 같은 선택을 유지한다."""
-    language = (request.get_json() or {}).get("language", "ko")
-    if language not in SUPPORTED_LANGUAGES:
-        return jsonify({"success": False, "error": "지원하지 않는 언어입니다."}), 400
-    with get_db() as conn:
-        conn.execute("UPDATE users SET language = %s WHERE id = %s", (language, session["user_id"]))
-        conn.commit()
-    session["language"] = language
-    return jsonify({"success": True, "language": language})
-
-
 @app.route("/api/push-config", methods=["GET"])
 @login_required_api
 def push_config():
-    return jsonify({"enabled": bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY), "publicKey": VAPID_PUBLIC_KEY})
+    return jsonify(
+        {"enabled": bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY), "publicKey": VAPID_PUBLIC_KEY}
+    )
 
 
 @app.route("/api/push-subscriptions", methods=["POST", "DELETE"])
@@ -1507,7 +1960,10 @@ def push_subscriptions():
         endpoint = data.get("endpoint")
         if endpoint:
             with get_db() as conn:
-                conn.execute("DELETE FROM push_subscriptions WHERE user_id = %s AND endpoint = %s", (session["user_id"], endpoint))
+                conn.execute(
+                    "DELETE FROM push_subscriptions WHERE user_id = %s AND endpoint = %s",
+                    (session["user_id"], endpoint),
+                )
                 conn.commit()
         return jsonify({"success": True})
 
@@ -1515,117 +1971,21 @@ def push_subscriptions():
     endpoint = data.get("endpoint")
     keys = data.get("keys") or {}
     if not endpoint or not keys.get("p256dh") or not keys.get("auth"):
-        return jsonify({"success": False, "error": "브라우저 알림 정보를 확인하지 못했습니다."}), 400
+        return (
+            jsonify({"success": False, "error": "브라우저 알림 정보를 확인하지 못했습니다."}),
+            400,
+        )
     with get_db() as conn:
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at)
             VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, created_at = EXCLUDED.created_at
-        """, (session["user_id"], endpoint, keys["p256dh"], keys["auth"], now_str()))
-        conn.commit()
-    return jsonify({"success": True})
-
-
-@app.route("/api/support-inquiries", methods=["POST"])
-@login_required_api
-@rate_limit(5, 60 * 60, "support_inquiry")
-def send_support_inquiry():
-    # 문의는 이메일로 전송되므로 서버에서도 길이·파일 형식·용량을 반드시 다시 검사한다.
-    # 브라우저 검사만 믿으면 요청을 직접 조작해 제한을 우회할 수 있다.
-    message = (request.form.get("message") or "").strip()
-    if len(message) < 10:
-        return jsonify({"success": False, "error": "문의 내용은 10자 이상 입력해주세요."}), 400
-    if len(message) > 3000:
-        return jsonify({"success": False, "error": "문의 내용은 3,000자 이하로 입력해주세요."}), 400
-
-    # 첨부 업로드·이메일 발송 전에 오늘(KST) 이미 보낸 문의가 있는지 확인해 서버 자원을 보호한다.
-    user_id = session["user_id"]
-    today_start = datetime.now(KST).strftime("%Y-%m-%d 00:00:00")
-    with get_db() as conn:
-        inquiry_count_today = conn.execute(
-            "SELECT COUNT(*) AS count FROM support_inquiries WHERE user_id = %s AND created_at >= %s", (user_id, today_start)
-        ).fetchone()["count"]
-    if inquiry_count_today >= SUPPORT_INQUIRY_MAX_PER_USER:
-        return jsonify({"success": False, "error": "문의는 하루에 1개까지 등록할 수 있습니다. 내일 다시 시도해주세요."}), 429
-
-    attachment = request.files.get("attachment")
-    attachment_data = None
-    attachment_url = None
-    attachment_name = None
-    if attachment and attachment.filename:
-        extension = attachment.filename.rsplit(".", 1)[-1].lower() if "." in attachment.filename else ""
-        if extension not in SUPPORT_ATTACHMENT_EXTENSIONS:
-            return jsonify({"success": False, "error": "사진(png, jpg, gif, webp) 또는 동영상(mp4, webm, mov)만 첨부할 수 있습니다."}), 400
-
-        file_content = attachment.read(SUPPORT_ATTACHMENT_MAX_BYTES + 1)
-        if len(file_content) > SUPPORT_ATTACHMENT_MAX_BYTES:
-            return jsonify({"success": False, "error": "첨부파일은 10MB 이하만 보낼 수 있습니다."}), 400
-
-        safe_filename = re.sub(r"[^\w.가-힣-]", "_", attachment.filename)
-        attachment_data = {
-            "filename": safe_filename or f"attachment.{extension}",
-            "content": base64.b64encode(file_content).decode("ascii"),
-        }
-        attachment.seek(0)
-        attachment_url, attachment_name = save_uploaded_file(attachment, "support")
-
-    user_id = session["user_id"]
-    with get_db() as conn:
-        user = conn.execute(
-            "SELECT username, display_name, email FROM users WHERE id = %s", (user_id,)
-        ).fetchone()
-
-    if not user:
-        session.clear()
-        return jsonify({"success": False, "error": "로그인 정보를 확인할 수 없습니다."}), 401
-
-    display_name = user["display_name"] or user["username"]
-    if SUPPORT_EMAIL:
-        email_params = {
-            "from": get_resend_sender(),
-            "to": [SUPPORT_EMAIL],
-            "subject": f"[클라우드 채팅 문의] {display_name}",
-            "html": (
-                "<h2>새 문의사항</h2>"
-                f"<p><strong>이름:</strong> {escape(display_name)}</p>"
-                f"<p><strong>아이디:</strong> {escape(user['username'])}</p>"
-                f"<p><strong>이메일:</strong> {escape(user['email'] or '등록된 이메일 없음')}</p>"
-                f"<hr><p>{escape(message).replace(chr(10), '<br>')}</p>"
-            ),
-        }
-        if user["email"]:
-            email_params["reply_to"] = user["email"]
-        if attachment_data:
-            email_params["attachments"] = [attachment_data]
-        try:
-            resend.Emails.send(email_params)
-        except Exception:
-            # 메일 오류가 있어도 관리자 페이지에서 확인할 수 있도록 접수는 보존한다.
-            app.logger.exception("문의사항 이메일 발송 실패")
-    else:
-        app.logger.warning("SUPPORT_EMAIL 미설정: 문의는 관리자 페이지에만 저장됩니다.")
-
-    with get_db() as conn:
-        conn.execute(
-            """INSERT INTO support_inquiries
-               (user_id, message, attachment_name, attachment_url, created_at)
-               VALUES (%s, %s, %s, %s, %s)""",
-            (user_id, message, attachment_name, attachment_url, now_str()),
+        """,
+            (session["user_id"], endpoint, keys["p256dh"], keys["auth"], now_str()),
         )
         conn.commit()
-
-    return jsonify({"success": True, "message": "문의가 전송되었습니다. 확인 후 답변드리겠습니다."})
-
-
-@app.route("/api/support-inquiries/history", methods=["GET"])
-@login_required_api
-def get_my_support_inquiries():
-    with get_db() as conn:
-        rows = conn.execute("""
-            SELECT id, message, attachment_name, attachment_url, status, admin_reply, created_at, answered_at
-            FROM support_inquiries WHERE user_id = %s ORDER BY id DESC
-        """, (session["user_id"],)).fetchall()
-    return jsonify([dict(row) for row in rows])
+    return jsonify({"success": True})
 
 
 @app.route("/api/moderation/warnings", methods=["GET"])
@@ -1633,12 +1993,15 @@ def get_my_support_inquiries():
 def get_unread_moderation_warnings():
     """경고는 다음 로그인 때 한 번 확인시키고, 확인 전 기록만 전달한다."""
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT id, reason, created_at
             FROM moderation_actions
             WHERE target_user_id = %s AND action = 'warning' AND seen_at IS NULL
             ORDER BY id ASC
-        """, (session["user_id"],)).fetchall()
+        """,
+            (session["user_id"],),
+        ).fetchall()
     return jsonify([dict(row) for row in rows])
 
 
@@ -1646,11 +2009,14 @@ def get_unread_moderation_warnings():
 @login_required_api
 def acknowledge_moderation_warning(warning_id):
     with get_db() as conn:
-        updated = conn.execute("""
+        updated = conn.execute(
+            """
             UPDATE moderation_actions SET seen_at = %s
             WHERE id = %s AND target_user_id = %s AND action = 'warning' AND seen_at IS NULL
             RETURNING id
-        """, (now_str(), warning_id, session["user_id"])).fetchone()
+        """,
+            (now_str(), warning_id, session["user_id"]),
+        ).fetchone()
         conn.commit()
     if not updated:
         return jsonify({"success": False, "error": "확인할 운영 경고를 찾을 수 없습니다."}), 404
@@ -1661,44 +2027,16 @@ def acknowledge_moderation_warning(warning_id):
 @login_required_api
 def get_moderation_warning_history():
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT reason, created_at, seen_at
             FROM moderation_actions
             WHERE target_user_id = %s AND action = 'warning'
             ORDER BY id DESC
-        """, (session["user_id"],)).fetchall()
+        """,
+            (session["user_id"],),
+        ).fetchall()
     return jsonify([dict(row) for row in rows])
-
-
-@app.route("/api/support-inquiries/<int:inquiry_id>", methods=["PATCH", "DELETE"])
-@login_required_api
-def update_or_delete_my_support_inquiry(inquiry_id):
-    user_id = session["user_id"]
-    with get_db() as conn:
-        inquiry = conn.execute("""
-            SELECT id, message, attachment_url, status FROM support_inquiries
-            WHERE id = %s AND user_id = %s
-        """, (inquiry_id, user_id)).fetchone()
-        if not inquiry:
-            return jsonify({"success": False, "error": "문의 내역을 찾을 수 없습니다."}), 404
-
-        if request.method == "DELETE":
-            conn.execute("DELETE FROM support_inquiries WHERE id = %s", (inquiry_id,))
-            conn.commit()
-            attachment_url = inquiry["attachment_url"]
-        else:
-            if inquiry["status"] != "pending":
-                return jsonify({"success": False, "error": "답변 또는 처리된 문의는 수정할 수 없습니다."}), 400
-            message = ((request.get_json() or {}).get("message") or "").strip()
-            if not 10 <= len(message) <= 3000:
-                return jsonify({"success": False, "error": "문의 내용은 10자 이상 3,000자 이하로 입력해주세요."}), 400
-            conn.execute("UPDATE support_inquiries SET message = %s WHERE id = %s", (message, inquiry_id))
-            conn.commit()
-            return jsonify({"success": True, "message": message})
-
-    if attachment_url:
-        delete_image_file(attachment_url)
-    return jsonify({"success": True})
 
 
 @app.route("/api/updates", methods=["GET"])
@@ -1725,25 +2063,50 @@ def get_notices():
 def reviews():
     if request.method == "GET":
         with get_db() as conn:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT r.*, u.display_name, u.username, u.profile_image FROM reviews r
                 JOIN users u ON u.id = r.user_id ORDER BY r.id DESC LIMIT 100
-            """).fetchall()
-        return jsonify([{**dict(row), "isMine": row["user_id"] == session["user_id"]} for row in rows])
+            """
+            ).fetchall()
+        return jsonify(
+            [{**dict(row), "isMine": row["user_id"] == session["user_id"]} for row in rows]
+        )
     data = request.get_json() or {}
     rating = data.get("rating")
     content = (data.get("content") or "").strip()
-    if not isinstance(rating, int) or rating not in range(1, 6) or len(content) < 5 or len(content) > 1000:
-        return jsonify({"success": False, "error": "별점(1~5점)과 5자 이상 후기를 입력해주세요."}), 400
+    if (
+        not isinstance(rating, int)
+        or rating not in range(1, 6)
+        or len(content) < 5
+        or len(content) > 1000
+    ):
+        return (
+            jsonify({"success": False, "error": "별점(1~5점)과 5자 이상 후기를 입력해주세요."}),
+            400,
+        )
     with get_db() as conn:
         # 같은 계정의 동시 요청도 사용자 행 잠금으로 직렬화해 중복 작성을 우회하지 못하게 한다.
-        conn.execute("SELECT id FROM users WHERE id = %s FOR UPDATE", (session["user_id"],)).fetchone()
+        conn.execute(
+            "SELECT id FROM users WHERE id = %s FOR UPDATE", (session["user_id"],)
+        ).fetchone()
         review_count = conn.execute(
             "SELECT COUNT(*) AS count FROM reviews WHERE user_id = %s", (session["user_id"],)
         ).fetchone()["count"]
         if review_count >= REVIEW_MAX_PER_USER:
-            return jsonify({"success": False, "error": "리뷰는 계정당 하나만 작성할 수 있습니다. 기존 리뷰를 수정하거나 삭제한 뒤 다시 시도해주세요."}), 429
-        conn.execute("INSERT INTO reviews (user_id, rating, content, created_at) VALUES (%s, %s, %s, %s)", (session["user_id"], rating, content, now_str()))
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "리뷰는 계정당 하나만 작성할 수 있습니다. 기존 리뷰를 수정하거나 삭제한 뒤 다시 시도해주세요.",
+                    }
+                ),
+                429,
+            )
+        conn.execute(
+            "INSERT INTO reviews (user_id, rating, content, created_at) VALUES (%s, %s, %s, %s)",
+            (session["user_id"], rating, content, now_str()),
+        )
         conn.commit()
     return jsonify({"success": True})
 
@@ -1753,9 +2116,14 @@ def reviews():
 def update_or_delete_my_review(review_id):
     """본인이 작성한 리뷰만 수정하거나 삭제할 수 있다."""
     with get_db() as conn:
-        review = conn.execute("SELECT id FROM reviews WHERE id = %s AND user_id = %s", (review_id, session["user_id"])).fetchone()
+        review = conn.execute(
+            "SELECT id FROM reviews WHERE id = %s AND user_id = %s", (review_id, session["user_id"])
+        ).fetchone()
         if not review:
-            return jsonify({"success": False, "error": "본인 리뷰만 수정하거나 삭제할 수 있습니다."}), 404
+            return (
+                jsonify({"success": False, "error": "본인 리뷰만 수정하거나 삭제할 수 있습니다."}),
+                404,
+            )
         if request.method == "DELETE":
             conn.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
             conn.commit()
@@ -1763,8 +2131,16 @@ def update_or_delete_my_review(review_id):
         data = request.get_json() or {}
         rating = data.get("rating")
         content = (data.get("content") or "").strip()
-        if not isinstance(rating, int) or rating not in range(1, 6) or len(content) < 5 or len(content) > 1000:
-            return jsonify({"success": False, "error": "별점(1~5점)과 5자 이상 후기를 입력해주세요."}), 400
+        if (
+            not isinstance(rating, int)
+            or rating not in range(1, 6)
+            or len(content) < 5
+            or len(content) > 1000
+        ):
+            return (
+                jsonify({"success": False, "error": "별점(1~5점)과 5자 이상 후기를 입력해주세요."}),
+                400,
+            )
         conn.execute(
             "UPDATE reviews SET rating = %s, content = %s, admin_reply = NULL, replied_at = NULL, created_at = %s WHERE id = %s",
             (rating, content, now_str(), review_id),
@@ -1773,7 +2149,6 @@ def update_or_delete_my_review(review_id):
     return jsonify({"success": True})
 
 
-@app.route("/api/admin/errors", methods=["GET"])
 @admin_required_api
 def admin_recent_errors():
     """서버 재시작 전까지 최근 500 에러 최대 50건을 메모리에 보관해 관리자 페이지에서 바로 확인할 수 있게 한다."""
@@ -1781,7 +2156,6 @@ def admin_recent_errors():
         return jsonify(list(_recent_errors))
 
 
-@app.route("/api/admin/online-users", methods=["GET"])
 @admin_required_api
 def admin_online_users():
     """지금 소켓으로 연결되어 있는(=실시간으로 접속 중인) 사용자 수와 목록을 보여준다."""
@@ -1792,28 +2166,35 @@ def admin_online_users():
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id, username, display_name, profile_image FROM users WHERE id = ANY(%s) ORDER BY display_name, username",
-            (user_ids,)
+            (user_ids,),
         ).fetchall()
-    return jsonify({
-        "count": len(rows),
-        "users": [
-            {"id": row["id"], "username": row["username"], "displayName": row["display_name"] or row["username"], "profileImage": row["profile_image"]}
-            for row in rows
-        ],
-    })
+    return jsonify(
+        {
+            "count": len(rows),
+            "users": [
+                {
+                    "id": row["id"],
+                    "username": row["username"],
+                    "displayName": row["display_name"] or row["username"],
+                    "profileImage": row["profile_image"],
+                }
+                for row in rows
+            ],
+        }
+    )
 
 
-@app.route("/api/admin/reviews", methods=["GET"])
 @admin_required_api
 def admin_reviews():
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT r.*, u.display_name, u.username FROM reviews r JOIN users u ON u.id = r.user_id ORDER BY r.id DESC
-        """).fetchall()
+        """
+        ).fetchall()
     return jsonify([dict(row) for row in rows])
 
 
-@app.route("/api/admin/reviews/<int:review_id>", methods=["PATCH", "DELETE"])
 @admin_required_api
 def admin_review_detail(review_id):
     with get_db() as conn:
@@ -1823,31 +2204,30 @@ def admin_review_detail(review_id):
             reply = ((request.get_json() or {}).get("admin_reply") or "").strip()
             if not reply or len(reply) > 1000:
                 return jsonify({"success": False, "error": "답변은 1~1,000자로 입력해주세요."}), 400
-            conn.execute("UPDATE reviews SET admin_reply = %s, replied_at = %s WHERE id = %s", (reply, now_str(), review_id))
+            conn.execute(
+                "UPDATE reviews SET admin_reply = %s, replied_at = %s WHERE id = %s",
+                (reply, now_str(), review_id),
+            )
         conn.commit()
     return jsonify({"success": True})
 
 
-@app.route("/api/admin/reviews/bulk-delete", methods=["POST"])
 @admin_required_api
 def admin_bulk_delete_reviews():
     """체크된 리뷰만 삭제하며 빈 목록은 전체 삭제로 해석하지 않는다."""
     raw_ids = (request.get_json() or {}).get("ids")
-    if not isinstance(raw_ids, list) or not raw_ids:
-        return jsonify({"success": False, "error": "삭제할 리뷰를 선택해주세요."}), 400
     try:
-        review_ids = list({int(item) for item in raw_ids if int(item) > 0})
-    except (TypeError, ValueError):
-        return jsonify({"success": False, "error": "리뷰 선택 정보가 올바르지 않습니다."}), 400
-    if not review_ids:
-        return jsonify({"success": False, "error": "삭제할 리뷰를 선택해주세요."}), 400
+        review_ids = admin_service.selected_ids(raw_ids, "리뷰")
+    except AdminServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
     with get_db() as conn:
-        deleted = conn.execute("DELETE FROM reviews WHERE id = ANY(%s::int[])", (review_ids,)).rowcount
+        deleted = conn.execute(
+            "DELETE FROM reviews WHERE id = ANY(%s::int[])", (review_ids,)
+        ).rowcount
         conn.commit()
     return jsonify({"success": True, "deleted": deleted})
 
 
-@app.route("/api/admin/notices", methods=["GET", "POST"])
 @admin_required_api
 def admin_notices():
     if request.method == "GET":
@@ -1858,24 +2238,28 @@ def admin_notices():
         return jsonify([dict(row) for row in rows])
 
     data = request.get_json() or {}
-    title = (data.get("title") or "").strip()
-    content = (data.get("content") or "").strip()
-    if not title or not content:
-        return jsonify({"success": False, "error": "제목과 내용을 입력해주세요."}), 400
-    if len(title) > 200 or len(content) > 5000:
-        return jsonify({"success": False, "error": "공지사항 길이를 확인해주세요."}), 400
+    try:
+        title, content = admin_service.notice_content(data.get("title"), data.get("content"))
+    except AdminServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
     timestamp = now_str()
     with get_db() as conn:
         row = conn.execute(
             """INSERT INTO notices (title, content, is_published, created_by, created_at, updated_at)
                VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
-            (title, content, bool(data.get("is_published", True)), session["user_id"], timestamp, timestamp),
+            (
+                title,
+                content,
+                bool(data.get("is_published", True)),
+                session["user_id"],
+                timestamp,
+                timestamp,
+            ),
         ).fetchone()
         conn.commit()
     return jsonify({"success": True, "id": row["id"]})
 
 
-@app.route("/api/admin/notices/<int:notice_id>", methods=["PATCH", "DELETE"])
 @admin_required_api
 def admin_notice_detail(notice_id):
     with get_db() as conn:
@@ -1885,10 +2269,10 @@ def admin_notice_detail(notice_id):
             return jsonify({"success": True})
 
         data = request.get_json() or {}
-        title = (data.get("title") or "").strip()
-        content = (data.get("content") or "").strip()
-        if not title or not content:
-            return jsonify({"success": False, "error": "제목과 내용을 입력해주세요."}), 400
+        try:
+            title, content = admin_service.notice_content(data.get("title"), data.get("content"))
+        except AdminServiceError as error:
+            return jsonify({"success": False, "error": str(error)}), 400
         conn.execute(
             "UPDATE notices SET title = %s, content = %s, is_published = %s, updated_at = %s WHERE id = %s",
             (title, content, bool(data.get("is_published", True)), now_str(), notice_id),
@@ -1897,23 +2281,27 @@ def admin_notice_detail(notice_id):
     return jsonify({"success": True})
 
 
-@app.route("/api/admin/inquiries", methods=["GET"])
 @admin_required_api
 def admin_inquiries():
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT i.*, u.username, u.display_name, u.email
             FROM support_inquiries i JOIN users u ON u.id = i.user_id
             ORDER BY CASE WHEN i.status = 'pending' THEN 0 ELSE 1 END, i.id DESC
-        """).fetchall()
+        """
+        ).fetchall()
     return jsonify([dict(row) for row in rows])
 
 
-@app.route("/api/admin/inquiries/<int:inquiry_id>", methods=["PATCH"])
 @admin_required_api
 def admin_inquiry_detail(inquiry_id):
     data = request.get_json() or {}
-    status = data.get("status") if data.get("status") in {"pending", "answered", "closed"} else "answered"
+    status = (
+        data.get("status")
+        if data.get("status") in {"pending", "answered", "closed"}
+        else "answered"
+    )
     reply = (data.get("admin_reply") or "").strip()
     with get_db() as conn:
         conn.execute(
@@ -1924,42 +2312,43 @@ def admin_inquiry_detail(inquiry_id):
     return jsonify({"success": True})
 
 
-@app.route("/api/admin/inquiries/<int:inquiry_id>", methods=["DELETE"])
 @admin_required_api
 def admin_delete_inquiry(inquiry_id):
     """문의 한 건을 삭제한다. 첨부 파일 원본은 안전을 위해 자동 삭제하지 않는다."""
     with get_db() as conn:
-        deleted = conn.execute("DELETE FROM support_inquiries WHERE id = %s", (inquiry_id,)).rowcount
+        deleted = conn.execute(
+            "DELETE FROM support_inquiries WHERE id = %s", (inquiry_id,)
+        ).rowcount
         conn.commit()
     if not deleted:
-        return jsonify({"success": False, "error": "이미 삭제되었거나 존재하지 않는 문의입니다."}), 404
+        return (
+            jsonify({"success": False, "error": "이미 삭제되었거나 존재하지 않는 문의입니다."}),
+            404,
+        )
     return jsonify({"success": True, "deleted": 1})
 
 
-@app.route("/api/admin/inquiries/bulk-delete", methods=["POST"])
 @admin_required_api
 def admin_bulk_delete_inquiries():
     """체크된 문의만 삭제하며 빈 목록은 전체 삭제로 해석하지 않는다."""
     raw_ids = (request.get_json() or {}).get("ids")
-    if not isinstance(raw_ids, list) or not raw_ids:
-        return jsonify({"success": False, "error": "삭제할 문의를 선택해주세요."}), 400
     try:
-        inquiry_ids = list({int(item) for item in raw_ids if int(item) > 0})
-    except (TypeError, ValueError):
-        return jsonify({"success": False, "error": "문의 선택 정보가 올바르지 않습니다."}), 400
-    if not inquiry_ids:
-        return jsonify({"success": False, "error": "삭제할 문의를 선택해주세요."}), 400
+        inquiry_ids = admin_service.selected_ids(raw_ids, "문의")
+    except AdminServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
     with get_db() as conn:
-        deleted = conn.execute("DELETE FROM support_inquiries WHERE id = ANY(%s::int[])", (inquiry_ids,)).rowcount
+        deleted = conn.execute(
+            "DELETE FROM support_inquiries WHERE id = ANY(%s::int[])", (inquiry_ids,)
+        ).rowcount
         conn.commit()
     return jsonify({"success": True, "deleted": deleted})
 
 
-@app.route("/api/admin/reports", methods=["GET"])
 @admin_required_api
 def admin_reports():
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT r.*, reporter.username AS reporter_username,
                    COALESCE(sender.username, reported.username) AS sender_username,
                    m.text AS message_text,
@@ -1973,11 +2362,11 @@ def admin_reports():
             LEFT JOIN users sender ON sender.id = m.sender_id
             LEFT JOIN users reported ON reported.id = r.reported_user_id
             ORDER BY CASE WHEN r.status = 'pending' THEN 0 ELSE 1 END, r.id DESC
-        """).fetchall()
+        """
+        ).fetchall()
     return jsonify([dict(row) for row in rows])
 
 
-@app.route("/api/admin/users", methods=["GET"])
 @admin_required_api
 def admin_all_users():
     """가입한 전체 사용자 목록을 아이디/이메일/가입일/정지 상태와 함께 페이지 단위로 보여준다."""
@@ -2001,24 +2390,28 @@ def admin_all_users():
             params = [like, like, like]
 
         total = conn.execute(f"SELECT COUNT(*) AS c FROM users {where_sql}", params).fetchone()["c"]
-        rows = conn.execute(f"""
+        rows = conn.execute(
+            f"""
             SELECT id, username, email, display_name, created_at, is_admin,
                    is_suspended, suspended_until, suspension_reason
             FROM users
             {where_sql}
             ORDER BY id DESC
             LIMIT %s OFFSET %s
-        """, params + [page_size, offset]).fetchall()
+        """,
+            params + [page_size, offset],
+        ).fetchall()
         conn.commit()
-    return jsonify({
-        "users": [dict(row) for row in rows],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    })
+    return jsonify(
+        {
+            "users": [dict(row) for row in rows],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
-@app.route("/api/admin/users/suspended", methods=["GET"])
 @admin_required_api
 def admin_suspended_users():
     """신고 목록과 관계없이 현재 이용 제한 중인 계정을 관리자가 해제할 수 있게 제공한다."""
@@ -2029,29 +2422,36 @@ def admin_suspended_users():
                WHERE is_suspended = TRUE AND suspended_until > 0 AND suspended_until <= %s""",
             (time.time(),),
         )
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT id, username, display_name, profile_image, suspended_until, suspension_reason
             FROM users
             WHERE is_suspended = TRUE
             ORDER BY CASE WHEN suspended_until = 0 THEN 0 ELSE 1 END, suspended_until ASC, id DESC
-        """).fetchall()
+        """
+        ).fetchall()
         conn.commit()
     return jsonify([dict(row) for row in rows])
 
 
-@app.route("/api/admin/reports/<int:report_id>", methods=["PATCH", "DELETE"])
 @admin_required_api
 def admin_report_detail(report_id):
     if request.method == "DELETE":
         with get_db() as conn:
-            deleted = conn.execute("DELETE FROM reports WHERE id = %s RETURNING id", (report_id,)).fetchone()
+            deleted = conn.execute(
+                "DELETE FROM reports WHERE id = %s RETURNING id", (report_id,)
+            ).fetchone()
             conn.commit()
         if not deleted:
             return jsonify({"success": False, "error": "신고 내역을 찾을 수 없습니다."}), 404
         return jsonify({"success": True})
 
     data = request.get_json() or {}
-    status = data.get("status") if data.get("status") in {"pending", "reviewed", "closed"} else "reviewed"
+    status = (
+        data.get("status")
+        if data.get("status") in {"pending", "reviewed", "closed"}
+        else "reviewed"
+    )
     with get_db() as conn:
         conn.execute(
             "UPDATE reports SET status = %s, handled_by = %s, handled_at = %s WHERE id = %s",
@@ -2061,49 +2461,61 @@ def admin_report_detail(report_id):
     return jsonify({"success": True})
 
 
-@app.route("/api/admin/users/<int:user_id>/suspension", methods=["PATCH"])
 @admin_required_api
 def admin_user_suspension(user_id):
     """신고 검토 후 경고·기간 정지·영구 정지·해제를 서버 권한으로 처리한다."""
     data = request.get_json() or {}
-    action = data.get("action")
-    report_id = data.get("report_id")
     try:
-        report_id = int(report_id) if report_id is not None else None
-    except (TypeError, ValueError):
-        return jsonify({"success": False, "error": "신고 처리 정보를 확인할 수 없습니다."}), 400
-    reason = (data.get("reason") or "관리자 운영 정책 위반").strip()
+        action, report_id, reason = admin_service.moderation_request(
+            data.get("action"), data.get("report_id"), data.get("reason")
+        )
+    except AdminServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
     durations = {"24h": 24 * 60 * 60, "7d": 7 * 24 * 60 * 60}
-    if action not in {"warning", "24h", "7d", "permanent", "lift"}:
-        return jsonify({"success": False, "error": "지원하지 않는 처리 방식입니다."}), 400
-    if len(reason) > 500:
-        return jsonify({"success": False, "error": "처리 사유는 500자 이하로 입력해주세요."}), 400
 
     with get_db() as conn:
         target = conn.execute("SELECT id, is_admin FROM users WHERE id = %s", (user_id,)).fetchone()
         if not target:
             return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
         if target["is_admin"] or user_id == session["user_id"]:
-            return jsonify({"success": False, "error": "관리자 계정은 정지 처리할 수 없습니다."}), 403
+            return (
+                jsonify({"success": False, "error": "관리자 계정은 정지 처리할 수 없습니다."}),
+                403,
+            )
 
         if action == "warning":
             pass
         elif action == "lift":
-            conn.execute("UPDATE users SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL WHERE id = %s", (user_id,))
+            conn.execute(
+                "UPDATE users SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL WHERE id = %s",
+                (user_id,),
+            )
         elif action == "permanent":
-            conn.execute("UPDATE users SET is_suspended = TRUE, suspended_until = 0, suspension_reason = %s WHERE id = %s", (reason, user_id))
+            conn.execute(
+                "UPDATE users SET is_suspended = TRUE, suspended_until = 0, suspension_reason = %s WHERE id = %s",
+                (reason, user_id),
+            )
         else:
-            conn.execute("UPDATE users SET is_suspended = TRUE, suspended_until = %s, suspension_reason = %s WHERE id = %s", (time.time() + durations[action], reason, user_id))
-        conn.execute("""
+            conn.execute(
+                "UPDATE users SET is_suspended = TRUE, suspended_until = %s, suspension_reason = %s WHERE id = %s",
+                (time.time() + durations[action], reason, user_id),
+            )
+        conn.execute(
+            """
             INSERT INTO moderation_actions (target_user_id, admin_user_id, action, reason, created_at)
             VALUES (%s, %s, %s, %s, %s)
-        """, (user_id, session["user_id"], action, reason, now_str()))
+        """,
+            (user_id, session["user_id"], action, reason, now_str()),
+        )
         if report_id and action != "lift":
-            report = conn.execute("""
+            report = conn.execute(
+                """
                 SELECT r.id FROM reports r
                 LEFT JOIN messages m ON m.id = r.message_id
                 WHERE r.id = %s AND (m.sender_id = %s OR r.reported_user_id = %s)
-            """, (report_id, user_id, user_id)).fetchone()
+            """,
+                (report_id, user_id, user_id),
+            ).fetchone()
             if report:
                 conn.execute(
                     "UPDATE reports SET status = 'closed', handled_by = %s, handled_at = %s WHERE id = %s",
@@ -2119,7 +2531,6 @@ def admin_user_suspension(user_id):
     return jsonify({"success": True, "action": action})
 
 
-@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
 @admin_required_api
 def admin_delete_user(user_id):
     """계정을 완전히 삭제한다(하드 삭제). 메시지·체스 초대·친구 관계 등 본인 소유 데이터는
@@ -2140,365 +2551,24 @@ def admin_delete_user(user_id):
 
 
 # ----------------------------------------------------------------
-# 인증 API
-# ----------------------------------------------------------------
-
-@app.route("/api/register", methods=["POST"])
-@rate_limit(5, 60 * 60, "register")
-def register():
-    data = request.get_json() or {}
-    password = data.get("password") or ""
-    language = data.get("language") if data.get("language") in SUPPORTED_LANGUAGES else "ko"
-    display_name = (data.get("display_name") or "").strip()
-    username = (data.get("username") or "").strip().lower()
-    email = (data.get("email") or "").strip().lower()
-    code = (data.get("code") or "").strip()
-
-    if not username or not email or not password:
-        return jsonify({"success": False, "error": "아이디, 이메일, 비밀번호를 입력해주세요."})
-    if not re.fullmatch(r"[a-z0-9]{5,}", username):
-        return jsonify({"success": False, "error": "아이디는 영문 소문자와 숫자로 5자 이상 입력해주세요."})
-    if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email):
-        return jsonify({"success": False, "error": "올바른 이메일 주소를 입력해주세요."})
-    if not re.fullmatch(r"(?=.*[a-z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{7,}", password):
-        return jsonify({"success": False, "error": "비밀번호는 영어 소문자, 숫자, 특수문자를 모두 포함해 7자 이상이어야 합니다."})
-
-    with get_db() as conn:
-        verification = conn.execute(
-            "SELECT * FROM email_verification_codes WHERE email = %s AND code = %s",
-            (email, code)
-        ).fetchone()
-        if not verification:
-            return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."})
-        if verification["expires_at"] < now_str():
-            return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."})
-
-        existing = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
-        if existing:
-            return jsonify({"success": False, "error": "이미 가입된 이메일입니다."})
-
-        existing_username = conn.execute("SELECT id FROM users WHERE username = %s", (username,)).fetchone()
-        if existing_username:
-            return jsonify({"success": False, "error": "이미 사용 중인 아이디입니다."})
-
-        display_name = display_name or username
-
-        row = conn.execute(
-            "INSERT INTO users (username, password_hash, display_name, profile_image, email, is_admin, language, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-            (username, generate_password_hash(password), display_name, DEFAULT_PROFILE_IMAGE, email, bool(ADMIN_EMAIL and email == ADMIN_EMAIL), language, now_str())
-        ).fetchone()
-
-        user_id = row["id"]
-        # 가입 직전의 임시 세션을 버려 세션 고정 공격 가능성을 줄인다.
-        session.clear()
-        session["profile_image"] = DEFAULT_PROFILE_IMAGE
-
-        conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (email,))
-        conn.commit()
-
-    session["user_id"] = user_id
-    session["username"] = username
-    session["display_name"] = display_name
-    session["language"] = language
-    return jsonify({"success": True})
-
-
-@app.route("/api/login", methods=["POST"])
-@rate_limit(10, 15 * 60, "login")
-def login():
-    data = request.get_json() or {}
-    identifier = (data.get("identifier") or "").strip()
-    password = data.get("password") or ""
-    requested_language = data.get("language") if data.get("language") in SUPPORTED_LANGUAGES else None
-
-    with get_db() as conn:
-        if "@" in identifier:
-            user = conn.execute(
-                "SELECT id, username, password_hash, display_name, profile_image, language, is_suspended, suspended_until, suspension_reason FROM users WHERE email = %s",
-                (identifier.lower(),)
-            ).fetchone()
-        else:
-            user = conn.execute(
-                "SELECT id, username, password_hash, display_name, profile_image, language, is_suspended, suspended_until, suspension_reason FROM users WHERE username = %s",
-                (identifier,)
-            ).fetchone()
-
-    if not user or not check_password_hash(user["password_hash"], password):
-        app.logger.warning("Failed login attempt: ip=%s", get_client_ip())
-        return jsonify({"success": False, "error": "아이디/이메일 또는 비밀번호가 올바르지 않습니다."})
-    suspension_state = get_suspension_state(user)
-    if suspension_state == "expired":
-        with get_db() as conn:
-            conn.execute("UPDATE users SET is_suspended = FALSE, suspended_until = 0, suspension_reason = NULL WHERE id = %s", (user["id"],))
-            conn.commit()
-    elif suspension_state:
-        return jsonify({"success": False, "error": "이용 정지 상태인 계정입니다. 고객센터로 문의해주세요."}), 403
-
-    # 로그인마다 새 세션을 시작해 이전 브라우저 세션 정보를 이어받지 않는다.
-    session.clear()
-    session["user_id"] = user["id"]
-    session["username"] = user["username"]
-    session["display_name"] = user["display_name"] or user["username"]
-    session["profile_image"] = user["profile_image"]
-    session["language"] = requested_language or (user["language"] if user["language"] in SUPPORTED_LANGUAGES else "ko")
-    if requested_language:
-        with get_db() as conn:
-            conn.execute("UPDATE users SET language = %s WHERE id = %s", (requested_language, user["id"]))
-            conn.commit()
-    return jsonify({"success": True})
-
-
-# ----------------------------------------------------------------
-# 친구 요청 API
-# ----------------------------------------------------------------
-
-@app.route("/api/friend-requests", methods=["POST"])
-@login_required_api
-def send_friend_request():
-    user_id = session["user_id"]
-    data = request.get_json() or {}
-    target_username = (data.get("username") or "").strip()
-
-    if not target_username:
-        return jsonify({"success": False, "error": "아이디를 입력해주세요."})
-    if target_username == session.get("username"):
-        return jsonify({"success": False, "error": "자기 자신에게는 요청할 수 없습니다."})
-
-    with get_db() as conn:
-        target = conn.execute("SELECT id FROM users WHERE username = %s", (target_username,)).fetchone()
-        if not target:
-            return jsonify({"success": False, "error": "존재하지 않는 아이디입니다."})
-        target_id = target["id"]
-
-        if is_blocked_either_way(conn, user_id, target_id):
-            return jsonify({"success": False, "error": "차단 관계에서는 친구 요청을 보낼 수 없습니다."})
-
-        already_friends = conn.execute("""
-            SELECT c.id FROM conversations c
-            JOIN conversation_members m1 ON m1.conversation_id = c.id AND m1.user_id = %s
-            JOIN conversation_members m2 ON m2.conversation_id = c.id AND m2.user_id = %s
-            WHERE c.is_group = FALSE
-        """, (user_id, target_id)).fetchone()
-        if already_friends:
-            return jsonify({"success": False, "error": "이미 친구입니다."})
-
-        reverse = conn.execute(
-            "SELECT id FROM friend_requests WHERE requester_id = %s AND addressee_id = %s AND status = 'pending'",
-            (target_id, user_id)
-        ).fetchone()
-        if reverse:
-            _accept_friend_request(conn, reverse["id"], user_id)
-            conn.commit()
-            notify_user(target_id, "friend_updated", {})
-            return jsonify({"success": True, "autoAccepted": True})
-
-        existing = conn.execute(
-            "SELECT id, status FROM friend_requests WHERE requester_id = %s AND addressee_id = %s",
-            (user_id, target_id)
-        ).fetchone()
-        if existing and existing["status"] == "pending":
-            return jsonify({"success": False, "error": "이미 요청을 보냈습니다."})
-
-        if existing:
-            conn.execute(
-                "UPDATE friend_requests SET status = 'pending', created_at = %s WHERE id = %s",
-                (now_str(), existing["id"])
-            )
-        else:
-            conn.execute(
-                "INSERT INTO friend_requests (requester_id, addressee_id, status, created_at) VALUES (%s, %s, 'pending', %s)",
-                (user_id, target_id, now_str())
-            )
-        conn.commit()
-        notify_user(target_id, "friend_updated", {})
-    return jsonify({"success": True})
-
-@app.route("/api/friend-requests/<int:request_id>", methods=["DELETE"])
-@login_required_api
-def cancel_friend_request(request_id):
-    user_id = session["user_id"]
-
-    with get_db() as conn:
-        request_row = conn.execute(
-            """
-            SELECT id, addressee_id
-            FROM friend_requests
-            WHERE id = %s
-                AND requester_id = %s
-                AND status = 'pending'
-            """,
-            (request_id, user_id)
-        ).fetchone()
-
-        if not request_row:
-            return jsonify({
-                "success": False,
-                "error": "취소할 친구 요청을 찾을 수 없습니다."
-            }), 404
-
-        conn.execute(
-            "DELETE FROM friend_requests WHERE id = %s",
-            (request_id)
-        )
-        conn.commit()
-
-    notify_user(request_row["addressee_id"], "friend_updated", {})
-    return jsonify({"success": True})
-
-
-@app.route("/api/friend-requests", methods=["GET"])
-@login_required_api
-def list_friend_requests():
-    user_id = session["user_id"]
-    with get_db() as conn:
-        incoming = conn.execute("""
-            SELECT friend_requests.id, users.id AS user_id, users.username, users.display_name,
-                   users.profile_image, friend_requests.created_at
-            FROM friend_requests
-            JOIN users ON users.id = friend_requests.requester_id
-            WHERE friend_requests.addressee_id = %s AND friend_requests.status = 'pending'
-            ORDER BY friend_requests.created_at DESC
-        """, (user_id,)).fetchall()
-
-        outgoing = conn.execute("""
-            SELECT friend_requests.id, users.id AS user_id, users.username, users.display_name,
-                   users.profile_image, friend_requests.created_at
-            FROM friend_requests
-            JOIN users ON users.id = friend_requests.addressee_id
-            WHERE friend_requests.requester_id = %s AND friend_requests.status = 'pending'
-            ORDER BY friend_requests.created_at DESC
-        """, (user_id,)).fetchall()
-
-    return jsonify({
-        "incoming": [dict(row) for row in incoming],
-        "outgoing": [dict(row) for row in outgoing],
-    })
-
-
-def _accept_friend_request(conn, request_id, acting_user_id):
-    req = conn.execute("SELECT * FROM friend_requests WHERE id = %s", (request_id,)).fetchone()
-    conn.execute("UPDATE friend_requests SET status = 'accepted' WHERE id = %s", (request_id,))
-
-    conv_row = conn.execute(
-        "INSERT INTO conversations (is_group, name, created_at) VALUES (FALSE, NULL, %s) RETURNING id",
-        (now_str(),)
-    ).fetchone()
-    conversation_id = conv_row["id"]
-    
-    for uid in (req["requester_id"], req["addressee_id"]):
-        conn.execute(
-            "INSERT INTO conversation_members (conversation_id, user_id, last_read_message_id, joined_at) VALUES (%s, %s, 0, %s)",
-            (conversation_id, uid, now_str())
-        )
-    return conversation_id
-
-
-@app.route("/api/friend-requests/<int:request_id>/respond", methods=["POST"])
-@login_required_api
-def respond_friend_request(request_id):
-    user_id = session["user_id"]
-    data = request.get_json() or {}
-    accept = bool(data.get("accept"))
-
-    with get_db() as conn:
-        req = conn.execute(
-            "SELECT * FROM friend_requests WHERE id = %s AND addressee_id = %s AND status = 'pending'",
-            (request_id, user_id)
-        ).fetchone()
-        if not req:
-            return jsonify({"success": False, "error": "요청을 찾을 수 없습니다."}), 404
-
-        if accept:
-            _accept_friend_request(conn, request_id, user_id)
-        else:
-            conn.execute("UPDATE friend_requests SET status = 'declined' WHERE id = %s", (request_id,))
-        conn.commit()
-        requester_id = req["requester_id"]
-
-    notify_user(requester_id, "friend_updated", {})
-    return jsonify({"success": True})
-
-
-# ----------------------------------------------------------------
-# 차단 API
-# ----------------------------------------------------------------
-
-@app.route("/api/blocks", methods=["GET"])
-@login_required_api
-def list_blocks():
-    user_id = session["user_id"]
-    with get_db() as conn:
-        rows = conn.execute("""
-            SELECT users.id, users.display_name, users.username
-            FROM blocks
-            JOIN users ON users.id = blocks.blocked_id
-            WHERE blocks.blocker_id = %s
-            ORDER BY blocks.created_at DESC
-        """, (user_id,)).fetchall()
-    return jsonify({"blocked": [dict(row) for row in rows]})
-
-
-@app.route("/api/blocks", methods=["POST"])
-@login_required_api
-def block_user():
-    user_id = session["user_id"]
-    data = request.get_json() or {}
-    target_id = data.get("user_id")
-
-    if not target_id:
-        return jsonify({"success": False, "error": "차단할 대상을 지정해주세요."}), 400
-    if target_id == user_id:
-        return jsonify({"success": False, "error": "자기 자신은 차단할 수 없습니다."}), 400
-
-    with get_db() as conn:
-        target = conn.execute("SELECT id FROM users WHERE id = %s", (target_id,)).fetchone()
-        if not target:
-            return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
-
-        existing = conn.execute(
-            "SELECT id FROM blocks WHERE blocker_id = %s AND blocked_id = %s",
-            (user_id, target_id)
-        ).fetchone()
-        if not existing:
-            conn.execute(
-                "INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (%s, %s, %s)",
-                (user_id, target_id, now_str())
-            )
-            conn.commit()
-    notify_user(target_id, "friend_updated", {})
-    return jsonify({"success": True})
-
-
-@app.route("/api/blocks/<int:target_id>", methods=["DELETE"])
-@login_required_api
-def unblock_user(target_id):
-    user_id = session["user_id"]
-    with get_db() as conn:
-        conn.execute(
-            "DELETE FROM blocks WHERE blocker_id = %s AND blocked_id = %s",
-            (user_id, target_id)
-        )
-        conn.commit()
-    notify_user(target_id, "friend_updated", {})
-    return jsonify({"success": True})
-
-
-# ----------------------------------------------------------------
 # 대화방(conversations) API
 # ----------------------------------------------------------------
 
-@app.route("/api/conversations", methods=["GET"])
+
 @login_required_api
 def get_conversations():
     user_id = session["user_id"]
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id, c.chat_theme, c.is_disabled,
                    cm.last_read_message_id, cm.is_muted, cm.is_pinned
             FROM conversations c
             JOIN conversation_members cm ON cm.conversation_id = c.id
             WHERE cm.user_id = %s AND cm.hidden_at IS NULL
-        """, (user_id,)).fetchall()
+        """,
+            (user_id,),
+        ).fetchall()
 
         result = []
         for row in rows:
@@ -2515,29 +2585,40 @@ def get_conversations():
                 group_profile_image = row["profile_image"] or DEFAULT_PROFILE_IMAGE
             else:
                 group_profile_image = None
-                peer = conn.execute("""
+                peer = conn.execute(
+                    """
                     SELECT users.id, users.display_name, users.username, users.profile_image, users.cover_image, users.bio FROM conversation_members
                     JOIN users ON users.id = conversation_members.user_id
                     WHERE conversation_members.conversation_id = %s AND conversation_members.user_id != %s
-                """, (conversation_id, user_id)).fetchone()
+                """,
+                    (conversation_id, user_id),
+                ).fetchone()
 
                 if peer:
                     display_name = peer["display_name"] or peer["username"]
                     peer_id = peer["id"]
                     peer_username = peer["username"]
                     peer_profile_image = peer["profile_image"]
-                    blocked_by_me = conn.execute(
-                        "SELECT 1 FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (user_id, peer_id)
-                    ).fetchone() is not None
-                    blocked_me = conn.execute(
-                        "SELECT 1 FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (peer_id, user_id)
-                    ).fetchone() is not None
+                    blocked_by_me = (
+                        conn.execute(
+                            "SELECT 1 FROM blocks WHERE blocker_id = %s AND blocked_id = %s",
+                            (user_id, peer_id),
+                        ).fetchone()
+                        is not None
+                    )
+                    blocked_me = (
+                        conn.execute(
+                            "SELECT 1 FROM blocks WHERE blocker_id = %s AND blocked_id = %s",
+                            (peer_id, user_id),
+                        ).fetchone()
+                        is not None
+                    )
                 else:
                     display_name = "(알 수 없음)"
 
             last_msg = conn.execute(
                 "SELECT id, text, image, video, audio, file_name, time, sent_at FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1",
-                (conversation_id,)
+                (conversation_id,),
             ).fetchone()
 
             message_text, last_time, last_sent_at = "", "", None
@@ -2558,45 +2639,46 @@ def get_conversations():
 
             member_count_row = conn.execute(
                 "SELECT COUNT(*) AS cnt FROM conversation_members WHERE conversation_id = %s",
-                (conversation_id,)
+                (conversation_id,),
             ).fetchone()
             member_count = member_count_row["cnt"] if member_count_row else 0
 
             unread_row = conn.execute(
                 "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = %s AND id > %s",
-                (conversation_id, row["last_read_message_id"])
+                (conversation_id, row["last_read_message_id"]),
             ).fetchone()
             unread = unread_row["cnt"] if unread_row else 0
 
-            result.append({
-                "id": conversation_id,
-                "isGroup": bool(row["is_group"]),
-                "name": display_name,
-                "message": message_text,
-                "lastTime": last_time,
-                "lastSentAt": last_sent_at,
-                "chatTheme": row["chat_theme"] or "default",
-                "isDisabled": bool(row["is_disabled"]),
-                "isMuted": bool(row["is_muted"]),
-                "isPinned": bool(row["is_pinned"]),
-                "unreadCount": unread,
-                "peerId": peer_id,
-                "peerUsername": peer_username,
-                "peerProfileImage": peer_profile_image,
-                "peerCoverImage": peer["cover_image"] if not row["is_group"] and peer else None,
-                "peerBio": peer["bio"] if not row["is_group"] and peer else "",
-                "isOnline": bool(peer_id and is_user_online(peer_id)),
-                "groupProfileImage": group_profile_image,
-                "memberCount": member_count,
-                "blockedByMe": blocked_by_me,
-                "blockedMe": blocked_me,
-                "_sortKey": row["last_activity_id"] or last_msg_id,
-            })
+            result.append(
+                {
+                    "id": conversation_id,
+                    "isGroup": bool(row["is_group"]),
+                    "name": display_name,
+                    "message": message_text,
+                    "lastTime": last_time,
+                    "lastSentAt": last_sent_at,
+                    "chatTheme": row["chat_theme"] or "default",
+                    "isDisabled": bool(row["is_disabled"]),
+                    "isMuted": bool(row["is_muted"]),
+                    "isPinned": bool(row["is_pinned"]),
+                    "unreadCount": unread,
+                    "peerId": peer_id,
+                    "peerUsername": peer_username,
+                    "peerProfileImage": peer_profile_image,
+                    "peerCoverImage": peer["cover_image"] if not row["is_group"] and peer else None,
+                    "peerBio": peer["bio"] if not row["is_group"] and peer else "",
+                    "isOnline": bool(peer_id and is_user_online(peer_id)),
+                    "groupProfileImage": group_profile_image,
+                    "memberCount": member_count,
+                    "blockedByMe": blocked_by_me,
+                    "blockedMe": blocked_me,
+                    "_sortKey": row["last_activity_id"] or last_msg_id,
+                }
+            )
         result.sort(key=lambda r: (r["isPinned"], r["_sortKey"]), reverse=True)
         return jsonify(result)
 
 
-@app.route("/api/conversations", methods=["POST"])
 @login_required_api
 def create_group_conversation():
     user_id = session["user_id"]
@@ -2604,205 +2686,147 @@ def create_group_conversation():
     name = (data.get("name") or "").strip()
     usernames = data.get("usernames") or []
 
-    if not name:
-        return jsonify({"success": False, "error": "방 이름을 입력해주세요."})
-
-    with get_db() as conn:
-        member_ids = {user_id}
-        for uname in usernames:
-            row = conn.execute("SELECT id FROM users WHERE username = %s", (uname,)).fetchone()
-            if not row:
-                return jsonify({"success": False, "error": f"'{uname}' 사용자를 찾을 수 없습니다."})
-            member_ids.add(row["id"])
-
-        if len(member_ids) < 3:
-            return jsonify({"success": False, "error": "그룹 채팅은 3명 이상이어야 합니다."})
-
-        conv_row = conn.execute(
-            "INSERT INTO conversations (is_group, name, owner_id, profile_image, created_at) VALUES (TRUE, %s, %s, %s, %s) RETURNING id",
-            (name, user_id, DEFAULT_PROFILE_IMAGE, now_str())
-        ).fetchone()
-        conversation_id = conv_row["id"]
-        
-        for uid in member_ids:
-            conn.execute(
-                "INSERT INTO conversation_members (conversation_id, user_id, last_read_message_id, joined_at) VALUES (%s, %s, 0, %s)",
-                (conversation_id, uid, now_str())
-            )
-        conn.commit()
+    try:
+        conversation_id = chat_service.create_group(user_id, name, usernames)
+    except ChatServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
     return jsonify({"success": True, "conversationId": conversation_id})
 
 
-@app.route("/api/conversations/<int:conversation_id>/theme", methods=["PATCH"])
 @login_required_api
 def update_conversation_theme(conversation_id):
     """채팅 테마는 대화방 공용 설정으로 저장하고 모든 멤버에게 알린다."""
     theme = (request.get_json() or {}).get("theme", "default")
-    if theme not in {"default", "heart", "teddy", "glass", "aurora", "mono", "spring", "summer", "autumn", "winter", "christmas", "halloween"}:
-        return jsonify({"success": False, "error": "지원하지 않는 채팅 테마입니다."}), 400
-
     user_id = session["user_id"]
+    theme_name = {
+        "default": "기본",
+        "heart": "하트",
+        "teddy": "테디베어",
+        "glass": "글라스",
+        "aurora": "오로라",
+        "mono": "모노",
+        "spring": "봄",
+        "summer": "여름",
+        "autumn": "가을",
+        "winter": "겨울",
+        "christmas": "크리스마스",
+        "halloween": "할로윈",
+    }.get(theme, theme)
+    try:
+        chat_service.update_theme(
+            conversation_id,
+            user_id,
+            theme,
+            lambda conn, conv_id, name, actor_id: create_system_message(
+                conn, conv_id, f"{name}님이 {theme_name} 테마로 변경했습니다.", actor_id
+            ),
+        )
+    except ChatServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
+
     with get_db() as conn:
-        membership = get_membership(conn, conversation_id, user_id)
-        if not membership:
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-        if conversation_is_disabled(conn, conversation_id):
-            return jsonify({"success": False, "error": "종료된 채팅방에서는 테마를 바꿀 수 없습니다."}), 403
-        conn.execute("UPDATE conversations SET chat_theme = %s WHERE id = %s", (theme, conversation_id))
-        actor = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
-        actor_name = actor["display_name"] or actor["username"]
-        theme_name = {"default": "기본", "heart": "하트", "teddy": "테디베어", "glass": "글라스", "aurora": "오로라", "mono": "모노", "spring": "봄", "summer": "여름", "autumn": "가을", "winter": "겨울", "christmas": "크리스마스", "halloween": "할로윈"}.get(theme, theme)
-        create_system_message(conn, conversation_id, f"{actor_name}님이 {theme_name} 테마로 변경했습니다.", user_id)
-        conn.commit()
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
     return jsonify({"success": True, "theme": theme})
 
 
-@app.route("/api/conversations/<int:conversation_id>/preferences", methods=["PATCH"])
 @login_required_api
 def update_conversation_preferences(conversation_id):
     """채팅방 고정·알림 끄기는 사용자별 설정이므로 멤버 테이블에만 저장한다."""
     user_id = session["user_id"]
     data = request.get_json() or {}
-    updates = []
-    values = []
-    if "is_muted" in data:
-        updates.append("is_muted = %s")
-        values.append(bool(data["is_muted"]))
-    if "is_pinned" in data:
-        updates.append("is_pinned = %s")
-        values.append(bool(data["is_pinned"]))
-    if not updates:
-        return jsonify({"success": False, "error": "변경할 설정이 없습니다."}), 400
-
-    with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id):
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-        values.extend([conversation_id, user_id])
-        conn.execute(
-            f"UPDATE conversation_members SET {', '.join(updates)} WHERE conversation_id = %s AND user_id = %s",
-            values,
+    try:
+        updated = chat_service.update_preferences(
+            conversation_id,
+            user_id,
+            is_muted=bool(data["is_muted"]) if "is_muted" in data else None,
+            is_pinned=bool(data["is_pinned"]) if "is_pinned" in data else None,
         )
-        conn.commit()
+    except ChatServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
+    if not updated:
+        return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
     return jsonify({"success": True})
 
 
-@app.route("/api/conversations/<int:conversation_id>/name", methods=["PATCH"])
 @login_required_api
 def rename_group_conversation(conversation_id):
     user_id = session["user_id"]
     data = request.get_json() or {}
     new_name = (data.get("name") or "").strip()
 
-    if not new_name:
-        return jsonify({"success": False, "error": "방 이름을 입력해주세요."})
+    try:
+        chat_service.rename_group(conversation_id, user_id, new_name)
+    except ChatServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
 
     with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id):
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-
-        conv = conn.execute("SELECT is_group, owner_id, is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
-        if not conv or not conv["is_group"]:
-            return jsonify({"success": False, "error": "그룹 채팅만 이름을 바꿀 수 있습니다."}), 400
-
-        if conv["owner_id"] != user_id:
-            return jsonify({"success": False, "error": "방장만 그룹 이름을 바꿀 수 있습니다."}), 403
-        if conv["is_disabled"]:
-            return jsonify({"success": False, "error": "종료된 그룹 채팅방은 정보를 변경할 수 없습니다."}), 403
-
-        conn.execute("UPDATE conversations SET name = %s WHERE id = %s", (new_name, conversation_id))
-        conn.commit()
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
 
     return jsonify({"success": True, "name": new_name})
 
 
-@app.route("/api/conversations/<int:conversation_id>/leave", methods=["DELETE"])
 @login_required_api
 def leave_conversation(conversation_id):
     user_id = session["user_id"]
-    with get_db() as conn:
-        membership = get_membership(conn, conversation_id, user_id)
-        if not membership:
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-
-        conv = conn.execute("SELECT owner_id, is_group FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
-        leaving_user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
-        leaving_name = leaving_user["display_name"] or leaving_user["username"]
-        if conv and conv["is_group"]:
-            create_system_message(conn, conversation_id, f"{leaving_name}님이 나갔습니다.", user_id)
-
-        conn.execute(
-            "DELETE FROM conversation_members WHERE conversation_id = %s AND user_id = %s",
-            (conversation_id, user_id)
+    try:
+        result = chat_service.leave_conversation(
+            conversation_id,
+            user_id,
+            lambda conn, conv_id, name, actor_id: create_system_message(
+                conn, conv_id, f"{name}님이 나갔습니다.", actor_id
+            ),
         )
+    except ChatServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
 
-        if conv and conv["is_group"] and conv["owner_id"] == user_id:
-            new_owner = conn.execute(
-                "SELECT user_id FROM conversation_members WHERE conversation_id = %s ORDER BY joined_at ASC LIMIT 1",
-                (conversation_id,)
-            ).fetchone()
-            if new_owner:
-                conn.execute("UPDATE conversations SET owner_id = %s WHERE id = %s", (new_owner["user_id"], conversation_id))
+    if result.conversation_deleted:
+        for image_path in result.image_paths:
+            delete_image_file(image_path)
+        return jsonify({"success": True})
 
-        remaining_row = conn.execute(
-            "SELECT COUNT(*) AS cnt FROM conversation_members WHERE conversation_id = %s", (conversation_id,)
-        ).fetchone()
-        remaining = remaining_row["cnt"] if remaining_row else 0
-
-        if remaining == 0:
-            image_rows = conn.execute(
-                "SELECT image FROM messages WHERE conversation_id = %s AND image IS NOT NULL", (conversation_id,)
-            ).fetchall()
-            conn.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
-            conn.commit()
-            for row in image_rows:
-                delete_image_file(row["image"])
-            return jsonify({"success": True})
-
-        conn.commit()
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+    with get_db() as conn:
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
     return jsonify({"success": True})
 
 
-@app.route("/api/conversations/<int:conversation_id>/disable", methods=["POST"])
 @login_required_api
 def disable_group_conversation(conversation_id):
     user_id = session["user_id"]
+    try:
+        chat_service.disable_group(
+            conversation_id,
+            user_id,
+            lambda conn, conv_id, name, actor_id: create_system_message(
+                conn,
+                conv_id,
+                f"{name}님이 그룹 채팅을 종료했습니다. 이전 대화는 계속 볼 수 있습니다.",
+                actor_id,
+            ),
+        )
+    except ChatServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
+
     with get_db() as conn:
-        conv = conn.execute("SELECT is_group, owner_id, is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
-        if not conv or not get_membership(conn, conversation_id, user_id):
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-        if not conv["is_group"] or conv["owner_id"] != user_id:
-            return jsonify({"success": False, "error": "그룹 방장만 채팅방을 종료할 수 있습니다."}), 403
-        if conv["is_disabled"]:
-            return jsonify({"success": False, "error": "이미 종료된 채팅방입니다."}), 400
-        actor = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
-        actor_name = actor["display_name"] or actor["username"]
-        conn.execute("UPDATE conversations SET is_disabled = TRUE, disabled_by = %s WHERE id = %s", (user_id, conversation_id))
-        create_system_message(conn, conversation_id, f"{actor_name}님이 그룹 채팅을 종료했습니다. 이전 대화는 계속 볼 수 있습니다.", user_id)
-        conn.commit()
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
     return jsonify({"success": True})
 
 
-@app.route("/api/conversations/<int:conversation_id>/hide", methods=["POST"])
 @login_required_api
 def hide_conversation(conversation_id):
     user_id = session["user_id"]
-    with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id):
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-
-        conn.execute(
-            "UPDATE conversation_members SET hidden_at = %s WHERE conversation_id = %s AND user_id = %s",
-            (now_str(), conversation_id, user_id)
-        )
-        conn.commit()
+    if not chat_service.hide_conversation(conversation_id, user_id):
+        return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
     return jsonify({"success": True})
 
 
-@app.route("/api/conversations/<int:conversation_id>/members", methods=["GET"])
 @login_required_api
 def get_conversation_members(conversation_id):
     user_id = session["user_id"]
@@ -2810,99 +2834,70 @@ def get_conversation_members(conversation_id):
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
-        conv = conn.execute("SELECT owner_id, profile_image FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+        conv = conn.execute(
+            "SELECT owner_id, profile_image FROM conversations WHERE id = %s", (conversation_id,)
+        ).fetchone()
         owner_id = conv["owner_id"] if conv else None
         group_profile_image = conv["profile_image"] if conv else None
 
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT users.id, users.username, users.display_name, users.profile_image
             FROM conversation_members
             JOIN users ON users.id = conversation_members.user_id
             WHERE conversation_members.conversation_id = %s
-        """, (conversation_id,)).fetchall()
+        """,
+            (conversation_id,),
+        ).fetchall()
 
-        members = [{
-            "id": row["id"],
-            "username": row["username"],
-            "name": row["display_name"] or row["username"],
-            "profileImage": row["profile_image"],
-        } for row in rows]
+        members = [
+            {
+                "id": row["id"],
+                "username": row["username"],
+                "name": row["display_name"] or row["username"],
+                "profileImage": row["profile_image"],
+            }
+            for row in rows
+        ]
 
-    return jsonify({
-        "success": True,
-        "members": members,
-        "ownerId": owner_id,
-        "groupProfileImage": group_profile_image,
-    })
+    return jsonify(
+        {
+            "success": True,
+            "members": members,
+            "ownerId": owner_id,
+            "groupProfileImage": group_profile_image,
+        }
+    )
 
 
-@app.route("/api/conversations/<int:conversation_id>/members", methods=["POST"])
 @login_required_api
 def invite_conversation_members(conversation_id):
     user_id = session["user_id"]
     data = request.get_json() or {}
     usernames = data.get("usernames") or []
 
+    try:
+        chat_service.invite_members(conversation_id, user_id, usernames)
+    except ChatServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
     with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id):
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-
-        conv = conn.execute("SELECT is_group, is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
-        if not conv or not conv["is_group"]:
-            return jsonify({"success": False, "error": "그룹 채팅에서만 멤버를 초대할 수 있습니다."}), 400
-        if conv["is_disabled"]:
-            return jsonify({"success": False, "error": "종료된 그룹 채팅방에는 멤버를 초대할 수 없습니다."}), 403
-
-        for uname in usernames:
-            row = conn.execute("SELECT id FROM users WHERE username = %s", (uname,)).fetchone()
-            if not row:
-                return jsonify({"success": False, "error": f"'{uname}' 사용자를 찾을 수 없습니다."})
-
-            if get_membership(conn, conversation_id, row["id"]):
-                continue
-
-            conn.execute(
-                "INSERT INTO conversation_members (conversation_id, user_id, last_read_message_id, joined_at) VALUES (%s, %s, 0, %s)",
-                (conversation_id, row["id"], now_str())
-            )
-
-        conn.commit()
         broadcast_to_conversation(conn, conversation_id, "friend_updated", {})
 
     return jsonify({"success": True})
 
 
-@app.route("/api/conversations/<int:conversation_id>/members/<int:member_user_id>", methods=["DELETE"])
 @login_required_api
 def remove_conversation_member(conversation_id, member_user_id):
     user_id = session["user_id"]
+    try:
+        chat_service.remove_member(conversation_id, user_id, member_user_id)
+    except ChatServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
     with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id):
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-
-        conv = conn.execute("SELECT is_group, owner_id, is_disabled FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
-        if not conv or not conv["is_group"]:
-            return jsonify({"success": False, "error": "그룹 채팅에서만 멤버를 내보낼 수 있습니다."}), 400
-
-        if conv["owner_id"] != user_id:
-            return jsonify({"success": False, "error": "방장만 멤버를 내보낼 수 있습니다."}), 403
-        if conv["is_disabled"]:
-            return jsonify({"success": False, "error": "종료된 그룹 채팅방은 멤버를 변경할 수 없습니다."}), 403
-
-        if member_user_id == user_id:
-            return jsonify({"success": False, "error": "본인은 내보낼 수 없습니다. 나가기 기능을 이용해주세요."}), 400
-
-        if not get_membership(conn, conversation_id, member_user_id):
-            return jsonify({"success": False, "error": "해당 멤버를 찾을 수 없습니다."}), 404
-
-        conn.execute(
-            "DELETE FROM conversation_members WHERE conversation_id = %s AND user_id = %s",
-            (conversation_id, member_user_id)
-        )
-        conn.commit()
-
         notify_user(member_user_id, "friend_updated", {})
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
 
     return jsonify({"success": True})
 
@@ -2911,14 +2906,14 @@ def remove_conversation_member(conversation_id, member_user_id):
 # 메시지 API
 # ----------------------------------------------------------------
 
-@app.route("/api/link-preview", methods=["POST"])
+
 @login_required_api
 def link_preview():
     url = (request.get_json() or {}).get("url", "").strip()
     preview = get_link_preview(url)
     return jsonify({"success": bool(preview), "preview": preview})
 
-@app.route("/api/conversations/<int:conversation_id>/messages", methods=["GET"])
+
 @login_required_api
 def get_messages(conversation_id):
     user_id = session["user_id"]
@@ -2926,22 +2921,27 @@ def get_messages(conversation_id):
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
-        conv = conn.execute("SELECT is_group FROM conversations WHERE id = %s", (conversation_id,)).fetchone()
+        conv = conn.execute(
+            "SELECT is_group FROM conversations WHERE id = %s", (conversation_id,)
+        ).fetchone()
 
         member_read_rows = conn.execute(
             "SELECT user_id, last_read_message_id FROM conversation_members WHERE conversation_id = %s",
-            (conversation_id,)
+            (conversation_id,),
         ).fetchall()
         member_last_read = {m["user_id"]: m["last_read_message_id"] for m in member_read_rows}
 
         sender_names = {}
         sender_images = {}
         if conv and conv["is_group"]:
-            member_rows = conn.execute("""
+            member_rows = conn.execute(
+                """
                 SELECT users.id, users.display_name, users.username, users.profile_image FROM conversation_members
                 JOIN users ON users.id = conversation_members.user_id
                 WHERE conversation_members.conversation_id = %s       
-            """, (conversation_id,)).fetchall()
+            """,
+                (conversation_id,),
+            ).fetchall()
             sender_names = {m["id"]: (m["display_name"] or m["username"]) for m in member_rows}
             sender_images = {m["id"]: m["profile_image"] for m in member_rows}
 
@@ -2952,36 +2952,38 @@ def get_messages(conversation_id):
         messages = []
         for row in rows:
             unread_count = sum(
-                1 for uid, last_read in member_last_read.items()
+                1
+                for uid, last_read in member_last_read.items()
                 if uid != row["sender_id"] and last_read < row["id"]
             )
-            messages.append({
-                "id": row["id"],
-                "senderId": row["sender_id"],
-                "senderName": sender_names.get(row["sender_id"]),
-                "senderProfileImage": sender_images.get(row["sender_id"]),
-                "mine": row["sender_id"] == user_id, 
-                "text": row["text"],
-                "image": row["image"],
-                "video": row["video"],
-                "audio": row["audio"],
-                "messageType": row["message_type"] or "user",
-                "filePath": row["file_path"],
-                "fileName": row["file_name"],
-                "fileSize": row["file_size"],
-                "time": row["time"],
-                "date": row["date"],
-                "sentAt": row["sent_at"],
-                "reply": json.loads(row["reply"]) if row["reply"] else None,
-                "edited": bool(row["edited"]),
-                "pinned": bool(row["pinned"]),
-                "reactions": json.loads(row["reactions"]) if row["reactions"] else [],
-                "unreadCount": unread_count,
-            })
+            messages.append(
+                {
+                    "id": row["id"],
+                    "senderId": row["sender_id"],
+                    "senderName": sender_names.get(row["sender_id"]),
+                    "senderProfileImage": sender_images.get(row["sender_id"]),
+                    "mine": row["sender_id"] == user_id,
+                    "text": row["text"],
+                    "image": row["image"],
+                    "video": row["video"],
+                    "audio": row["audio"],
+                    "messageType": row["message_type"] or "user",
+                    "filePath": row["file_path"],
+                    "fileName": row["file_name"],
+                    "fileSize": row["file_size"],
+                    "time": row["time"],
+                    "date": row["date"],
+                    "sentAt": row["sent_at"],
+                    "reply": json.loads(row["reply"]) if row["reply"] else None,
+                    "edited": bool(row["edited"]),
+                    "pinned": bool(row["pinned"]),
+                    "reactions": json.loads(row["reactions"]) if row["reactions"] else [],
+                    "unreadCount": unread_count,
+                }
+            )
         return jsonify(messages)
 
 
-@app.route("/api/conversations/<int:conversation_id>/messages", methods=["POST"])
 @login_required_api
 def send_message(conversation_id):
     user_id = session["user_id"]
@@ -3001,47 +3003,61 @@ def send_message(conversation_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
         if conversation_is_disabled(conn, conversation_id):
-            return jsonify({"success": False, "error": "종료된 채팅방에서는 새 메시지를 보낼 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "종료된 채팅방에서는 새 메시지를 보낼 수 없습니다."}
+                ),
+                403,
+            )
 
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
-            return jsonify({"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}
+                ),
+                403,
+            )
 
         sent_at = current_message_timestamp_ms()
         time_label, date_label = legacy_message_labels(sent_at)
-        msg_row = conn.execute("""
+        msg_row = conn.execute(
+            """
             INSERT INTO messages (conversation_id, sender_id, text, image, time, date, sent_at, reply, edited, pinned, reactions)
             VALUES (%s, %s, %s, NULL, %s, %s, %s, %s, FALSE, FALSE, %s) RETURNING id
-        """, (
-            conversation_id,
-            user_id,
-            text,
-            time_label,
-            date_label,
-            sent_at,
-            json.dumps(reply) if reply else None,
-            json.dumps([])
-        )).fetchone()
+        """,
+            (
+                conversation_id,
+                user_id,
+                text,
+                time_label,
+                date_label,
+                sent_at,
+                json.dumps(reply) if reply else None,
+                json.dumps([]),
+            ),
+        ).fetchone()
         new_message_id = msg_row["id"]
 
         conn.execute(
             "UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s",
-            (new_message_id, conversation_id, user_id)
+            (new_message_id, conversation_id, user_id),
         )
         conn.execute(
             "UPDATE conversations SET last_activity_id = %s WHERE id = %s",
-            (new_message_id, conversation_id)
+            (new_message_id, conversation_id),
         )
 
         unhide_conversation(conn, conversation_id)
 
         conn.commit()
         notify_conversation_message(conn, conversation_id, user_id, text[:120])
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
         return jsonify({"success": True})
 
 
-@app.route("/api/conversations/<int:conversation_id>/messages/image", methods=["POST"])
 @login_required_api
 def send_image(conversation_id):
     user_id = session["user_id"]
@@ -3060,52 +3076,59 @@ def send_image(conversation_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
         if conversation_is_disabled(conn, conversation_id):
-            return jsonify({"success": False, "error": "종료된 채팅방에서는 사진을 보낼 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "종료된 채팅방에서는 사진을 보낼 수 없습니다."}
+                ),
+                403,
+            )
 
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
-            return jsonify({"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}
+                ),
+                403,
+            )
 
         sent_at = current_message_timestamp_ms()
         time_label, date_label = legacy_message_labels(sent_at)
-        msg_row = conn.execute("""
+        msg_row = conn.execute(
+            """
             INSERT INTO messages (conversation_id, sender_id, text, image, time, date, sent_at, reply, edited, pinned, reactions)
             VALUES (%s, %s, NULL, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
-        """, (
-            conversation_id,
-            user_id,
-            image_path,
-            time_label,
-            date_label,
-            sent_at,
-            json.dumps([])
-        )).fetchone()
+        """,
+            (conversation_id, user_id, image_path, time_label, date_label, sent_at, json.dumps([])),
+        ).fetchone()
         new_message_id = msg_row["id"]
 
         conn.execute(
             "UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s",
-            (new_message_id, conversation_id, user_id)
+            (new_message_id, conversation_id, user_id),
         )
         conn.execute(
             "UPDATE conversations SET last_activity_id = %s WHERE id = %s",
-            (new_message_id, conversation_id)
+            (new_message_id, conversation_id),
         )
 
         unhide_conversation(conn, conversation_id)
 
         conn.commit()
         notify_conversation_message(conn, conversation_id, user_id, "사진을 보냈습니다.")
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
     return jsonify({"success": True, "image": image_path})
 
 
 ALLOWED_VIDEO_EXTENSIONS = {"mp4", "webm", "mov"}
 
+
 def is_allowed_video(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
 
 
-@app.route("/api/conversations/<int:conversation_id>/messages/video", methods=["POST"])
 @login_required_api
 def send_video(conversation_id):
     user_id = session["user_id"]
@@ -3121,18 +3144,36 @@ def send_video(conversation_id):
         return jsonify({"success": False, "error": "동영상 파일이 없습니다."}), 400
 
     if not is_allowed_video(video_file.filename):
-        return jsonify({"success": False, "error": "지원하지 않는 동영상 형식입니다 (mp4, webm, mov만 가능)."}), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "지원하지 않는 동영상 형식입니다 (mp4, webm, mov만 가능).",
+                }
+            ),
+            400,
+        )
 
     with get_db() as conn:
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
         if conversation_is_disabled(conn, conversation_id):
-            return jsonify({"success": False, "error": "종료된 채팅방에서는 동영상을 보낼 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "종료된 채팅방에서는 동영상을 보낼 수 없습니다."}
+                ),
+                403,
+            )
 
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
-            return jsonify({"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "차단된 사용자와는 메시지를 주고받을 수 없습니다."}
+                ),
+                403,
+            )
 
         video_path, _ = save_uploaded_file(video_file, "videos")
         if not video_path:
@@ -3140,38 +3181,34 @@ def send_video(conversation_id):
 
         sent_at = current_message_timestamp_ms()
         time_label, date_label = legacy_message_labels(sent_at)
-        msg_row = conn.execute("""
+        msg_row = conn.execute(
+            """
             INSERT INTO messages (conversation_id, sender_id, text, image, video, time, date, sent_at, reply, edited, pinned, reactions)
             VALUES (%s, %s, NULL, NULL, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
-        """, (
-            conversation_id,
-            user_id,
-            video_path,
-            time_label,
-            date_label,
-            sent_at,
-            json.dumps([])
-        )).fetchone()
+        """,
+            (conversation_id, user_id, video_path, time_label, date_label, sent_at, json.dumps([])),
+        ).fetchone()
         new_message_id = msg_row["id"]
 
         conn.execute(
             "UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s",
-            (new_message_id, conversation_id, user_id)
+            (new_message_id, conversation_id, user_id),
         )
         conn.execute(
             "UPDATE conversations SET last_activity_id = %s WHERE id = %s",
-            (new_message_id, conversation_id)
+            (new_message_id, conversation_id),
         )
 
         unhide_conversation(conn, conversation_id)
 
         conn.commit()
         notify_conversation_message(conn, conversation_id, user_id, "동영상을 보냈습니다.")
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
     return jsonify({"success": True, "video": video_path})
 
 
-@app.route("/api/conversations/<int:conversation_id>/messages/file", methods=["POST"])
 @login_required_api
 def send_file(conversation_id):
     user_id = session["user_id"]
@@ -3192,10 +3229,20 @@ def send_file(conversation_id):
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
         if conversation_is_disabled(conn, conversation_id):
-            return jsonify({"success": False, "error": "종료된 채팅방에서는 파일을 보낼 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "종료된 채팅방에서는 파일을 보낼 수 없습니다."}
+                ),
+                403,
+            )
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
-            return jsonify({"success": False, "error": "차단된 사용자에게는 파일을 보낼 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "차단된 사용자에게는 파일을 보낼 수 없습니다."}
+                ),
+                403,
+            )
 
     file_path, file_name = save_uploaded_file(upload, "files")
     if not file_path:
@@ -3204,21 +3251,41 @@ def send_file(conversation_id):
     with get_db() as conn:
         sent_at = current_message_timestamp_ms()
         time_label, date_label = legacy_message_labels(sent_at)
-        row = conn.execute("""
+        row = conn.execute(
+            """
             INSERT INTO messages (conversation_id, sender_id, text, image, video, file_path, file_name, file_size, time, date, sent_at, reply, edited, pinned, reactions)
             VALUES (%s, %s, NULL, NULL, NULL, %s, %s, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
-        """, (conversation_id, user_id, file_path, file_name, size, time_label, date_label, sent_at, json.dumps([]))).fetchone()
+        """,
+            (
+                conversation_id,
+                user_id,
+                file_path,
+                file_name,
+                size,
+                time_label,
+                date_label,
+                sent_at,
+                json.dumps([]),
+            ),
+        ).fetchone()
         new_message_id = row["id"]
-        conn.execute("UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s", (new_message_id, conversation_id, user_id))
-        conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (new_message_id, conversation_id))
+        conn.execute(
+            "UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s",
+            (new_message_id, conversation_id, user_id),
+        )
+        conn.execute(
+            "UPDATE conversations SET last_activity_id = %s WHERE id = %s",
+            (new_message_id, conversation_id),
+        )
         unhide_conversation(conn, conversation_id)
         conn.commit()
         notify_conversation_message(conn, conversation_id, user_id, f"파일: {file_name}")
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
     return jsonify({"success": True, "filePath": file_path, "fileName": file_name})
 
 
-@app.route("/api/conversations/<int:conversation_id>/messages/audio", methods=["POST"])
 @login_required_api
 def send_audio(conversation_id):
     user_id = session["user_id"]
@@ -3232,80 +3299,88 @@ def send_audio(conversation_id):
     except ValueError:
         duration = 0
     if duration <= 0 or duration > 30:
-        return jsonify({"success": False, "error": "음성 메시지는 최대 30초까지 보낼 수 있습니다."}), 400
+        return (
+            jsonify({"success": False, "error": "음성 메시지는 최대 30초까지 보낼 수 있습니다."}),
+            400,
+        )
     with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id) or conversation_is_disabled(conn, conversation_id):
-            return jsonify({"success": False, "error": "이 채팅방에는 음성 메시지를 보낼 수 없습니다."}), 403
+        if not get_membership(conn, conversation_id, user_id) or conversation_is_disabled(
+            conn, conversation_id
+        ):
+            return (
+                jsonify(
+                    {"success": False, "error": "이 채팅방에는 음성 메시지를 보낼 수 없습니다."}
+                ),
+                403,
+            )
         peer_id = get_peer_id(conn, conversation_id, user_id)
         if peer_id and is_blocked_either_way(conn, user_id, peer_id):
-            return jsonify({"success": False, "error": "차단된 사용자에게는 음성 메시지를 보낼 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "차단된 사용자에게는 음성 메시지를 보낼 수 없습니다.",
+                    }
+                ),
+                403,
+            )
     audio_path, _ = save_uploaded_file(audio_file, "audio")
     if not audio_path:
         return jsonify({"success": False, "error": "음성 메시지 저장에 실패했습니다."}), 500
     with get_db() as conn:
         sent_at = current_message_timestamp_ms()
         time_label, date_label = legacy_message_labels(sent_at)
-        row = conn.execute("""
+        row = conn.execute(
+            """
             INSERT INTO messages (conversation_id, sender_id, audio, time, date, sent_at, edited, pinned, reactions)
             VALUES (%s, %s, %s, %s, %s, %s, FALSE, FALSE, %s) RETURNING id
-        """, (conversation_id, user_id, audio_path, time_label, date_label, sent_at, json.dumps([]))).fetchone()
-        conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], conversation_id))
+        """,
+            (conversation_id, user_id, audio_path, time_label, date_label, sent_at, json.dumps([])),
+        ).fetchone()
+        conn.execute(
+            "UPDATE conversations SET last_activity_id = %s WHERE id = %s",
+            (row["id"], conversation_id),
+        )
         unhide_conversation(conn, conversation_id)
         conn.commit()
         notify_conversation_message(conn, conversation_id, user_id, "음성 메시지를 보냈습니다.")
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
     return jsonify({"success": True, "audio": audio_path})
 
 
-@app.route("/api/messages/<int:message_id>/forward", methods=["POST"])
 @login_required_api
 def forward_message(message_id):
     user_id = session["user_id"]
     target_conversation_id = (request.get_json() or {}).get("conversation_id")
-    if not target_conversation_id:
-        return jsonify({"success": False, "error": "전달할 채팅방을 선택해주세요."}), 400
+    try:
+        target_conversation_id = message_service.forward_message(
+            message_id, user_id, target_conversation_id
+        )
+    except MessageServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
 
     with get_db() as conn:
-        source = get_owned_message(conn, user_id, message_id)
-        if not source or not get_membership(conn, target_conversation_id, user_id):
-            return jsonify({"success": False, "error": "메시지 또는 채팅방을 찾을 수 없습니다."}), 404
-        sent_at = current_message_timestamp_ms()
-        time_label, date_label = legacy_message_labels(sent_at)
-        row = conn.execute("""
-            INSERT INTO messages (conversation_id, sender_id, text, image, video, file_path, file_name, file_size, time, date, sent_at, reply, edited, pinned, reactions)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, FALSE, FALSE, %s) RETURNING id
-        """, (target_conversation_id, user_id, source["text"], source["image"], source["video"], source["file_path"], source["file_name"], source["file_size"], time_label, date_label, sent_at, json.dumps([]))).fetchone()
-        conn.execute("UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s", (row["id"], target_conversation_id, user_id))
-        conn.execute("UPDATE conversations SET last_activity_id = %s WHERE id = %s", (row["id"], target_conversation_id))
-        unhide_conversation(conn, target_conversation_id)
-        conn.commit()
-        broadcast_to_conversation(conn, target_conversation_id, "conversation_updated", {"conversationId": target_conversation_id})
+        broadcast_to_conversation(
+            conn,
+            target_conversation_id,
+            "conversation_updated",
+            {"conversationId": target_conversation_id},
+        )
     return jsonify({"success": True})
 
 
-@app.route("/api/messages/<int:message_id>/report", methods=["POST"])
 @login_required_api
 def report_message(message_id):
     user_id = session["user_id"]
     data = request.get_json() or {}
     reason = (data.get("reason") or "").strip()
     detail = (data.get("detail") or "").strip()
-    if reason not in {"스팸", "욕설·괴롭힘", "부적절한 콘텐츠", "사칭", "기타"}:
-        return jsonify({"success": False, "error": "신고 사유를 선택해주세요."}), 400
-    if len(detail) > 1000:
-        return jsonify({"success": False, "error": "신고 내용은 1,000자 이하로 입력해주세요."}), 400
-    with get_db() as conn:
-        message = get_owned_message(conn, user_id, message_id)
-        if not message:
-            return jsonify({"success": False, "error": "메시지를 찾을 수 없습니다."}), 404
-        if message["sender_id"] == user_id:
-            return jsonify({"success": False, "error": "내 메시지는 신고할 수 없습니다."}), 400
-        conn.execute(
-            """INSERT INTO reports (reporter_id, message_id, reason, detail, created_at)
-               VALUES (%s, %s, %s, %s, %s) ON CONFLICT (reporter_id, message_id) DO NOTHING""",
-            (user_id, message_id, reason, detail or None, now_str()),
-        )
-        conn.commit()
+    try:
+        message_service.report_message(message_id, user_id, reason, detail)
+    except MessageServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
     return jsonify({"success": True, "message": "신고가 접수되었습니다."})
 
 
@@ -3337,143 +3412,86 @@ def report_user(user_id):
     return jsonify({"success": True, "message": "신고가 접수되었습니다."})
 
 
-@app.route("/api/messages/<int:message_id>", methods=["PATCH"])
 @login_required_api
 def edit_message(message_id):
     user_id = session["user_id"]
     data = request.get_json() or {}
 
     text = (data.get("text") or "").strip()
-    if not text:
-        return jsonify({"success": False, "error": "메시지 내용을 입력해주세요."}), 400
-    if len(text) > 5000:
-        return jsonify({"success": False, "error": "메시지는 5,000자 이하로 입력해주세요."}), 400
+    try:
+        conversation_id = message_service.edit_message(message_id, user_id, text)
+    except MessageServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
 
     with get_db() as conn:
-        msg = get_owned_message(conn, user_id, message_id)
-        if msg is None:
-            return jsonify({"success": False, "error": "메시지를 찾을 수 없습니다."}), 404
-        if msg["sender_id"] != user_id:
-            return jsonify({"success": False, "error": "본인 메시지만 수정할 수 있습니다."}), 403
-
-        conn.execute(
-            "UPDATE messages SET text = %s, edited = TRUE WHERE id = %s",
-            (text, message_id)
+        broadcast_to_conversation(
+            conn,
+            conversation_id,
+            "conversation_updated",
+            {"conversationId": conversation_id},
         )
-        conn.commit()
-        broadcast_to_conversation(conn, msg["conversation_id"], "conversation_updated", {"conversationId": msg["conversation_id"]})
     return jsonify({"success": True})
 
 
-@app.route("/api/messages/<int:message_id>", methods=["DELETE"])
 @login_required_api
 def delete_message(message_id):
     user_id = session["user_id"]
 
+    try:
+        conversation_id, image_path = message_service.delete_message(message_id, user_id)
+    except MessageServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
+
     with get_db() as conn:
-        msg = get_owned_message(conn, user_id, message_id)
-        if msg is None:
-            return jsonify({"success": False, "error": "메시지를 찾을 수 없습니다."}), 404
-        if msg["sender_id"] != user_id:
-            return jsonify({"success": False, "error": "본인 메시지만 삭제할 수 있습니다."}), 403
+        broadcast_to_conversation(
+            conn,
+            conversation_id,
+            "conversation_updated",
+            {"conversationId": conversation_id},
+        )
 
-        conn.execute("DELETE FROM messages WHERE id = %s", (message_id,))
-        conn.commit()
-        broadcast_to_conversation(conn, msg["conversation_id"], "conversation_updated", {"conversationId": msg["conversation_id"]})
-
-    delete_image_file(msg["image"])
+    delete_image_file(image_path)
     return jsonify({"success": True})
 
 
-@app.route("/api/messages/<int:message_id>/pin", methods=["POST"])
 @login_required_api
 def pin_message(message_id):
     user_id = session["user_id"]
 
+    try:
+        conversation_id, now_pinned = message_service.toggle_pin(message_id, user_id)
+    except MessageServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
+
     with get_db() as conn:
-        msg = get_owned_message(conn, user_id, message_id)
-        if msg is None:
-            return jsonify({"success": False, "error": "메시지를 찾을 수 없습니다."}), 404
-
-        now_pinned = not bool(msg["pinned"])
-        conn.execute("UPDATE messages SET pinned = FALSE WHERE conversation_id = %s", (msg["conversation_id"],))
-        if now_pinned:
-            conn.execute("UPDATE messages SET pinned = TRUE WHERE id = %s", (message_id,))
-        conn.commit()
-        broadcast_to_conversation(conn, msg["conversation_id"], "conversation_updated", {"conversationId": msg["conversation_id"]})
-    return jsonify({"success": True})
+        broadcast_to_conversation(
+            conn,
+            conversation_id,
+            "conversation_updated",
+            {"conversationId": conversation_id},
+        )
+    return jsonify({"success": True, "pinned": now_pinned})
 
 
-@app.route("/api/messages/<int:message_id>/react", methods=["POST"])
 @login_required_api
 def react_message(message_id):
     user_id = session["user_id"]
     data = request.get_json() or {}
     emoji = data.get("emoji")
 
+    try:
+        conversation_id, reactions = message_service.toggle_reaction(message_id, user_id, emoji)
+    except MessageServiceError as error:
+        return jsonify({"success": False, "error": str(error)}), error.status_code
+
     with get_db() as conn:
-        msg = get_owned_message(conn, user_id, message_id)
-        if msg is None:
-            return jsonify({"success": False, "error": "메시지를 찾을 수 없습니다."}), 404
-
-        reactions = json.loads(msg["reactions"]) if msg["reactions"] else []
-
-        if emoji in reactions:
-            reactions.remove(emoji)
-        else:
-            reactions.append(emoji)
-
-        conn.execute("UPDATE messages SET reactions = %s WHERE id = %s", (json.dumps(reactions), message_id))
-        conn.commit()
-        broadcast_to_conversation(conn, msg["conversation_id"], "conversation_updated", {"conversationId": msg["conversation_id"]})
+        broadcast_to_conversation(
+            conn,
+            conversation_id,
+            "conversation_updated",
+            {"conversationId": conversation_id},
+        )
     return jsonify({"success": True, "reactions": reactions})
-
-
-@app.route("/api/account/display-name", methods=["PATCH"])
-@login_required_api
-def update_display_name():
-    user_id = session["user_id"]
-    data = request.get_json() or {}
-    display_name = (data.get("display_name") or "").strip()
-
-    if not display_name:
-        return jsonify({"success": False, "error": "이름을 입력해주세요."})
-
-    with get_db() as conn:
-        conn.execute("UPDATE users SET display_name = %s WHERE id = %s", (display_name, user_id))
-        recipient_ids = profile_update_recipient_ids(conn, user_id)
-        conn.commit()
-
-    notify_profile_updated(recipient_ids, user_id)
-    session["display_name"] = display_name
-    return jsonify({"success": True, "display_name": display_name})
-
-
-@app.route("/api/account/profile", methods=["GET", "PATCH"])
-@login_required_api
-def account_profile():
-    user_id = session["user_id"]
-    if request.method == "GET":
-        with get_db() as conn:
-            user = conn.execute("SELECT display_name, username, profile_image, cover_image, bio, profile_visibility FROM users WHERE id = %s", (user_id,)).fetchone()
-        return jsonify(dict(user))
-
-    data = request.get_json() or {}
-    bio = (data.get("bio") or "").strip()
-    visibility = data.get("profile_visibility")
-    if visibility is not None and visibility not in {"public", "friends", "private"}:
-        return jsonify({"success": False, "error": "올바른 프로필 공개 범위를 선택해주세요."}), 400
-    if len(bio) > 300:
-        return jsonify({"success": False, "error": "소개글은 최대 300자까지 입력할 수 있습니다."}), 400
-    with get_db() as conn:
-        if visibility is None:
-            current = conn.execute("SELECT profile_visibility FROM users WHERE id = %s", (user_id,)).fetchone()
-            visibility = current["profile_visibility"] if current else "friends"
-        conn.execute("UPDATE users SET bio = %s, profile_visibility = %s WHERE id = %s", (bio, visibility, user_id))
-        recipient_ids = profile_update_recipient_ids(conn, user_id)
-        conn.commit()
-    notify_profile_updated(recipient_ids, user_id)
-    return jsonify({"success": True, "bio": bio, "profile_visibility": visibility})
 
 
 @app.route("/api/account/cover-image", methods=["PATCH", "DELETE"])
@@ -3506,9 +3524,17 @@ def account_cover_image():
 @login_required_api
 def public_profile(user_id):
     with get_db() as conn:
-        user = conn.execute("SELECT id, display_name, username, profile_image, cover_image, bio, profile_visibility, is_suspended FROM users WHERE id = %s", (user_id,)).fetchone()
+        user = conn.execute(
+            "SELECT id, display_name, username, profile_image, cover_image, bio, profile_visibility, is_suspended FROM users WHERE id = %s",
+            (user_id,),
+        ).fetchone()
         if not can_view_profile(conn, session["user_id"], user):
-            return jsonify({"success": False, "error": "사용자를 찾을 수 없거나 비공개 프로필입니다."}), 404
+            return (
+                jsonify(
+                    {"success": False, "error": "사용자를 찾을 수 없거나 비공개 프로필입니다."}
+                ),
+                404,
+            )
     profile = dict(user)
     profile.pop("is_suspended", None)
     return jsonify({"success": True, **profile, "is_online": is_user_online(user_id)})
@@ -3521,16 +3547,29 @@ def search_user_profile():
     if not re.fullmatch(r"[a-z0-9]{5,}", username):
         return jsonify({"success": False, "error": "아이디를 정확히 입력해주세요."}), 400
     with get_db() as conn:
-        user = conn.execute("""
+        user = conn.execute(
+            """
             SELECT id, display_name, username, profile_image, cover_image, bio, profile_visibility, is_suspended
             FROM users WHERE username = %s
-        """, (username,)).fetchone()
+        """,
+            (username,),
+        ).fetchone()
         if not can_view_profile(conn, session["user_id"], user):
-            return jsonify({"success": False, "error": "사용자를 찾을 수 없거나 비공개 프로필입니다."}), 404
+            return (
+                jsonify(
+                    {"success": False, "error": "사용자를 찾을 수 없거나 비공개 프로필입니다."}
+                ),
+                404,
+            )
         is_friend = are_users_friends(conn, session["user_id"], user["id"])
     profile = dict(user)
     profile.pop("is_suspended", None)
-    return jsonify({"success": True, "user": {**profile, "is_friend": is_friend, "is_online": is_user_online(user["id"])}})
+    return jsonify(
+        {
+            "success": True,
+            "user": {**profile, "is_friend": is_friend, "is_online": is_user_online(user["id"])},
+        }
+    )
 
 
 @app.route("/api/account/username", methods=["PATCH"])
@@ -3542,14 +3581,21 @@ def update_username():
     current_password = data.get("current_password") or ""
 
     if not re.fullmatch(r"[a-z0-9]{5,}", new_username):
-        return jsonify({"success": False, "error": "아이디는 영어 소문자와 숫자 조합으로 5자 이상이어야 합니다."})
+        return jsonify(
+            {
+                "success": False,
+                "error": "아이디는 영어 소문자와 숫자 조합으로 5자 이상이어야 합니다.",
+            }
+        )
 
     with get_db() as conn:
         user = conn.execute("SELECT password_hash FROM users WHERE id = %s", (user_id,)).fetchone()
         if not check_password_hash(user["password_hash"], current_password):
             return jsonify({"success": False, "error": "현재 비밀번호가 일치하지 않습니다."})
 
-        existing = conn.execute("SELECT id FROM users WHERE username = %s AND id != %s", (new_username, user_id)).fetchone()
+        existing = conn.execute(
+            "SELECT id FROM users WHERE username = %s AND id != %s", (new_username, user_id)
+        ).fetchone()
         if existing:
             return jsonify({"success": False, "error": "이미 사용 중인 아이디입니다."})
 
@@ -3567,9 +3613,15 @@ def update_password():
     data = request.get_json() or {}
     current_password = data.get("current_password") or ""
     new_password = data.get("new_password") or ""
+    password_confirmation = (
+        data.get("password_confirmation") or data.get("new_password_confirmation") or ""
+    )
 
-    if not re.fullmatch(r"(?=.*[a-z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{7,}", new_password):
-        return jsonify({"success": False, "error": "비밀번호는 영어 소문자, 숫자, 특수문자를 모두 포함해 7자 이상이어야 합니다."})
+    if password_confirmation and new_password != password_confirmation:
+        return jsonify({"success": False, "error": "비밀번호 확인이 일치하지 않습니다."}), 400
+
+    if not PasswordPolicy.is_valid(new_password):
+        return jsonify({"success": False, "error": PasswordPolicy.error_message()})
 
     with get_db() as conn:
         user = conn.execute("SELECT password_hash FROM users WHERE id = %s", (user_id,)).fetchone()
@@ -3578,7 +3630,7 @@ def update_password():
 
         conn.execute(
             "UPDATE users SET password_hash = %s WHERE id = %s",
-            (generate_password_hash(new_password), user_id)
+            (generate_password_hash(new_password), user_id),
         )
         conn.commit()
 
@@ -3646,7 +3698,9 @@ def delete_profile_image():
 
     with get_db() as conn:
         user = conn.execute("SELECT profile_image FROM users WHERE id = %s", (user_id,)).fetchone()
-        conn.execute("UPDATE users SET profile_image = %s WHERE id = %s", (DEFAULT_PROFILE_IMAGE, user_id))
+        conn.execute(
+            "UPDATE users SET profile_image = %s WHERE id = %s", (DEFAULT_PROFILE_IMAGE, user_id)
+        )
         recipient_ids = profile_update_recipient_ids(conn, user_id)
         conn.commit()
     notify_profile_updated(recipient_ids, user_id)
@@ -3658,7 +3712,6 @@ def delete_profile_image():
     return jsonify({"success": True, "profile_image": DEFAULT_PROFILE_IMAGE})
 
 
-@app.route("/api/conversations/<int:conversation_id>/photo", methods=["PATCH"])
 @login_required_api
 def update_group_photo(conversation_id):
     user_id = session["user_id"]
@@ -3674,19 +3727,29 @@ def update_group_photo(conversation_id):
 
     with get_db() as conn:
         conv = conn.execute(
-            "SELECT is_group, owner_id, profile_image, is_disabled FROM conversations WHERE id = %s", (conversation_id,)
+            "SELECT is_group, owner_id, profile_image, is_disabled FROM conversations WHERE id = %s",
+            (conversation_id,),
         ).fetchone()
         if not conv or not conv["is_group"]:
             return jsonify({"success": False, "error": "그룹 채팅만 사진을 바꿀 수 있습니다."}), 400
         if conv["owner_id"] != user_id:
             return jsonify({"success": False, "error": "방장만 그룹 사진을 바꿀 수 있습니다."}), 403
         if conv["is_disabled"]:
-            return jsonify({"success": False, "error": "종료된 그룹 채팅방은 정보를 변경할 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "종료된 그룹 채팅방은 정보를 변경할 수 없습니다."}
+                ),
+                403,
+            )
 
         old_image = conv["profile_image"]
-        conn.execute("UPDATE conversations SET profile_image = %s WHERE id = %s", (new_path, conversation_id))
+        conn.execute(
+            "UPDATE conversations SET profile_image = %s WHERE id = %s", (new_path, conversation_id)
+        )
         conn.commit()
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
 
     if old_image and old_image != DEFAULT_PROFILE_IMAGE:
         delete_image_file(old_image)
@@ -3694,26 +3757,42 @@ def update_group_photo(conversation_id):
     return jsonify({"success": True, "profile_image": new_path})
 
 
-@app.route("/api/conversations/<int:conversation_id>/photo", methods=["DELETE"])
 @login_required_api
 def delete_group_photo(conversation_id):
     user_id = session["user_id"]
 
     with get_db() as conn:
         conv = conn.execute(
-            "SELECT is_group, owner_id, profile_image, is_disabled FROM conversations WHERE id = %s", (conversation_id,)
+            "SELECT is_group, owner_id, profile_image, is_disabled FROM conversations WHERE id = %s",
+            (conversation_id,),
         ).fetchone()
         if not conv or not conv["is_group"]:
-            return jsonify({"success": False, "error": "그룹 채팅만 사진을 삭제할 수 있습니다."}), 400
+            return (
+                jsonify({"success": False, "error": "그룹 채팅만 사진을 삭제할 수 있습니다."}),
+                400,
+            )
         if conv["owner_id"] != user_id:
-            return jsonify({"success": False, "error": "방장만 그룹 사진을 삭제할 수 있습니다."}), 403
+            return (
+                jsonify({"success": False, "error": "방장만 그룹 사진을 삭제할 수 있습니다."}),
+                403,
+            )
         if conv["is_disabled"]:
-            return jsonify({"success": False, "error": "종료된 그룹 채팅방은 정보를 변경할 수 없습니다."}), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "종료된 그룹 채팅방은 정보를 변경할 수 없습니다."}
+                ),
+                403,
+            )
 
         old_image = conv["profile_image"]
-        conn.execute("UPDATE conversations SET profile_image = %s WHERE id = %s", (DEFAULT_PROFILE_IMAGE, conversation_id))
+        conn.execute(
+            "UPDATE conversations SET profile_image = %s WHERE id = %s",
+            (DEFAULT_PROFILE_IMAGE, conversation_id),
+        )
         conn.commit()
-        broadcast_to_conversation(conn, conversation_id, "conversation_updated", {"conversationId": conversation_id})
+        broadcast_to_conversation(
+            conn, conversation_id, "conversation_updated", {"conversationId": conversation_id}
+        )
 
     if old_image and old_image != DEFAULT_PROFILE_IMAGE:
         delete_image_file(old_image)
@@ -3725,29 +3804,74 @@ def email_copy(kind, language, code=None, username=None):
     """인증 관련 메일은 화면 언어와 같은 언어로 보내되, 인증 코드는 항상 눈에 띄게 유지한다."""
     copies = {
         "en": {
-            "verification": ("Email verification code", f"<p>Your verification code: <strong>{code}</strong></p><p>Enter it within 3 minutes.</p>"),
-            "reset": ("Cloud Chatting password reset code", f"<p>Use this code to reset your password.</p><p>Verification code: <strong>{code}</strong></p><p>Enter it within 3 minutes.</p>"),
-            "username": ("Cloud Chatting username reminder", f"<p>Here is the username you requested.</p><p>Username: <strong>{username}</strong></p>"),
+            "verification": (
+                "Email verification code",
+                f"<p>Your verification code: <strong>{code}</strong></p><p>Enter it within 3 minutes.</p>",
+            ),
+            "reset": (
+                "Cloud Chatting password reset code",
+                f"<p>Use this code to reset your password.</p><p>Verification code: <strong>{code}</strong></p><p>Enter it within 3 minutes.</p>",
+            ),
+            "username": (
+                "Cloud Chatting username reminder",
+                f"<p>Here is the username you requested.</p><p>Username: <strong>{username}</strong></p>",
+            ),
         },
         "zh": {
-            "verification": ("邮箱验证码", f"<p>验证码：<strong>{code}</strong></p><p>请在 3 分钟内输入。</p>"),
-            "reset": ("Cloud Chatting 密码重置验证码", f"<p>这是密码重置验证码。</p><p>验证码：<strong>{code}</strong></p><p>请在 3 分钟内输入。</p>"),
-            "username": ("Cloud Chatting 用户名提醒", f"<p>这是您请求的用户名。</p><p>用户名：<strong>{username}</strong></p>"),
+            "verification": (
+                "邮箱验证码",
+                f"<p>验证码：<strong>{code}</strong></p><p>请在 3 分钟内输入。</p>",
+            ),
+            "reset": (
+                "Cloud Chatting 密码重置验证码",
+                f"<p>这是密码重置验证码。</p><p>验证码：<strong>{code}</strong></p><p>请在 3 分钟内输入。</p>",
+            ),
+            "username": (
+                "Cloud Chatting 用户名提醒",
+                f"<p>这是您请求的用户名。</p><p>用户名：<strong>{username}</strong></p>",
+            ),
         },
         "ja": {
-            "verification": ("メール認証コード", f"<p>認証コード：<strong>{code}</strong></p><p>3分以内に入力してください。</p>"),
-            "reset": ("Cloud Chatting パスワード再設定コード", f"<p>パスワード再設定コードです。</p><p>認証コード：<strong>{code}</strong></p><p>3分以内に入力してください。</p>"),
-            "username": ("Cloud Chatting IDのお知らせ", f"<p>ご依頼のIDです。</p><p>ID：<strong>{username}</strong></p>"),
+            "verification": (
+                "メール認証コード",
+                f"<p>認証コード：<strong>{code}</strong></p><p>3分以内に入力してください。</p>",
+            ),
+            "reset": (
+                "Cloud Chatting パスワード再設定コード",
+                f"<p>パスワード再設定コードです。</p><p>認証コード：<strong>{code}</strong></p><p>3分以内に入力してください。</p>",
+            ),
+            "username": (
+                "Cloud Chatting IDのお知らせ",
+                f"<p>ご依頼のIDです。</p><p>ID：<strong>{username}</strong></p>",
+            ),
         },
         "es": {
-            "verification": ("Código de verificación de correo", f"<p>Tu código de verificación: <strong>{code}</strong></p><p>Introdúcelo en menos de 3 minutos.</p>"),
-            "reset": ("Código para restablecer la contraseña de Cloud Chatting", f"<p>Este es tu código para restablecer la contraseña.</p><p>Código: <strong>{code}</strong></p><p>Introdúcelo en menos de 3 minutos.</p>"),
-            "username": ("Recordatorio de usuario de Cloud Chatting", f"<p>Este es el usuario solicitado.</p><p>Usuario: <strong>{username}</strong></p>"),
+            "verification": (
+                "Código de verificación de correo",
+                f"<p>Tu código de verificación: <strong>{code}</strong></p><p>Introdúcelo en menos de 3 minutos.</p>",
+            ),
+            "reset": (
+                "Código para restablecer la contraseña de Cloud Chatting",
+                f"<p>Este es tu código para restablecer la contraseña.</p><p>Código: <strong>{code}</strong></p><p>Introdúcelo en menos de 3 minutos.</p>",
+            ),
+            "username": (
+                "Recordatorio de usuario de Cloud Chatting",
+                f"<p>Este es el usuario solicitado.</p><p>Usuario: <strong>{username}</strong></p>",
+            ),
         },
         "ko": {
-            "verification": ("이메일 인증 코드", f"<p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>"),
-            "reset": ("클라우드 채팅 비밀번호 재설정 코드", f"<p>비밀번호 재설정 코드입니다.</p><p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>"),
-            "username": ("클라우드 채팅 아이디 안내", f"<p>요청하신 아이디 안내입니다.</p><p>아이디: <strong>{username}</strong></p>"),
+            "verification": (
+                "이메일 인증 코드",
+                f"<p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>",
+            ),
+            "reset": (
+                "클라우드 채팅 비밀번호 재설정 코드",
+                f"<p>비밀번호 재설정 코드입니다.</p><p>인증 코드: <strong>{code}</strong></p><p>3분 이내에 입력해주세요.</p>",
+            ),
+            "username": (
+                "클라우드 채팅 아이디 안내",
+                f"<p>요청하신 아이디 안내입니다.</p><p>아이디: <strong>{username}</strong></p>",
+            ),
         },
     }
     return copies.get(language, copies["ko"])[kind]
@@ -3755,12 +3879,14 @@ def email_copy(kind, language, code=None, username=None):
 
 def send_verification_email(email, code):
     subject, html = email_copy("verification", get_interface_language(), code=code)
-    resend.Emails.send({
-        "from": get_resend_sender(),
-        "to": email,
-        "subject": subject,
-        "html": html,
-    })
+    resend.Emails.send(
+        {
+            "from": get_resend_sender(),
+            "to": email,
+            "subject": subject,
+            "html": html,
+        }
+    )
 
 
 def get_resend_sender():
@@ -3773,12 +3899,15 @@ def get_resend_sender():
 
 def send_password_reset_email(email, code):
     subject, html = email_copy("reset", get_interface_language(), code=code)
-    resend.Emails.send({
-        "from": get_resend_sender(),
-        "to": email,
-        "subject": subject,
-        "html": html,
-    })
+    resend.Emails.send(
+        {
+            "from": get_resend_sender(),
+            "to": email,
+            "subject": subject,
+            "html": html,
+        }
+    )
+
 
 @app.route("/api/password-reset/send-code", methods=["POST"])
 @rate_limit(5, 15 * 60, "password_reset_email")
@@ -3792,31 +3921,23 @@ def send_password_reset_code():
         return jsonify({"success": True, "message": message})
 
     with get_db() as conn:
-        user = conn.execute(
-            "SELECT id FROM users WHERE email = %s",
-            (email,)
-        ).fetchone()
+        user = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
 
         if not user:
             return jsonify({"success": True, "message": message})
 
         code = f"{random.randint(0, 999999):06d}"
         kst = timezone(timedelta(hours=9))
-        expires_at = (
-            datetime.now(kst) + timedelta(minutes=3)
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        expires_at = (datetime.now(kst) + timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")
 
-        conn.execute(
-            "DELETE FROM password_reset_codes WHERE email = %s",
-            (email,)
-        )
+        conn.execute("DELETE FROM password_reset_codes WHERE email = %s", (email,))
         conn.execute(
             """
             INSERT INTO password_reset_codes
                 (email, code, expires_at, created_at)
             VALUES (%s, %s, %s, %s)
             """,
-            (email, code, expires_at, now_str())
+            (email, code, expires_at, now_str()),
         )
         conn.commit()
 
@@ -3825,7 +3946,15 @@ def send_password_reset_code():
     except Exception:
         app.logger.exception("비밀번호 재설정 메일 발송 실패")
         # 이전에는 실패해도 성공 문구를 돌려줘서 사용자가 원인을 알 수 없었다.
-        return jsonify({"success": False, "error": "인증번호 이메일 전송에 실패했습니다. 관리자에게 문의해주세요."}), 503
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "인증번호 이메일 전송에 실패했습니다. 관리자에게 문의해주세요.",
+                }
+            ),
+            503,
+        )
 
     return jsonify({"success": True, "message": message})
 
@@ -3850,7 +3979,10 @@ def verify_password_reset_code():
     if not reset_code:
         return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."}), 400
     if reset_code["expires_at"] < now_str():
-        return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."}), 400
+        return (
+            jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."}),
+            400,
+        )
     return jsonify({"success": True, "message": "이메일 인증이 완료되었습니다."})
 
 
@@ -3862,18 +3994,26 @@ def confirm_password_reset():
     email = (data.get("email") or "").strip().lower()
     code = (data.get("code") or "").strip()
     new_password = data.get("new_password") or ""
+    password_confirmation = (
+        data.get("password_confirmation") or data.get("new_password_confirmation") or ""
+    )
 
     if not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email):
         return jsonify({"success": False, "error": "올바른 이메일 주소를 입력해주세요."}), 400
 
-    if not re.fullmatch(
-        r"(?=.*[a-z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{7,}",
-        new_password
-    ):
-        return jsonify({
-            "success": False,
-            "error": "비밀번호는 영문 소문자, 숫자, 특수문자를 포함해 7자 이상이어야 합니다."
-        }), 400
+    if password_confirmation and new_password != password_confirmation:
+        return jsonify({"success": False, "error": "비밀번호 확인이 일치하지 않습니다."}), 400
+
+    if not PasswordPolicy.is_valid(new_password):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": PasswordPolicy.error_message(),
+                }
+            ),
+            400,
+        )
 
     with get_db() as conn:
         reset_code = conn.execute(
@@ -3881,41 +4021,41 @@ def confirm_password_reset():
             SELECT * FROM password_reset_codes
             WHERE email = %s AND code = %s
             """,
-            (email, code)
+            (email, code),
         ).fetchone()
 
         if not reset_code:
-            return jsonify({
-                "success": False,
-                "error": "인증번호가 올바르지 않습니다."
-            }),400
+            return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."}), 400
 
         if reset_code["expires_at"] < now_str():
-            return jsonify({
-                "success": False,
-                "error": "인증번호가 만료되었습니다. 다시 요청해주세요."
-            }),400
+            return (
+                jsonify(
+                    {"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."}
+                ),
+                400,
+            )
 
         conn.execute(
             "UPDATE users SET password_hash = %s WHERE email = %s",
-            (generate_password_hash(new_password), email)
+            (generate_password_hash(new_password), email),
         )
-        conn.execute(
-            "DELETE FROM password_reset_codes WHERE email = %s",
-            (email,)
-        )
+        conn.execute("DELETE FROM password_reset_codes WHERE email = %s", (email,))
         conn.commit()
 
     return jsonify({"success": True})
 
+
 def send_username_reminder_email(email, username):
     subject, html = email_copy("username", get_interface_language(), username=username)
-    resend.Emails.send({
-        "from": get_resend_sender(),
-        "to": email,
-        "subject": subject,
-        "html": html,
-    })
+    resend.Emails.send(
+        {
+            "from": get_resend_sender(),
+            "to": email,
+            "subject": subject,
+            "html": html,
+        }
+    )
+
 
 @app.route("/api/find-username", methods=["POST"])
 @rate_limit(5, 15 * 60, "find_username")
@@ -3929,17 +4069,22 @@ def find_username():
         return jsonify({"success": True, "message": message})
 
     with get_db() as conn:
-        user = conn.execute(
-            "SELECT username FROM users WHERE email = %s",
-            (email,)
-        ).fetchone()
+        user = conn.execute("SELECT username FROM users WHERE email = %s", (email,)).fetchone()
 
     if user:
         try:
             send_username_reminder_email(email, user["username"])
         except Exception:
             app.logger.exception("아이디 안내 이메일 발송 실패")
-            return jsonify({"success": False, "error": "아이디 안내 이메일 전송에 실패했습니다. 관리자에게 문의해주세요."}), 503
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "아이디 안내 이메일 전송에 실패했습니다. 관리자에게 문의해주세요.",
+                    }
+                ),
+                503,
+            )
 
     return jsonify({"success": True, "message": message})
 
@@ -3965,7 +4110,7 @@ def send_verification_code():
         conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (email,))
         conn.execute(
             "INSERT INTO email_verification_codes (email, code, expires_at, created_at) VALUES (%s, %s, %s, %s)",
-            (email, code, expires_at, now_str())
+            (email, code, expires_at, now_str()),
         )
         conn.commit()
 
@@ -3973,7 +4118,15 @@ def send_verification_code():
         send_verification_email(email, code)
     except Exception:
         app.logger.exception("이메일 발송 실패 (email=%s)", email)
-        return jsonify({"success": False, "error": "이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요."}), 500
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+                }
+            ),
+            500,
+        )
 
     return jsonify({"success": True, "message": "인증 코드가 이메일로 전송되었습니다."})
 
@@ -3996,8 +4149,12 @@ def verify_email_code():
     if not verification:
         return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."}), 400
     if verification["expires_at"] < now_str():
-        return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."}), 400
+        return (
+            jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."}),
+            400,
+        )
     return jsonify({"success": True, "message": "이메일 인증이 완료되었습니다."})
+
 
 @app.route("/api/account/email/send-code", methods=["POST"])
 @login_required_api
@@ -4025,7 +4182,7 @@ def send_account_email_code():
         conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (new_email,))
         conn.execute(
             "INSERT INTO email_verification_codes (email, code, expires_at, created_at) VALUES (%s, %s, %s, %s)",
-            (new_email, code, expires_at, now_str())
+            (new_email, code, expires_at, now_str()),
         )
         conn.commit()
 
@@ -4033,7 +4190,15 @@ def send_account_email_code():
         send_verification_email(new_email, code)
     except Exception:
         app.logger.exception("이메일 발송 실패 (email=%s)", new_email)
-        return jsonify({"success": False, "error": "이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요."}), 500
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+                }
+            ),
+            500,
+        )
 
     return jsonify({"success": True, "message": "인증 코드가 이메일로 전송되었습니다."})
 
@@ -4054,12 +4219,14 @@ def update_account_email():
 
         verification = conn.execute(
             "SELECT * FROM email_verification_codes WHERE email = %s AND code = %s",
-            (new_email, code)
+            (new_email, code),
         ).fetchone()
         if not verification:
             return jsonify({"success": False, "error": "인증번호가 올바르지 않습니다."})
         if verification["expires_at"] < now_str():
-            return jsonify({"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."})
+            return jsonify(
+                {"success": False, "error": "인증번호가 만료되었습니다. 다시 요청해주세요."}
+            )
 
         # 코드 발송 이후 다른 사람이 선점했을 수도 있으니 한 번 더 체크
         existing = conn.execute(
@@ -4079,33 +4246,31 @@ def update_account_email():
     return jsonify({"success": True, "email": new_email})
 
 
-@app.route("/api/conversations/<int:conversation_id>/read", methods=["POST"])
 @login_required_api
 def read_conversation(conversation_id):
     user_id = session["user_id"]
-
-    with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id):
-            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
-
-        latest = conn.execute(
-            "SELECT MAX(id) AS max_id FROM messages WHERE conversation_id = %s", (conversation_id,)
-        ).fetchone()
-        latest_id = latest["max_id"] or 0 if latest else 0
-
-        conn.execute(
-            "UPDATE conversation_members SET last_read_message_id = %s WHERE conversation_id = %s AND user_id = %s",
-            (latest_id, conversation_id, user_id)
-        )
-        conn.commit()
+    if not chat_service.mark_read(conversation_id, user_id):
+        return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
     return jsonify({"success": True})
 
 
 # ----------------------------------------------------------------
 # 체스: 서버 권위 상태 관리 (클라이언트 FEN은 화면 표시용일 뿐, 수 판정에는 사용하지 않음)
 # ----------------------------------------------------------------
-CHESS_TIME_CONTROLS = {"unlimited": None, "blitz3": 3 * 60 * 1000, "blitz5": 5 * 60 * 1000, "rapid10": 10 * 60 * 1000}
-CHESS_WAITING_PLAYER = {"id": None, "name": "대기 중", "username": "", "profileImage": None, "rating": None, "record": {"wins": 0, "draws": 0, "losses": 0}}
+CHESS_TIME_CONTROLS = {
+    "unlimited": None,
+    "blitz3": 3 * 60 * 1000,
+    "blitz5": 5 * 60 * 1000,
+    "rapid10": 10 * 60 * 1000,
+}
+CHESS_WAITING_PLAYER = {
+    "id": None,
+    "name": "대기 중",
+    "username": "",
+    "profileImage": None,
+    "rating": None,
+    "record": {"wins": 0, "draws": 0, "losses": 0},
+}
 
 
 def chess_room_code(conn):
@@ -4127,15 +4292,27 @@ def create_chess_game(conn, user_id, mode, time_control="unlimited", color="w"):
     # 방장이 미리 고른 색으로 자기 자리를 채우고, 반대쪽 자리는 입장할 상대를 위해 비워둔다.
     white_id = user_id if color == "w" else None
     black_id = user_id if color == "b" else None
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO chess_games (
             id, room_code, white_player_id, black_player_id, mode, fen, status, time_control,
             white_remaining_ms, black_remaining_ms, created_at, updated_at
         ) VALUES (%s, %s, %s, %s, %s, %s, 'waiting', %s, %s, %s, %s, %s)
-    """, (
-        game_id, room_code, white_id, black_id, mode,
-        STARTING_FEN, time_control, clock, clock, now_str(), now_str(),
-    ))
+    """,
+        (
+            game_id,
+            room_code,
+            white_id,
+            black_id,
+            mode,
+            STARTING_FEN,
+            time_control,
+            clock,
+            clock,
+            now_str(),
+            now_str(),
+        ),
+    )
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
 
 
@@ -4143,21 +4320,38 @@ def chess_player_summary(conn, user_id):
     """메신저의 프로필 카드 정보에 체스 레이팅과 전적을 덧붙여 재사용한다. user_id는 항상 실제 계정이어야 한다."""
     user = conn.execute(
         "SELECT id, username, display_name, profile_image, chess_rating, chess_wins, chess_draws, chess_losses FROM users WHERE id = %s",
-        (user_id,)
+        (user_id,),
     ).fetchone()
     if not user:
-        return {"id": user_id, "name": "알 수 없음", "username": "", "profileImage": DEFAULT_PROFILE_IMAGE,
-                "rating": 400, "record": {"wins": 0, "draws": 0, "losses": 0}}
+        return {
+            "id": user_id,
+            "name": "알 수 없음",
+            "username": "",
+            "profileImage": DEFAULT_PROFILE_IMAGE,
+            "rating": 400,
+            "record": {"wins": 0, "draws": 0, "losses": 0},
+        }
     return {
-        "id": user["id"], "name": user["display_name"] or user["username"], "username": user["username"],
-        "profileImage": user["profile_image"] or DEFAULT_PROFILE_IMAGE, "rating": user["chess_rating"] or 400,
-        "record": {"wins": user["chess_wins"] or 0, "draws": user["chess_draws"] or 0, "losses": user["chess_losses"] or 0},
+        "id": user["id"],
+        "name": user["display_name"] or user["username"],
+        "username": user["username"],
+        "profileImage": user["profile_image"] or DEFAULT_PROFILE_IMAGE,
+        "rating": user["chess_rating"] or 400,
+        "record": {
+            "wins": user["chess_wins"] or 0,
+            "draws": user["chess_draws"] or 0,
+            "losses": user["chess_losses"] or 0,
+        },
     }
 
 
 def refresh_chess_clock(conn, game):
     """서버 시각으로만 남은 시간을 깎아 브라우저 시간 조작을 막는다."""
-    if game["status"] != "active" or game["time_control"] == "unlimited" or not game["turn_started_ms"]:
+    if (
+        game["status"] != "active"
+        or game["time_control"] == "unlimited"
+        or not game["turn_started_ms"]
+    ):
         return game
     now = current_message_timestamp_ms()
     elapsed = max(0, now - game["turn_started_ms"])
@@ -4166,16 +4360,31 @@ def refresh_chess_clock(conn, game):
     if remaining == 0:
         winner = "b" if key == "white_remaining_ms" else "w"
         result = {"status": "timeout", "winner": winner}
-        conn.execute("UPDATE chess_games SET %s = %%s, status = 'finished', result = %%s, updated_at = %%s WHERE id = %%s" % key, (0, json.dumps(result), now_str(), game["id"]))
-        emit_safe("game:timeout", {"gameId": str(game["id"]), "winner": winner}, room=f"chess_{game['id']}")
+        conn.execute(
+            "UPDATE chess_games SET %s = %%s, status = 'finished', result = %%s, updated_at = %%s WHERE id = %%s"
+            % key,
+            (0, json.dumps(result), now_str(), game["id"]),
+        )
+        emit_safe(
+            "game:timeout",
+            {"gameId": str(game["id"]), "winner": winner},
+            room=f"chess_{game['id']}",
+        )
     else:
-        conn.execute("UPDATE chess_games SET %s = %%s, turn_started_ms = %%s, updated_at = %%s WHERE id = %%s" % key, (remaining, now, now_str(), game["id"]))
+        conn.execute(
+            "UPDATE chess_games SET %s = %%s, turn_started_ms = %%s, updated_at = %%s WHERE id = %%s"
+            % key,
+            (remaining, now, now_str(), game["id"]),
+        )
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()
 
 
 def chess_board_for_game(conn, game):
     board = ChessBoard(game["fen"])
-    rows = conn.execute("SELECT san, fen FROM chess_game_moves WHERE game_id = %s ORDER BY move_number", (game["id"],)).fetchall()
+    rows = conn.execute(
+        "SELECT san, fen FROM chess_game_moves WHERE game_id = %s ORDER BY move_number",
+        (game["id"],),
+    ).fetchall()
     board.san_history = [row["san"] for row in rows]
     # 재접속해도 3회 반복 판정이 초기화되지 않도록 각 수 뒤의 국면을 다시 센다.
     board.position_counts = Counter({ChessBoard(STARTING_FEN).position_key(): 1})
@@ -4188,45 +4397,110 @@ def chess_game_state(conn, game, user_id=None):
     game = refresh_chess_clock(conn, game)
     game = apply_chess_ratings(conn, game)
     board = chess_board_for_game(conn, game)
-    move_rows = conn.execute("SELECT move_number, san, fen FROM chess_game_moves WHERE game_id = %s ORDER BY move_number", (game["id"],)).fetchall()
+    move_rows = conn.execute(
+        "SELECT move_number, san, fen FROM chess_game_moves WHERE game_id = %s ORDER BY move_number",
+        (game["id"],),
+    ).fetchall()
     state = board.state()
-    state.update({
-        "id": str(game["id"]), "roomCode": game["room_code"], "mode": game["mode"], "status": game["status"],
-        "timeControl": game["time_control"], "whiteRemainingMs": game["white_remaining_ms"],
-        "blackRemainingMs": game["black_remaining_ms"], "turnStartedMs": game["turn_started_ms"],
-        "white": chess_player_summary(conn, game["white_player_id"]) if game["white_player_id"] else CHESS_WAITING_PLAYER,
-        "black": chess_player_summary(conn, game["black_player_id"]) if game["black_player_id"] else CHESS_WAITING_PLAYER,
-        "result": json.loads(game["result"]) if game["result"] else state["result"],
-        "moves": [{"number": row["move_number"], "san": row["san"], "fen": row["fen"]} for row in move_rows],
-        "myColor": "w" if user_id == game["white_player_id"] else ("b" if user_id == game["black_player_id"] else None),
-        "canPlay": bool(user_id and user_id in {game["white_player_id"], game["black_player_id"]}),
-        # 방 전체로 방송되는 상태이므로 "누가 제안했는지"는 순수 id로만 보내고,
-        # 나 기준 판단(내가 걸었는지/상대가 걸었는지)은 각 클라이언트가 currentUserId와 비교해 계산한다.
-        "drawOfferedBy": game["draw_offer_user_id"],
-    })
-    chats = conn.execute("SELECT chat.sender_id, users.display_name, users.username, chat.text FROM chess_game_chat_messages chat JOIN users ON users.id = chat.sender_id WHERE chat.game_id = %s ORDER BY chat.id DESC LIMIT 40", (game["id"],)).fetchall()
+    state.update(
+        {
+            "id": str(game["id"]),
+            "roomCode": game["room_code"],
+            "mode": game["mode"],
+            "status": game["status"],
+            "timeControl": game["time_control"],
+            "whiteRemainingMs": game["white_remaining_ms"],
+            "blackRemainingMs": game["black_remaining_ms"],
+            "turnStartedMs": game["turn_started_ms"],
+            "white": (
+                chess_player_summary(conn, game["white_player_id"])
+                if game["white_player_id"]
+                else CHESS_WAITING_PLAYER
+            ),
+            "black": (
+                chess_player_summary(conn, game["black_player_id"])
+                if game["black_player_id"]
+                else CHESS_WAITING_PLAYER
+            ),
+            "result": json.loads(game["result"]) if game["result"] else state["result"],
+            "moves": [
+                {"number": row["move_number"], "san": row["san"], "fen": row["fen"]}
+                for row in move_rows
+            ],
+            "myColor": (
+                "w"
+                if user_id == game["white_player_id"]
+                else ("b" if user_id == game["black_player_id"] else None)
+            ),
+            "canPlay": bool(
+                user_id and user_id in {game["white_player_id"], game["black_player_id"]}
+            ),
+            # 방 전체로 방송되는 상태이므로 "누가 제안했는지"는 순수 id로만 보내고,
+            # 나 기준 판단(내가 걸었는지/상대가 걸었는지)은 각 클라이언트가 currentUserId와 비교해 계산한다.
+            "drawOfferedBy": game["draw_offer_user_id"],
+        }
+    )
+    chats = conn.execute(
+        "SELECT chat.sender_id, users.display_name, users.username, chat.text FROM chess_game_chat_messages chat JOIN users ON users.id = chat.sender_id WHERE chat.game_id = %s ORDER BY chat.id DESC LIMIT 40",
+        (game["id"],),
+    ).fetchall()
     state["chatMessages"] = [dict(row) for row in reversed(chats)]
     return state
 
 
 def apply_chess_ratings(conn, game):
     """온라인 대국의 종료 결과만 한 번 ELO 방식으로 반영한다."""
-    if game["mode"] != "online" or game["status"] != "finished" or game["ratings_applied"] or not game["white_player_id"] or not game["black_player_id"]:
+    if (
+        game["mode"] != "online"
+        or game["status"] != "finished"
+        or game["ratings_applied"]
+        or not game["white_player_id"]
+        or not game["black_player_id"]
+    ):
         return game
     result = json.loads(game["result"] or "{}")
-    if result.get("status") not in {"checkmate", "resignation", "timeout", "disconnect", "stalemate", "draw_50_move", "draw_threefold", "draw_insufficient_material", "draw_agreed"}:
+    if result.get("status") not in {
+        "checkmate",
+        "resignation",
+        "timeout",
+        "disconnect",
+        "stalemate",
+        "draw_50_move",
+        "draw_threefold",
+        "draw_insufficient_material",
+        "draw_agreed",
+    }:
         return game
-    rows = conn.execute("SELECT id, chess_rating FROM users WHERE id IN (%s, %s)", (game["white_player_id"], game["black_player_id"])).fetchall()
-    ratings = {row["id"]: row["chess_rating"] for row in rows}; white, black = ratings[game["white_player_id"]], ratings[game["black_player_id"]]
+    rows = conn.execute(
+        "SELECT id, chess_rating FROM users WHERE id IN (%s, %s)",
+        (game["white_player_id"], game["black_player_id"]),
+    ).fetchall()
+    ratings = {row["id"]: row["chess_rating"] for row in rows}
+    white, black = ratings[game["white_player_id"]], ratings[game["black_player_id"]]
     winner = result.get("winner")
-    expected = 1 / (1 + 10 ** ((black - white) / 400)); score = 1 if winner == "w" else 0 if winner == "b" else .5
-    change = round(24 * (score - expected)); result["ratingChanges"] = {"white": change, "black": -change}
+    expected = 1 / (1 + 10 ** ((black - white) / 400))
+    score = 1 if winner == "w" else 0 if winner == "b" else 0.5
+    change = round(24 * (score - expected))
+    result["ratingChanges"] = {"white": change, "black": -change}
     # 전적(승/무/패)도 레이팅처럼 계정에 직접 누적해, 기보를 삭제해도 프로필 전적은 그대로 남는다.
-    white_column = "chess_wins" if winner == "w" else "chess_draws" if winner is None else "chess_losses"
-    black_column = "chess_wins" if winner == "b" else "chess_draws" if winner is None else "chess_losses"
-    conn.execute(f"UPDATE users SET chess_rating = chess_rating + %s, {white_column} = {white_column} + 1 WHERE id = %s", (change, game["white_player_id"]))
-    conn.execute(f"UPDATE users SET chess_rating = chess_rating - %s, {black_column} = {black_column} + 1 WHERE id = %s", (change, game["black_player_id"]))
-    conn.execute("UPDATE chess_games SET ratings_applied = TRUE, result = %s WHERE id = %s", (json.dumps(result), game["id"]))
+    white_column = (
+        "chess_wins" if winner == "w" else "chess_draws" if winner is None else "chess_losses"
+    )
+    black_column = (
+        "chess_wins" if winner == "b" else "chess_draws" if winner is None else "chess_losses"
+    )
+    conn.execute(
+        f"UPDATE users SET chess_rating = chess_rating + %s, {white_column} = {white_column} + 1 WHERE id = %s",
+        (change, game["white_player_id"]),
+    )
+    conn.execute(
+        f"UPDATE users SET chess_rating = chess_rating - %s, {black_column} = {black_column} + 1 WHERE id = %s",
+        (change, game["black_player_id"]),
+    )
+    conn.execute(
+        "UPDATE chess_games SET ratings_applied = TRUE, result = %s WHERE id = %s",
+        (json.dumps(result), game["id"]),
+    )
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()
 
 
@@ -4239,11 +4513,24 @@ def save_chess_move(conn, game, board, move):
     move_number = len(board.san_history)
     result = board.result()
     status = "finished" if result["status"] != "active" else "active"
-    conn.execute("INSERT INTO chess_game_moves (game_id, move_number, san, fen, created_at) VALUES (%s, %s, %s, %s, %s)", (game["id"], move_number, san, board.fen(), now_str()))
-    conn.execute("""
+    conn.execute(
+        "INSERT INTO chess_game_moves (game_id, move_number, san, fen, created_at) VALUES (%s, %s, %s, %s, %s)",
+        (game["id"], move_number, san, board.fen(), now_str()),
+    )
+    conn.execute(
+        """
         UPDATE chess_games SET fen = %s, status = %s, result = %s, draw_offer_user_id = NULL,
             turn_started_ms = %s, updated_at = %s WHERE id = %s
-    """, (board.fen(), status, json.dumps(result) if status == "finished" else None, current_message_timestamp_ms() if status == "active" else None, now_str(), game["id"]))
+    """,
+        (
+            board.fen(),
+            status,
+            json.dumps(result) if status == "finished" else None,
+            current_message_timestamp_ms() if status == "active" else None,
+            now_str(),
+            game["id"],
+        ),
+    )
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone(), san
 
 
@@ -4267,10 +4554,13 @@ def activate_chess_game(conn, game, joining_user_id):
         raise ValueError("만든 방에는 다른 계정으로 입장해 주세요.")
     white_id = joining_user_id if game["white_player_id"] is None else game["white_player_id"]
     black_id = joining_user_id if game["black_player_id"] is None else game["black_player_id"]
-    conn.execute("""
+    conn.execute(
+        """
         UPDATE chess_games SET white_player_id = %s, black_player_id = %s, status = 'active',
             turn_started_ms = %s, disconnected_user_id = NULL, disconnect_deadline_ms = NULL, updated_at = %s WHERE id = %s
-    """, (white_id, black_id, current_message_timestamp_ms(), now_str(), game["id"]))
+    """,
+        (white_id, black_id, current_message_timestamp_ms(), now_str(), game["id"]),
+    )
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()
 
 
@@ -4285,13 +4575,21 @@ def mark_chess_disconnect(user_id):
     """마지막 브라우저 연결이 끊긴 온라인 참가자에게만 60초 재접속 유예를 둔다."""
     deadline = current_message_timestamp_ms() + 60_000
     with get_db() as conn:
-        games = conn.execute("""
+        games = conn.execute(
+            """
             SELECT * FROM chess_games WHERE mode = 'online' AND status = 'active'
             AND (white_player_id = %s OR black_player_id = %s)
-        """, (user_id, user_id)).fetchall()
+        """,
+            (user_id, user_id),
+        ).fetchall()
         for game in games:
-            conn.execute("UPDATE chess_games SET disconnected_user_id = %s, disconnect_deadline_ms = %s WHERE id = %s", (user_id, deadline, game["id"]))
-            socketio.start_background_task(finalize_chess_disconnect, str(game["id"]), user_id, deadline)
+            conn.execute(
+                "UPDATE chess_games SET disconnected_user_id = %s, disconnect_deadline_ms = %s WHERE id = %s",
+                (user_id, deadline, game["id"]),
+            )
+            socketio.start_background_task(
+                finalize_chess_disconnect, str(game["id"]), user_id, deadline
+            )
         conn.commit()
 
 
@@ -4299,11 +4597,19 @@ def finalize_chess_disconnect(game_id, user_id, deadline):
     socketio.sleep(60)
     with get_db() as conn:
         game = conn.execute("SELECT * FROM chess_games WHERE id = %s", (game_id,)).fetchone()
-        if not game or game["status"] != "active" or game["disconnected_user_id"] != user_id or game["disconnect_deadline_ms"] != deadline:
+        if (
+            not game
+            or game["status"] != "active"
+            or game["disconnected_user_id"] != user_id
+            or game["disconnect_deadline_ms"] != deadline
+        ):
             return
         color = "w" if game["white_player_id"] == user_id else "b"
         result = {"status": "disconnect", "winner": opponent(color)}
-        conn.execute("UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s", (json.dumps(result), now_str(), game_id))
+        conn.execute(
+            "UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s",
+            (json.dumps(result), now_str(), game_id),
+        )
         game = chess_game_or_404(conn, game_id)
         state = chess_game_state(conn, game)
         conn.commit()
@@ -4324,7 +4630,8 @@ def chess_game_page(game_id):
 
 def chess_invitable_friends(conn, user_id):
     """1:1 채팅방으로 연결된 친구만 체스 대국 초대 대상으로 반환한다."""
-    return conn.execute("""
+    return conn.execute(
+        """
         SELECT DISTINCT users.id, users.display_name, users.username, users.profile_image, conversations.id AS conversation_id,
                COALESCE(users.display_name, users.username) AS sort_name
         FROM conversations
@@ -4335,7 +4642,9 @@ def chess_invitable_friends(conn, user_id):
           AND NOT EXISTS (SELECT 1 FROM blocks WHERE (blocker_id = %s AND blocked_id = users.id) OR (blocker_id = users.id AND blocked_id = %s))
         -- PostgreSQL의 DISTINCT 정렬 규칙을 지켜 초대 목록 API가 HTML 오류 페이지로 떨어지지 않게 한다.
         ORDER BY sort_name
-    """, (user_id, user_id, user_id, user_id)).fetchall()
+    """,
+        (user_id, user_id, user_id, user_id),
+    ).fetchall()
 
 
 @app.route("/api/chess/games/<game_id>/inviteable-friends")
@@ -4343,8 +4652,20 @@ def chess_invitable_friends(conn, user_id):
 def chess_invitable_friends_api(game_id):
     with get_db() as conn:
         game = chess_game_or_404(conn, game_id)
-        if game["mode"] != "online" or game["status"] != "waiting" or session["user_id"] not in {game["white_player_id"], game["black_player_id"]}:
-            return jsonify({"success": False, "error": "대기 중인 온라인 방장만 친구를 초대할 수 있습니다."}), 403
+        if (
+            game["mode"] != "online"
+            or game["status"] != "waiting"
+            or session["user_id"] not in {game["white_player_id"], game["black_player_id"]}
+        ):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "대기 중인 온라인 방장만 친구를 초대할 수 있습니다.",
+                    }
+                ),
+                403,
+            )
         friends = chess_invitable_friends(conn, session["user_id"])
     return jsonify({"success": True, "friends": [dict(friend) for friend in friends]})
 
@@ -4360,17 +4681,32 @@ def chess_send_invite_api(game_id):
     with get_db() as conn:
         game = chess_game_or_404(conn, game_id)
         user_id = session["user_id"]
-        if game["mode"] != "online" or game["status"] != "waiting" or user_id not in {game["white_player_id"], game["black_player_id"]}:
-            return jsonify({"success": False, "error": "대기 중인 온라인 방장만 친구를 초대할 수 있습니다."}), 403
+        if (
+            game["mode"] != "online"
+            or game["status"] != "waiting"
+            or user_id not in {game["white_player_id"], game["black_player_id"]}
+        ):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "대기 중인 온라인 방장만 친구를 초대할 수 있습니다.",
+                    }
+                ),
+                403,
+            )
         friends = {friend["id"]: friend for friend in chess_invitable_friends(conn, user_id)}
         if invitee_id not in friends:
             return jsonify({"success": False, "error": "친구만 초대할 수 있습니다."}), 403
-        invite = conn.execute("""
+        invite = conn.execute(
+            """
             INSERT INTO chess_invites (game_id, inviter_id, invitee_id, status, created_at)
             VALUES (%s, %s, %s, 'pending', %s)
             ON CONFLICT (game_id, invitee_id) DO UPDATE SET status = 'pending', created_at = EXCLUDED.created_at
             RETURNING id
-        """, (game_id, user_id, invitee_id, now_str())).fetchone()
+        """,
+            (game_id, user_id, invitee_id, now_str()),
+        ).fetchone()
         conn.commit()
     # 초대는 채팅방 링크가 아니라 체스 페이지의 메시지함에서만 수락/거절하도록 한다.
     notify_user(invitee_id, "chess_invite", {"gameId": str(game_id), "inviteId": invite["id"]})
@@ -4382,13 +4718,30 @@ def chess_send_invite_api(game_id):
 def chess_accept_invite_api(invite_id):
     with get_db() as conn:
         invite = conn.execute("SELECT * FROM chess_invites WHERE id = %s", (invite_id,)).fetchone()
-        if not invite or invite["invitee_id"] != session["user_id"] or invite["status"] != "pending":
-            return jsonify({"success": False, "error": "유효하지 않거나 이미 처리된 체스 초대입니다."}), 404
+        if (
+            not invite
+            or invite["invitee_id"] != session["user_id"]
+            or invite["status"] != "pending"
+        ):
+            return (
+                jsonify(
+                    {"success": False, "error": "유효하지 않거나 이미 처리된 체스 초대입니다."}
+                ),
+                404,
+            )
         game = chess_game_or_404(conn, invite["game_id"])
         if game["mode"] != "online" or game["status"] != "waiting":
-            return jsonify({"success": False, "error": "이 체스 방은 이미 시작되었거나 종료되었습니다."}), 400
+            return (
+                jsonify(
+                    {"success": False, "error": "이 체스 방은 이미 시작되었거나 종료되었습니다."}
+                ),
+                400,
+            )
         game = activate_chess_game(conn, game, session["user_id"])
-        conn.execute("UPDATE chess_invites SET status = CASE WHEN id = %s THEN 'accepted' ELSE 'expired' END WHERE game_id = %s AND status = 'pending'", (invite_id, game["id"]))
+        conn.execute(
+            "UPDATE chess_invites SET status = CASE WHEN id = %s THEN 'accepted' ELSE 'expired' END WHERE game_id = %s AND status = 'pending'",
+            (invite_id, game["id"]),
+        )
         state = chess_game_state(conn, game, session["user_id"])
         conn.commit()
     emit_safe("game:start", state, room=f"chess_{game['id']}")
@@ -4400,7 +4753,8 @@ def chess_accept_invite_api(invite_id):
 def chess_inbox_invites_api():
     """체스 초대는 일반 팝업이 아니라 기존 메시지함에서 처리할 수 있도록 별도로 제공한다."""
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT i.id, i.created_at, g.id AS game_id, g.time_control, g.room_code,
                    u.id AS inviter_id, u.username, u.display_name, u.profile_image, u.chess_rating
             FROM chess_invites i
@@ -4408,7 +4762,9 @@ def chess_inbox_invites_api():
             JOIN users u ON u.id = i.inviter_id
             WHERE i.invitee_id = %s AND i.status = 'pending' AND g.status = 'waiting'
             ORDER BY i.created_at DESC
-        """, (session["user_id"],)).fetchall()
+        """,
+            (session["user_id"],),
+        ).fetchall()
     return jsonify({"success": True, "invites": [dict(row) for row in rows]})
 
 
@@ -4424,7 +4780,9 @@ def chess_decline_invite_api(invite_id):
             return jsonify({"success": False, "error": "처리할 수 없는 체스 초대입니다."}), 404
         conn.execute("UPDATE chess_invites SET status = 'declined' WHERE id = %s", (invite_id,))
         conn.commit()
-    notify_user(invite["inviter_id"], "chess_invite_updated", {"inviteId": invite_id, "status": "declined"})
+    notify_user(
+        invite["inviter_id"], "chess_invite_updated", {"inviteId": invite_id, "status": "declined"}
+    )
     return jsonify({"success": True})
 
 
@@ -4432,17 +4790,29 @@ def chess_decline_invite_api(invite_id):
 @login_required_api
 def chess_player_profile_api(player_id):
     with get_db() as conn:
-        user = conn.execute("SELECT id, profile_visibility, is_suspended FROM users WHERE id = %s", (player_id,)).fetchone()
+        user = conn.execute(
+            "SELECT id, profile_visibility, is_suspended FROM users WHERE id = %s", (player_id,)
+        ).fetchone()
         if not user:
             return jsonify({"success": False, "error": "사용자를 찾을 수 없습니다."}), 404
-        shared_game = conn.execute("""
+        shared_game = conn.execute(
+            """
             SELECT 1 FROM chess_games
             WHERE (white_player_id = %s OR black_player_id = %s)
               AND (white_player_id = %s OR black_player_id = %s)
             LIMIT 1
-        """, (session["user_id"], session["user_id"], player_id, player_id)).fetchone()
-        if player_id != session["user_id"] and not shared_game and not can_view_profile(conn, session["user_id"], user):
-            return jsonify({"success": False, "error": "이 사용자는 프로필을 비공개로 설정했습니다."}), 403
+        """,
+            (session["user_id"], session["user_id"], player_id, player_id),
+        ).fetchone()
+        if (
+            player_id != session["user_id"]
+            and not shared_game
+            and not can_view_profile(conn, session["user_id"], user)
+        ):
+            return (
+                jsonify({"success": False, "error": "이 사용자는 프로필을 비공개로 설정했습니다."}),
+                403,
+            )
         summary = chess_player_summary(conn, player_id)
         is_friend = are_users_friends(conn, session["user_id"], player_id)
     return jsonify({"success": True, "player": {**summary, "isFriend": is_friend}})
@@ -4454,11 +4824,17 @@ def chess_send_friend_request_api(player_id):
     """체스 프로필 카드에서도 메신저 친구 요청과 같은 테이블/규칙을 재사용한다."""
     user_id = session["user_id"]
     if player_id == user_id:
-        return jsonify({"success": False, "error": "자기 자신에게 친구 요청을 보낼 수 없습니다."}), 400
+        return (
+            jsonify({"success": False, "error": "자기 자신에게 친구 요청을 보낼 수 없습니다."}),
+            400,
+        )
     with get_db() as conn:
         target = conn.execute("SELECT id FROM users WHERE id = %s", (player_id,)).fetchone()
         if not target or is_blocked_either_way(conn, user_id, player_id):
-            return jsonify({"success": False, "error": "친구 요청을 보낼 수 없는 사용자입니다."}), 403
+            return (
+                jsonify({"success": False, "error": "친구 요청을 보낼 수 없는 사용자입니다."}),
+                403,
+            )
         if are_users_friends(conn, user_id, player_id):
             return jsonify({"success": False, "error": "이미 친구입니다."}), 400
         reverse = conn.execute(
@@ -4466,14 +4842,17 @@ def chess_send_friend_request_api(player_id):
             (player_id, user_id),
         ).fetchone()
         if reverse:
-            _accept_friend_request(conn, reverse["id"], user_id)
+            accept_friend_request(conn, reverse["id"])
             message = "서로 친구가 되었습니다."
         else:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO friend_requests (requester_id, addressee_id, status, created_at)
                 VALUES (%s, %s, 'pending', %s)
                 ON CONFLICT (requester_id, addressee_id) DO UPDATE SET status = 'pending', created_at = EXCLUDED.created_at
-            """, (user_id, player_id, now_str()))
+            """,
+                (user_id, player_id, now_str()),
+            )
             message = "친구 요청을 보냈습니다."
         conn.commit()
     notify_user(player_id, "friend_updated", {})
@@ -4485,10 +4864,17 @@ def chess_send_friend_request_api(player_id):
 def chess_create_game_api():
     data = request.get_json() or {}
     with get_db() as conn:
-        game = create_chess_game(conn, session["user_id"], data.get("mode", "online"), data.get("timeControl", "unlimited"), data.get("color", "w"))
+        game = create_chess_game(
+            conn,
+            session["user_id"],
+            data.get("mode", "online"),
+            data.get("timeControl", "unlimited"),
+            data.get("color", "w"),
+        )
         state = chess_game_state(conn, game, session["user_id"])
         conn.commit()
     return jsonify({"success": True, "game": state})
+
 
 @app.route("/api/chess/quick-invite/<int:friend_id>", methods=["POST"])
 @login_required_api
@@ -4501,31 +4887,30 @@ def chess_quick_invite_friend_api(friend_id):
     with get_db() as conn:
         # 실제 친구 관계인지 확인한다.
         if not are_users_friends(conn, user_id, friend_id):
-            return jsonify({
-                "success": False,
-                "error": "친구에게만 체스 초대를 보낼 수 있습니다."
-            }), 403
+            return (
+                jsonify({"success": False, "error": "친구에게만 체스 초대를 보낼 수 있습니다."}),
+                403,
+            )
 
         # 차단 관계가 있으면 초대를 보내지 않는다.
         if is_blocked_either_way(conn, user_id, friend_id):
-            return jsonify({
-                "success": False,
-                "error": "차단된 사용자에게는 체스 초대를 보낼 수 없습니다."
-            }), 403
+            return (
+                jsonify(
+                    {"success": False, "error": "차단된 사용자에게는 체스 초대를 보낼 수 없습니다."}
+                ),
+                403,
+            )
 
         # 상대 친구의 1:1 대화방을 먼저 확인한다.
         # 모든 권한 검사를 통과한 뒤에만 대기방을 생성해 불필요한 chess_games 행이 남지 않게 한다.
-        friends = {
-            friend["id"]: friend
-            for friend in chess_invitable_friends(conn, user_id)
-        }
+        friends = {friend["id"]: friend for friend in chess_invitable_friends(conn, user_id)}
 
         friend = friends.get(friend_id)
         if not friend:
-            return jsonify({
-                "success": False,
-                "error": "체스 초대를 보낼 수 있는 친구가 아닙니다."
-            }), 403
+            return (
+                jsonify({"success": False, "error": "체스 초대를 보낼 수 있는 친구가 아닙니다."}),
+                403,
+            )
 
         # 모든 권한 검사를 통과한 뒤 온라인 대기방 생성
         game = create_chess_game(
@@ -4535,7 +4920,8 @@ def chess_quick_invite_friend_api(friend_id):
             time_control,
         )
 
-        invite = conn.execute("""
+        invite = conn.execute(
+            """
             INSERT INTO chess_invites (
                 game_id,
                 inviter_id,
@@ -4545,12 +4931,14 @@ def chess_quick_invite_friend_api(friend_id):
             )
             VALUES (%s, %s, %s, 'pending', %s)
             RETURNING id
-        """, (
-            game["id"],
-            user_id,
-            friend_id,
-            now_str(),
-        )).fetchone()
+        """,
+            (
+                game["id"],
+                user_id,
+                friend_id,
+                now_str(),
+            ),
+        ).fetchone()
 
         state = chess_game_state(conn, game, user_id)
         conn.commit()
@@ -4565,11 +4953,13 @@ def chess_quick_invite_friend_api(friend_id):
         },
     )
 
-    return jsonify({
-        "success": True,
-        "game": state,
-        "inviteId": invite["id"],
-    })
+    return jsonify(
+        {
+            "success": True,
+            "game": state,
+            "inviteId": invite["id"],
+        }
+    )
 
 
 @app.route("/api/chess/games/<game_id>")
@@ -4588,19 +4978,27 @@ def chess_game_state_api(game_id):
 @login_required_api
 def chess_history_api():
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT id, mode, result, status, created_at, white_player_id, black_player_id FROM chess_games
             WHERE status = 'finished' AND (white_player_id = %s OR black_player_id = %s)
             ORDER BY created_at DESC LIMIT 5
-        """, (session["user_id"], session["user_id"])).fetchall()
-    return jsonify([{
-        "id": str(row["id"]),
-        "mode": row["mode"],
-        "status": row["status"],
-        "result": json.loads(row["result"]) if row["result"] else None,
-        "createdAt": row["created_at"],
-        "myColor": "w" if row["white_player_id"] == session["user_id"] else "b",
-    } for row in rows])
+        """,
+            (session["user_id"], session["user_id"]),
+        ).fetchall()
+    return jsonify(
+        [
+            {
+                "id": str(row["id"]),
+                "mode": row["mode"],
+                "status": row["status"],
+                "result": json.loads(row["result"]) if row["result"] else None,
+                "createdAt": row["created_at"],
+                "myColor": "w" if row["white_player_id"] == session["user_id"] else "b",
+            }
+            for row in rows
+        ]
+    )
 
 
 @app.route("/api/chess/history", methods=["DELETE"])
@@ -4608,12 +5006,17 @@ def chess_history_api():
 def chess_delete_all_history_api():
     """현재 로그인 계정의 종료 전적만 삭제한다. 진행 중인 방과 레이팅은 보존한다."""
     with get_db() as conn:
-        rows = conn.execute("SELECT id FROM chess_games WHERE status = 'finished' AND (white_player_id = %s OR black_player_id = %s)", (session["user_id"], session["user_id"])).fetchall()
+        rows = conn.execute(
+            "SELECT id FROM chess_games WHERE status = 'finished' AND (white_player_id = %s OR black_player_id = %s)",
+            (session["user_id"], session["user_id"]),
+        ).fetchall()
         game_ids = [row["id"] for row in rows]
         if not game_ids:
             return jsonify({"success": True, "deleted": 0})
         # UUID 배열임을 명시해 배포 DB에서도 전적·기보·채팅을 함께 안정적으로 삭제한다.
-        conn.execute("DELETE FROM chess_game_chat_messages WHERE game_id = ANY(%s::uuid[])", (game_ids,))
+        conn.execute(
+            "DELETE FROM chess_game_chat_messages WHERE game_id = ANY(%s::uuid[])", (game_ids,)
+        )
         conn.execute("DELETE FROM chess_game_moves WHERE game_id = ANY(%s::uuid[])", (game_ids,))
         conn.execute("DELETE FROM chess_games WHERE id = ANY(%s::uuid[])", (game_ids,))
         conn.commit()
@@ -4645,7 +5048,14 @@ def chess_move_api(game_id):
     try:
         with get_db() as conn:
             game = chess_game_or_404(conn, game_id)
-            game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
+            game = submit_chess_move(
+                conn,
+                game,
+                session["user_id"],
+                data.get("from", ""),
+                data.get("to", ""),
+                data.get("promotion"),
+            )
             state = chess_game_state(conn, game, session["user_id"])
             conn.commit()
         emit_safe("game:state_update", state, room=f"chess_{game_id}")
@@ -4664,8 +5074,13 @@ def chess_resign_api(game_id):
             return jsonify({"success": False, "error": "참가자만 기권할 수 있습니다."}), 403
         color = "w" if user_id == game["white_player_id"] else "b"
         result = {"status": "resignation", "winner": opponent(color)}
-        conn.execute("UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s", (json.dumps(result), now_str(), game_id))
-        game = chess_game_or_404(conn, game_id); state = chess_game_state(conn, game, user_id); conn.commit()
+        conn.execute(
+            "UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s",
+            (json.dumps(result), now_str(), game_id),
+        )
+        game = chess_game_or_404(conn, game_id)
+        state = chess_game_state(conn, game, user_id)
+        conn.commit()
     emit_safe("game:state_update", state, room=f"chess_{game_id}")
     return jsonify({"success": True, "game": state})
 
@@ -4674,20 +5089,40 @@ def chess_resign_api(game_id):
 @login_required_api
 def chess_draw_api(game_id):
     with get_db() as conn:
-        game = chess_game_or_404(conn, game_id); user_id = session["user_id"]
+        game = chess_game_or_404(conn, game_id)
+        user_id = session["user_id"]
         if user_id not in {game["white_player_id"], game["black_player_id"]}:
-            return jsonify({"success": False, "error": "참가자만 무승부를 제안할 수 있습니다."}), 403
+            return (
+                jsonify({"success": False, "error": "참가자만 무승부를 제안할 수 있습니다."}),
+                403,
+            )
         if game["status"] != "active":
-            return jsonify({"success": False, "error": "진행 중인 게임에서만 무승부를 제안할 수 있습니다."}), 400
+            return (
+                jsonify(
+                    {"success": False, "error": "진행 중인 게임에서만 무승부를 제안할 수 있습니다."}
+                ),
+                400,
+            )
         if request.method == "DELETE":
             # 내가 건 제안은 취소하고, 상대가 건 제안은 거절한다. 어느 쪽이든 제안을 지운다.
-            conn.execute("UPDATE chess_games SET draw_offer_user_id = NULL, updated_at = %s WHERE id = %s", (now_str(), game_id))
+            conn.execute(
+                "UPDATE chess_games SET draw_offer_user_id = NULL, updated_at = %s WHERE id = %s",
+                (now_str(), game_id),
+            )
         elif game["draw_offer_user_id"] and game["draw_offer_user_id"] != user_id:
             result = {"status": "draw_agreed", "winner": None}
-            conn.execute("UPDATE chess_games SET status = 'finished', result = %s, draw_offer_user_id = NULL, updated_at = %s WHERE id = %s", (json.dumps(result), now_str(), game_id))
+            conn.execute(
+                "UPDATE chess_games SET status = 'finished', result = %s, draw_offer_user_id = NULL, updated_at = %s WHERE id = %s",
+                (json.dumps(result), now_str(), game_id),
+            )
         else:
-            conn.execute("UPDATE chess_games SET draw_offer_user_id = %s, updated_at = %s WHERE id = %s", (user_id, now_str(), game_id))
-        game = chess_game_or_404(conn, game_id); state = chess_game_state(conn, game, user_id); conn.commit()
+            conn.execute(
+                "UPDATE chess_games SET draw_offer_user_id = %s, updated_at = %s WHERE id = %s",
+                (user_id, now_str(), game_id),
+            )
+        game = chess_game_or_404(conn, game_id)
+        state = chess_game_state(conn, game, user_id)
+        conn.commit()
     emit_safe("game:state_update", state, room=f"chess_{game_id}")
     return jsonify({"success": True, "game": state})
 
@@ -4699,12 +5134,16 @@ def chess_join_game_api():
     with get_db() as conn:
         game = conn.execute("SELECT * FROM chess_games WHERE room_code = %s", (code,)).fetchone()
         if not game:
-            return jsonify({"success": False, "error": "입장할 수 있는 방 코드를 찾지 못했습니다."}), 404
+            return (
+                jsonify({"success": False, "error": "입장할 수 있는 방 코드를 찾지 못했습니다."}),
+                404,
+            )
         try:
             game = activate_chess_game(conn, game, session["user_id"])
         except ValueError as error:
             return jsonify({"success": False, "error": str(error)}), 400
-        state = chess_game_state(conn, game, session["user_id"]); conn.commit()
+        state = chess_game_state(conn, game, session["user_id"])
+        conn.commit()
     emit_safe("game:start", state, room=f"chess_{game['id']}")
     return jsonify({"success": True, "game": state})
 
@@ -4723,7 +5162,9 @@ def chess_socket_create(data):
     if "user_id" not in session:
         return
     with get_db() as conn:
-        game = create_chess_game(conn, session["user_id"], "online", (data or {}).get("timeControl", "unlimited"))
+        game = create_chess_game(
+            conn, session["user_id"], "online", (data or {}).get("timeControl", "unlimited")
+        )
         state = chess_game_state(conn, game, session["user_id"])
         conn.commit()
     join_room(f"chess_{game['id']}")
@@ -4737,7 +5178,14 @@ def chess_socket_move(data):
     try:
         with get_db() as conn:
             game = chess_game_or_404(conn, (data or {}).get("gameId"))
-            game = submit_chess_move(conn, game, session["user_id"], data.get("from", ""), data.get("to", ""), data.get("promotion"))
+            game = submit_chess_move(
+                conn,
+                game,
+                session["user_id"],
+                data.get("from", ""),
+                data.get("to", ""),
+                data.get("promotion"),
+            )
             state = chess_game_state(conn, game, session["user_id"])
             conn.commit()
         emit_safe("game:state_update", state, room=f"chess_{game['id']}")
@@ -4750,12 +5198,22 @@ def chess_socket_resign(data):
     if "user_id" not in session:
         return
     with get_db() as conn:
-        game = chess_game_or_404(conn, (data or {}).get("gameId")); user_id = session["user_id"]
+        game = chess_game_or_404(conn, (data or {}).get("gameId"))
+        user_id = session["user_id"]
         if user_id not in {game["white_player_id"], game["black_player_id"]}:
             return
         color = "w" if user_id == game["white_player_id"] else "b"
-        conn.execute("UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s", (json.dumps({"status": "resignation", "winner": opponent(color)}), now_str(), game["id"]))
-        game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, user_id); conn.commit()
+        conn.execute(
+            "UPDATE chess_games SET status = 'finished', result = %s, updated_at = %s WHERE id = %s",
+            (
+                json.dumps({"status": "resignation", "winner": opponent(color)}),
+                now_str(),
+                game["id"],
+            ),
+        )
+        game = chess_game_or_404(conn, game["id"])
+        state = chess_game_state(conn, game, user_id)
+        conn.commit()
     emit_safe("game:state_update", state, room=f"chess_{game['id']}")
 
 
@@ -4764,14 +5222,23 @@ def chess_socket_offer_draw(data):
     if "user_id" not in session:
         return
     with get_db() as conn:
-        game = chess_game_or_404(conn, (data or {}).get("gameId")); user_id = session["user_id"]
+        game = chess_game_or_404(conn, (data or {}).get("gameId"))
+        user_id = session["user_id"]
         if user_id not in {game["white_player_id"], game["black_player_id"]}:
             return
         if game["draw_offer_user_id"] and game["draw_offer_user_id"] != user_id:
-            conn.execute("UPDATE chess_games SET status = 'finished', result = %s, draw_offer_user_id = NULL, updated_at = %s WHERE id = %s", (json.dumps({"status": "draw_agreed", "winner": None}), now_str(), game["id"]))
+            conn.execute(
+                "UPDATE chess_games SET status = 'finished', result = %s, draw_offer_user_id = NULL, updated_at = %s WHERE id = %s",
+                (json.dumps({"status": "draw_agreed", "winner": None}), now_str(), game["id"]),
+            )
         else:
-            conn.execute("UPDATE chess_games SET draw_offer_user_id = %s, updated_at = %s WHERE id = %s", (user_id, now_str(), game["id"]))
-        game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, user_id); conn.commit()
+            conn.execute(
+                "UPDATE chess_games SET draw_offer_user_id = %s, updated_at = %s WHERE id = %s",
+                (user_id, now_str(), game["id"]),
+            )
+        game = chess_game_or_404(conn, game["id"])
+        state = chess_game_state(conn, game, user_id)
+        conn.commit()
     emit_safe("game:state_update", state, room=f"chess_{game['id']}")
 
 
@@ -4783,8 +5250,13 @@ def chess_socket_reconnect(data):
         game = chess_game_or_404(conn, (data or {}).get("gameId"))
         if session["user_id"] not in {game["white_player_id"], game["black_player_id"]}:
             return
-        conn.execute("UPDATE chess_games SET disconnected_user_id = NULL, disconnect_deadline_ms = NULL WHERE id = %s", (game["id"],))
-        game = chess_game_or_404(conn, game["id"]); state = chess_game_state(conn, game, session["user_id"]); conn.commit()
+        conn.execute(
+            "UPDATE chess_games SET disconnected_user_id = NULL, disconnect_deadline_ms = NULL WHERE id = %s",
+            (game["id"],),
+        )
+        game = chess_game_or_404(conn, game["id"])
+        state = chess_game_state(conn, game, session["user_id"])
+        conn.commit()
     join_room(f"chess_{game['id']}")
     emit_safe("game:state_update", state, room=f"chess_{game['id']}")
 
@@ -4797,12 +5269,32 @@ def chess_socket_chat_message(data):
     if not text or len(text) > 200:
         return
     with get_db() as conn:
-        game = chess_game_or_404(conn, (data or {}).get("gameId")); user_id = session["user_id"]
-        if game["status"] != "active" or user_id not in {game["white_player_id"], game["black_player_id"]}:
+        game = chess_game_or_404(conn, (data or {}).get("gameId"))
+        user_id = session["user_id"]
+        if game["status"] != "active" or user_id not in {
+            game["white_player_id"],
+            game["black_player_id"],
+        }:
             return
-        row = conn.execute("INSERT INTO chess_game_chat_messages (game_id, sender_id, text, created_at) VALUES (%s, %s, %s, %s) RETURNING id", (game["id"], user_id, text, now_str())).fetchone()
-        user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone(); conn.commit()
-    emit_safe("chat:message", {"id": row["id"], "sender_id": user_id, "display_name": user["display_name"], "username": user["username"], "text": text}, room=f"chess_{game['id']}")
+        row = conn.execute(
+            "INSERT INTO chess_game_chat_messages (game_id, sender_id, text, created_at) VALUES (%s, %s, %s, %s) RETURNING id",
+            (game["id"], user_id, text, now_str()),
+        ).fetchone()
+        user = conn.execute(
+            "SELECT display_name, username FROM users WHERE id = %s", (user_id,)
+        ).fetchone()
+        conn.commit()
+    emit_safe(
+        "chat:message",
+        {
+            "id": row["id"],
+            "sender_id": user_id,
+            "display_name": user["display_name"],
+            "username": user["username"],
+            "text": text,
+        },
+        room=f"chess_{game['id']}",
+    )
 
 
 @socketio.on("emote:send")
@@ -4810,22 +5302,60 @@ def chess_socket_emote(data):
     if "user_id" not in session:
         return
     emote = (data or {}).get("emote")
-    labels = {"respect": "리스펙", "goodgame": "좋은 경기", "crown": "잘했어요", "taunt": "도발", "smirk": "도발", "laugh": "도발", "cry": "눈물"}
-    emojis = {"respect": "👏", "goodgame": "🤝", "crown": "👑", "taunt": "😈", "smirk": "😏", "laugh": "😂", "cry": "😭"}
+    labels = {
+        "respect": "리스펙",
+        "goodgame": "좋은 경기",
+        "crown": "잘했어요",
+        "taunt": "도발",
+        "smirk": "도발",
+        "laugh": "도발",
+        "cry": "눈물",
+    }
+    emojis = {
+        "respect": "👏",
+        "goodgame": "🤝",
+        "crown": "👑",
+        "taunt": "😈",
+        "smirk": "😏",
+        "laugh": "😂",
+        "cry": "😭",
+    }
     if emote not in emojis:
         return
     with get_db() as conn:
-        game = chess_game_or_404(conn, (data or {}).get("gameId")); user_id = session["user_id"]
-        if game["status"] != "active" or user_id not in {game["white_player_id"], game["black_player_id"]}:
+        game = chess_game_or_404(conn, (data or {}).get("gameId"))
+        user_id = session["user_id"]
+        if game["status"] != "active" or user_id not in {
+            game["white_player_id"],
+            game["black_player_id"],
+        }:
             return
-        user = conn.execute("SELECT display_name, username FROM users WHERE id = %s", (user_id,)).fetchone()
-    emit_safe("emote:receive", {"emoji": emojis[emote], "label": labels[emote], "sender": user["display_name"] or user["username"]}, room=f"chess_{game['id']}")
+        user = conn.execute(
+            "SELECT display_name, username FROM users WHERE id = %s", (user_id,)
+        ).fetchone()
+    emit_safe(
+        "emote:receive",
+        {
+            "emoji": emojis[emote],
+            "label": labels[emote],
+            "sender": user["display_name"] or user["username"],
+        },
+        room=f"chess_{game['id']}",
+    )
 
 
 @socketio.on("room:leave")
 def chess_socket_leave(data):
     # 실제 연결 종료 처리도 아래 disconnect 훅에서 동일하게 판정한다.
     return
+
+
+chat_bp = create_chat_blueprint({endpoint: globals()[endpoint] for _, _, endpoint in CHAT_ROUTES})
+app.register_blueprint(chat_bp)
+admin_bp = create_admin_blueprint(
+    {endpoint: globals()[endpoint] for _, _, endpoint in ADMIN_ROUTES}
+)
+app.register_blueprint(admin_bp)
 
 
 # 서버 실행 시 DB 테이블 자동 생성

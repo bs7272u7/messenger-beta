@@ -1,0 +1,21 @@
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+exclude = '''
+/(\.venv|__pycache__|migrations)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".venv", "__pycache__"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+check_untyped_defs = true
+warn_unused_ignores = true
+exclude = [".venv", "__pycache__"]

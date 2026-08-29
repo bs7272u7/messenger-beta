@@ -1,6 +1,5 @@
 Flask
 Flask-SocketIO
-eventlet
 psycopg2-binary
 Werkzeug
 python-dotenv
@@ -12,3 +11,8 @@ cloudinary
 pywebpush
 Pillow
 sentry-sdk[flask]
+Flask-Login
+Flask-WTF
+Flask-Bcrypt
+alembic
+SQLAlchemy

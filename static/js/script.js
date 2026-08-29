@@ -503,6 +503,7 @@
         const saveUsernameBtn = document.querySelector("#save-username-btn");
         const currentPasswordInput = document.querySelector("#current-password-input");
         const newPasswordInput = document.querySelector("#new-password-input");
+        const newPasswordConfirmationInput = document.querySelector("#new-password-confirmation-input");
         const savePasswordBtn = document.querySelector("#save-password-btn");
         const myProfileCancelBtn = document.querySelector("#my-profile-cancel-btn");
         const myProfileSaveBtn = document.querySelector("#my-profile-save-btn");
@@ -3599,13 +3600,20 @@ saveEmailBtn.addEventListener("click", async function () {
 });
 
 savePasswordBtn.addEventListener("click", async function () {
+    if (newPasswordInput.value !== newPasswordConfirmationInput.value) {
+        showAlert("새 비밀번호 확인이 일치하지 않습니다.");
+        newPasswordConfirmationInput.focus();
+        return;
+    }
+
     try {
         const response = await fetch("/api/account/password", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 current_password: currentPasswordInput.value,
-                new_password: newPasswordInput.value
+                new_password: newPasswordInput.value,
+                password_confirmation: newPasswordConfirmationInput.value
             })
         });
         const result = await response.json();
@@ -3617,6 +3625,7 @@ savePasswordBtn.addEventListener("click", async function () {
 
         currentPasswordInput.value = "";
         newPasswordInput.value = "";
+        newPasswordConfirmationInput.value = "";
         showToast("비밀번호가 변경되었습니다.");
     } catch (err) {
         showAlert("서버와 통신 중 문제가 발생했습니다.");

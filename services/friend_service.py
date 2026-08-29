@@ -1,0 +1,136 @@
+"""친구 요청의 상태 전이와 1:1 대화방 생성을 관리한다."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+class FriendServiceError(Exception):
+    def __init__(self, message: str, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+@dataclass(frozen=True)
+class FriendRequestOutcome:
+    notify_user_id: int
+    auto_accepted: bool = False
+
+
+class FriendService:
+    def __init__(self, connection_factory, now_string, blocked_either_way, accept_request) -> None:
+        self._connection_factory = connection_factory
+        self._now_string = now_string
+        self._blocked_either_way = blocked_either_way
+        self._accept_request = accept_request
+
+    def send_request(self, requester_id: int, requester_username: str, target_username: str):
+        if not target_username:
+            raise FriendServiceError("아이디를 입력해주세요.")
+        if target_username == requester_username:
+            raise FriendServiceError("자기 자신에게는 요청할 수 없습니다.")
+
+        with self._connection_factory() as conn:
+            target = conn.execute(
+                "SELECT id FROM users WHERE username = %s", (target_username,)
+            ).fetchone()
+            if not target:
+                raise FriendServiceError("존재하지 않는 아이디입니다.")
+            target_id = target["id"]
+            if self._blocked_either_way(conn, requester_id, target_id):
+                raise FriendServiceError("차단 관계에서는 친구 요청을 보낼 수 없습니다.")
+            if conn.execute(
+                "SELECT c.id FROM conversations c JOIN conversation_members m1 ON m1.conversation_id = c.id AND m1.user_id = %s JOIN conversation_members m2 ON m2.conversation_id = c.id AND m2.user_id = %s WHERE c.is_group = FALSE",
+                (requester_id, target_id),
+            ).fetchone():
+                raise FriendServiceError("이미 친구입니다.")
+            reverse = conn.execute(
+                "SELECT id FROM friend_requests WHERE requester_id = %s AND addressee_id = %s AND status = 'pending'",
+                (target_id, requester_id),
+            ).fetchone()
+            if reverse:
+                self._accept_request(conn, reverse["id"])
+                conn.commit()
+                return FriendRequestOutcome(target_id, auto_accepted=True)
+            existing = conn.execute(
+                "SELECT id, status FROM friend_requests WHERE requester_id = %s AND addressee_id = %s",
+                (requester_id, target_id),
+            ).fetchone()
+            if existing and existing["status"] == "pending":
+                raise FriendServiceError("이미 요청을 보냈습니다.")
+            if existing:
+                conn.execute(
+                    "UPDATE friend_requests SET status = 'pending', created_at = %s WHERE id = %s",
+                    (self._now_string(), existing["id"]),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO friend_requests (requester_id, addressee_id, status, created_at) VALUES (%s, %s, 'pending', %s)",
+                    (requester_id, target_id, self._now_string()),
+                )
+            conn.commit()
+        return FriendRequestOutcome(target_id)
+
+    def respond(self, request_id: int, user_id: int, accepted: bool) -> int:
+        with self._connection_factory() as conn:
+            request_row = conn.execute(
+                "SELECT * FROM friend_requests WHERE id = %s AND addressee_id = %s AND status = 'pending'",
+                (request_id, user_id),
+            ).fetchone()
+            if not request_row:
+                raise FriendServiceError("요청을 찾을 수 없습니다.", 404)
+            if accepted:
+                self._accept_request(conn, request_id)
+            else:
+                conn.execute(
+                    "UPDATE friend_requests SET status = 'declined' WHERE id = %s", (request_id,)
+                )
+            conn.commit()
+        return request_row["requester_id"]
+
+    def cancel(self, request_id: int, user_id: int) -> int:
+        with self._connection_factory() as conn:
+            request_row = conn.execute(
+                "SELECT id, addressee_id FROM friend_requests WHERE id = %s AND requester_id = %s AND status = 'pending'",
+                (request_id, user_id),
+            ).fetchone()
+            if not request_row:
+                raise FriendServiceError("취소할 친구 요청을 찾을 수 없습니다.", 404)
+            conn.execute("DELETE FROM friend_requests WHERE id = %s", (request_id,))
+            conn.commit()
+        return request_row["addressee_id"]
+
+    def list_blocks(self, user_id: int) -> list[dict]:
+        with self._connection_factory() as conn:
+            rows = conn.execute(
+                "SELECT users.id, users.display_name, users.username FROM blocks JOIN users ON users.id = blocks.blocked_id WHERE blocks.blocker_id = %s ORDER BY blocks.created_at DESC",
+                (user_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def block(self, user_id: int, target_id: int | None) -> int:
+        if not target_id:
+            raise FriendServiceError("차단할 대상을 지정해주세요.", 400)
+        if target_id == user_id:
+            raise FriendServiceError("자기 자신은 차단할 수 없습니다.", 400)
+        with self._connection_factory() as conn:
+            if not conn.execute("SELECT id FROM users WHERE id = %s", (target_id,)).fetchone():
+                raise FriendServiceError("사용자를 찾을 수 없습니다.", 404)
+            if not conn.execute(
+                "SELECT id FROM blocks WHERE blocker_id = %s AND blocked_id = %s",
+                (user_id, target_id),
+            ).fetchone():
+                conn.execute(
+                    "INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (%s, %s, %s)",
+                    (user_id, target_id, self._now_string()),
+                )
+                conn.commit()
+        return target_id
+
+    def unblock(self, user_id: int, target_id: int) -> None:
+        with self._connection_factory() as conn:
+            conn.execute(
+                "DELETE FROM blocks WHERE blocker_id = %s AND blocked_id = %s",
+                (user_id, target_id),
+            )
+            conn.commit()
