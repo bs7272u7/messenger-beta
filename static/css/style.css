@@ -4025,6 +4025,11 @@
         body.theme-liquid-glass .messages,
         body.theme-liquid-glass .messages-wrap { background: transparent; }
 
+        /* backdrop-filter는 stacking context를 만든다. 그래서 입력창 위로 펼쳐지는
+           첨부 메뉴의 z-index가 .input-area 안에 갇혀, 메뉴가 보이는데도 클릭은
+           뒤의 .messages가 가로챈다. 입력창 자체를 대화 영역 위로 올려 해결한다. */
+        body.theme-liquid-glass .input-area { z-index: 20; }
+
         /* 떠다니는 장식은 헤더·입력창의 backdrop 안에 있어서, 움직일 때마다
            그 위 유리의 굴절이 매 프레임 다시 계산된다. 유리 테마에서는 멈춰 둔다. */
         body.theme-liquid-glass .chat-bg-decor .deco-bubble {
