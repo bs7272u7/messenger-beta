@@ -71,17 +71,6 @@
         <label class="office-motion-toggle"><input id="office-reduce-motion" type="checkbox"> <span>움직임 줄이기</span></label>
         </div>
     </details>
-    <details id="app-theme-item" class="office-comfort-trigger">
-        <summary><i class="fa-solid fa-droplet"></i><span>화면 테마</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></summary>
-        <div class="office-comfort-panel">
-            <label>테마
-                <select id="app-theme-select">
-                    <option value="liquid-glass">리퀴드 글래스</option>
-                    <option value="classic">클래식</option>
-                </select>
-            </label>
-        </div>
-    </details>
     <div class="settings-menu-divider"></div>
     <div class="settings-menu-section-title">계정 · 알림</div>
     <div id="account-settings-item"><i class="fa-solid fa-user-gear"></i>계정 설정</div>
@@ -884,8 +873,6 @@
         window.CLOUD_CHESS_UI_ENABLED = {{ chess_ui_enabled|tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/i18n.js', v='20260817.1') }}"></script>
-    <!-- liquid-glass.js — MIT, (c) 2026 Deepika Rao · github.com/deepika-builds/liquid-glass -->
-    <script src="{{ url_for('static', filename='js/liquid-glass.js', v='20260831.1') }}"></script>
     <script src="{{ url_for('static', filename='js/script.js', v='20260816.6') }}"></script>
     <script>
         lucide.createIcons();
