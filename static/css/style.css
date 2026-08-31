@@ -3998,6 +3998,12 @@
         body.theme-liquid-glass .messages,
         body.theme-liquid-glass .messages-wrap { background: transparent; }
 
+        /* 떠다니는 장식은 헤더·입력창의 backdrop 안에 있어서, 움직일 때마다
+           그 위 유리의 굴절이 매 프레임 다시 계산된다. 유리 테마에서는 멈춰 둔다. */
+        body.theme-liquid-glass .chat-bg-decor .deco-bubble {
+            animation: none !important;
+        }
+
         /* 말풍선은 수가 많고 대화할 때마다 새로 생성되므로 backdrop-filter를 쓰지 않는다. */
         body.theme-liquid-glass .message-left {
             border: 1px solid var(--lg-hairline);

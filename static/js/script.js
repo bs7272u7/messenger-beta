@@ -203,6 +203,20 @@
             }
         }
 
+        /* i18n은 각 요소의 최초 문구를 data-i18n-* 에 보관했다가 다시 적용한다.
+         * 그래서 문구를 바꿀 때 기준값도 같이 갱신하지 않으면,
+         * 다음 번역 시점에 원래 문구로 되돌아간다. */
+        function setBannerMessage(koreanText) {
+            const label = blockBanner.querySelector("span");
+            label.dataset.i18nText = koreanText;
+            label.textContent = window.CloudI18n ? window.CloudI18n.t(koreanText) : koreanText;
+        }
+
+        function setInputPlaceholder(koreanText) {
+            input.dataset.i18nPlaceholder = koreanText;
+            input.placeholder = window.CloudI18n ? window.CloudI18n.t(koreanText) : koreanText;
+        }
+
         /* 현재 열려있는 대화방이 차단 상태(내가 차단했거나, 상대가 나를 차단)면
          * 입력창/전송/첨부 버튼을 잠그고 안내 배너를 띄운다. */
         function updateBlockState() {
@@ -213,14 +227,16 @@
 
             blockBanner.style.display = blocked ? "flex" : "none";
             if (blocked) {
-                blockBanner.querySelector("span").textContent = disabledGroup
+                setBannerMessage(disabledGroup
                     ? "종료된 그룹 채팅방입니다. 이전 대화만 확인할 수 있습니다."
-                    : "차단된 사용자와는 메시지를 주고받을 수 없습니다.";
+                    : "차단된 사용자와는 메시지를 주고받을 수 없습니다.");
             }
             input.disabled = blocked;
             button.disabled = blocked;
             plusBtn.disabled = blocked;
-            input.placeholder = friend && friend.isDisabled ? "종료된 그룹 채팅입니다. 이전 대화만 볼 수 있습니다." : (blocked ? "차단된 사용자입니다" : "메시지를 입력하세요");
+            setInputPlaceholder(friend && friend.isDisabled
+                ? "종료된 그룹 채팅입니다. 이전 대화만 볼 수 있습니다."
+                : (blocked ? "차단된 사용자입니다" : "메시지를 입력하세요"));
         }
 
         // 메시지 전송 직후에는 서버 재조회 전에도 목록 미리보기를 즉시 갱신한다.
@@ -821,10 +837,10 @@
            그래서 패널에 강한 굴절을 줘도 안쪽 글자는 그대로 읽힌다.
            반대로 말풍선은 수가 많고 대화할 때마다 새로 생성되므로 대상에서 뺀다.
            ====================================================== */
-        // 맵 생성 비용을 실측해서 잡은 예산이다.
-        // 70만 픽셀 12ms, 93만 픽셀 20ms 수준이고 리사이즈할 때만 다시 만든다.
-        // 100만이면 가장 큰 채팅 패널까지 덮고 컨테이너 전체(119만)는 제외된다.
-        const LG_MAX_AREA = 1000000;
+        // 맵 생성은 1회성이지만 backdrop-filter 합성은 뒤 내용이 바뀔 때마다 다시 돈다.
+        // 큰 면적에 SVG 굴절을 걸면 그 비용이 프레임을 잡아먹으므로,
+        // 굴절은 중간 크기 이하 표면에만 걸고 큰 패널은 CSS 유리(blur+saturate)만 쓴다.
+        const LG_MAX_AREA = 320000;
         const LG_MAX_SIDE = 1600;
         const LG_MAX_INSTANCES = 10;
         const LG_PANEL = { scale: -180, chroma: 8, blur: 2, saturate: 1.6 };
@@ -832,8 +848,8 @@
         const LG_POPOVER = { scale: -112, chroma: 6, blur: 3, saturate: 1.5 };
         const LG_TARGETS = [
             { selector: ".friend-list", options: LG_PANEL },
-            { selector: ".chat", options: LG_PANEL },
             { selector: "#desktop-chat-info", options: LG_PANEL },
+            // .chat은 90만 픽셀이라 굴절을 걸면 합성 비용이 커진다. CSS 유리만 적용한다.
             { selector: ".chat-header", options: LG_BAR },
             { selector: ".input-area", options: LG_BAR },
             { selector: "#friend-panel", options: LG_POPOVER },
