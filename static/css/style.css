@@ -2302,9 +2302,14 @@
             padding: 30px 0;
         }
 
+        /* 인용은 말풍선 안이 아니라 말풍선 위쪽 대화 배경에 놓인다.
+           그래서 말풍선 기준 색(흰 글씨 + 반투명 흰 배경)을 쓰면 배경에 묻힌다.
+           왼쪽 인용과 같은 방식으로 밝은 면 위에 본문 색을 올린다. */
         .message-right .reply-quote {
-            background-color: var(--bubble-reply-bg);
-            color: var(--bubble-text);
+            background-color: var(--message-left-bg);
+            color: var(--text-color);
+            /* 0.65면 대비가 4.15로 기준에 못 미친다. 0.8이면 6.42로 여유가 있다. */
+            opacity: 0.8;
         }
 
         .message-left-container .reply-quote {
