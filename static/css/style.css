@@ -3892,41 +3892,49 @@
         }
 
         /* 구름 결. 대비는 채도가 아니라 흰 구름과 옅은 하늘의 명도 차이에서 얻는다.
-           그래야 전체 톤을 연하게 유지하면서도 굴절될 경계가 남는다. */
+           그래야 전체 톤을 연하게 유지하면서도 굴절될 경계가 남는다.
+
+           흐림 필터(blur) 대신 방사형 그라디언트로 부드러운 경계를 만든다.
+           blur를 6겹(약 190만 픽셀) 쓰면 합성 비용이 크고, 그 위를 덮는
+           backdrop-filter가 매 합성마다 흐림 결과를 다시 읽어야 해서 더 무거워진다.
+           그라디언트는 배경에 한 번 칠해지고 끝이라 추가 비용이 없다. */
         body.theme-liquid-glass .lg-blob {
             position: absolute;
             display: block;
-            border-radius: 50%;
-            /* 흐림을 과하게 주면 경계가 사라져 굴절이 다시 보이지 않는다. */
-            filter: blur(40px);
         }
 
         /* 흰 구름 — 경계를 만드는 층 */
         body.theme-liquid-glass .lg-blob-1 {
             top: -4%; left: 2%; width: 42vw; height: 20vw;
-            background: #ffffff; opacity: .92;
+            background: radial-gradient(closest-side,
+                rgba(255,255,255,.92) 0%, rgba(255,255,255,.90) 76%, rgba(255,255,255,0) 100%);
         }
         body.theme-liquid-glass .lg-blob-2 {
             top: 38%; left: -10%; width: 46vw; height: 22vw;
-            background: #fbfdff; opacity: .82;
+            background: radial-gradient(closest-side,
+                rgba(251,253,255,.82) 0%, rgba(251,253,255,.80) 76%, rgba(251,253,255,0) 100%);
         }
         body.theme-liquid-glass .lg-blob-4 {
             bottom: -8%; right: 4%; width: 44vw; height: 21vw;
-            background: #ffffff; opacity: .88;
+            background: radial-gradient(closest-side,
+                rgba(255,255,255,.88) 0%, rgba(255,255,255,.86) 76%, rgba(255,255,255,0) 100%);
         }
         body.theme-liquid-glass .lg-blob-6 {
             bottom: 24%; left: 26%; width: 30vw; height: 14vw;
-            background: #ffffff; opacity: .70;
+            background: radial-gradient(closest-side,
+                rgba(255,255,255,.70) 0%, rgba(255,255,255,.67) 74%, rgba(255,255,255,0) 100%);
         }
 
         /* 하늘의 깊이감 — 구름과 대비를 만드는 파란 층 */
         body.theme-liquid-glass .lg-blob-3 {
             top: 2%; right: -6%; width: 36vw; height: 32vw;
-            background: #7cb8e8; opacity: .55;
+            background: radial-gradient(closest-side,
+                rgba(124,184,232,.55) 0%, rgba(124,184,232,.52) 74%, rgba(124,184,232,0) 100%);
         }
         body.theme-liquid-glass .lg-blob-5 {
             top: 24%; left: 32%; width: 30vw; height: 28vw;
-            background: #9ccdf0; opacity: .48;
+            background: radial-gradient(closest-side,
+                rgba(156,205,240,.48) 0%, rgba(156,205,240,.45) 74%, rgba(156,205,240,0) 100%);
         }
 
         body.theme-liquid-glass {
