@@ -497,13 +497,13 @@
 
         .status-dot {
             position: absolute;
-            /* 아바타 가장자리에 살짝 걸쳐 보여, 분리되지 않으면서도 상태를 인식하기 쉽다. */
-            right: -1px;
-            bottom: -1px;
-            width: 11px;
-            height: 11px;
+            /* 원 중심을 아바타 모서리에 맞춰 절반은 겹치고 절반은 밖에 보이게 한다. */
+            right: -6px;
+            bottom: -6px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            border: 0;
+            border: 2px solid var(--panel-bg);
             box-sizing: border-box;
             box-shadow: none;
             transition: background-color 0.2s, opacity 0.2s;
