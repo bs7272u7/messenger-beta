@@ -1958,6 +1958,7 @@
             if (result.autoAccepted) {
                 // 상대가 이미 나에게 요청을 보내둔 상태라 바로 친구가 된 경우
                 await loadFriends();
+                await loadFriendDirectory();
                 renderFriendPanelList();
             } else {
                 showToast("친구 요청을 보냈습니다.");
@@ -2069,6 +2070,7 @@
                         body: JSON.stringify({ accept:true })
                     });
                     await loadFriends();
+                    await loadFriendDirectory();
                     await loadFriendRequests();
                     renderFriendPanelList();
                 });
@@ -2328,6 +2330,7 @@
                         <span>${escapeHTML(friend.name)}</span>
                     </button>
                     <div class="friend-panel-actions">
+                        <button type="button" class="open-friend-chat-icon" title="채팅방 열기" aria-label="${escapeHTML(friend.name)}님과 채팅하기"><i class="fa-solid fa-comment-dots"></i></button>
                         ${chessInviteIconHTML}
                         ${blockIconHTML}
                         <span class="delete-friend-icon" title="친구 삭제"><i class="fa-solid fa-trash"></i></span>
@@ -2336,6 +2339,34 @@
 
                 item.querySelector(".friend-panel-profile-trigger").addEventListener("click", function () {
                     openProfileCard(friend);
+                });
+
+                item.querySelector(".open-friend-chat-icon").addEventListener("click", async function () {
+                    const response = await fetch(`/api/friends/${friend.peerId}/conversation`, { method: "POST" });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        showAlert(result.error || "채팅방을 열지 못했습니다.");
+                        return;
+                    }
+
+                    await loadFriends();
+                    const conversation = friends.find(function (entry) {
+                        return entry.id === result.conversationId;
+                    });
+                    if (!conversation) {
+                        showAlert("채팅방을 불러오지 못했습니다. 다시 시도해주세요.");
+                        return;
+                    }
+
+                    currentConversationID = conversation.id;
+                    openMobileChat();
+                    updateChatHeader(conversation);
+                    updateBlockState();
+                    await fetch(`/api/conversations/${conversation.id}/read`, { method: "POST" });
+                    conversation.unreadCount = 0;
+                    readFriends();
+                    await readMessages();
+                    setTimeout(function () { input.focus(); }, 10);
                 });
 
                 const chessInviteIcon = item.querySelector(".chess-invite-friend-icon");

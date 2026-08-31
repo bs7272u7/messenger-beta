@@ -162,6 +162,45 @@ class FriendService:
             conn.commit()
         return target_id
 
+    def open_friend_conversation(self, user_id: int, target_id: int) -> int:
+        """친구와의 숨긴 1:1 대화방을 현재 사용자 목록에 다시 표시한다."""
+        with self._connection_factory() as conn:
+            friendship = conn.execute(
+                """
+                SELECT 1 FROM friend_requests
+                WHERE status = 'accepted'
+                  AND ((requester_id = %s AND addressee_id = %s)
+                    OR (requester_id = %s AND addressee_id = %s))
+                """,
+                (user_id, target_id, target_id, user_id),
+            ).fetchone()
+            if not friendship:
+                raise FriendServiceError("친구 관계를 찾을 수 없습니다.", 404)
+
+            conversation = conn.execute(
+                """
+                SELECT conversation.id
+                FROM conversations conversation
+                JOIN conversation_members mine
+                  ON mine.conversation_id = conversation.id AND mine.user_id = %s
+                JOIN conversation_members peer
+                  ON peer.conversation_id = conversation.id AND peer.user_id = %s
+                WHERE conversation.is_group = FALSE
+                ORDER BY conversation.id DESC
+                LIMIT 1
+                """,
+                (user_id, target_id),
+            ).fetchone()
+            if not conversation:
+                raise FriendServiceError("대화방을 찾을 수 없습니다.", 404)
+
+            conn.execute(
+                "UPDATE conversation_members SET hidden_at = NULL WHERE conversation_id = %s AND user_id = %s",
+                (conversation["id"], user_id),
+            )
+            conn.commit()
+        return conversation["id"]
+
     def list_blocks(self, user_id: int) -> list[dict]:
         with self._connection_factory() as conn:
             rows = conn.execute(

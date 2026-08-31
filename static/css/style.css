@@ -2627,6 +2627,27 @@
             color: #e05252;
         }
 
+        .friend-panel-item .open-friend-chat-icon {
+            display: inline-grid;
+            width: 28px;
+            height: 28px;
+            place-items: center;
+            padding: 0;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--brand-color);
+            cursor: pointer;
+            transition: background .16s ease, transform .16s ease;
+        }
+
+        .friend-panel-item .open-friend-chat-icon:hover,
+        .friend-panel-item .open-friend-chat-icon:focus-visible {
+            background: color-mix(in srgb, var(--brand-color) 12%, transparent);
+            transform: translateY(-1px);
+            outline: none;
+        }
+
         .friend-panel-item span.block-friend-icon {
             cursor: pointer;
             color: #e08a3c;

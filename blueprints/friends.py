@@ -64,6 +64,17 @@ def create_friends_blueprint(
         notify_user(peer_id, "friend_updated", {})
         return jsonify({"success": True})
 
+    @friends_bp.route("/api/friends/<int:target_id>/conversation", methods=["POST"])
+    @api_login_required
+    def open_friend_conversation(target_id):
+        try:
+            conversation_id = friend_service.open_friend_conversation(
+                session["user_id"], target_id
+            )
+        except FriendServiceError as error:
+            return jsonify({"success": False, "error": str(error)}), error.status_code
+        return jsonify({"success": True, "conversationId": conversation_id})
+
     @friends_bp.route("/api/blocks", methods=["POST"])
     @api_login_required
     def block_user():
