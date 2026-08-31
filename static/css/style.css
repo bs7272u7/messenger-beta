@@ -3919,14 +3919,14 @@
             background: #ffffff; opacity: .70;
         }
 
-        /* 하늘 — 아주 옅은 색조만 */
+        /* 하늘의 깊이감 — 구름과 대비를 만드는 파란 층 */
         body.theme-liquid-glass .lg-blob-3 {
-            top: 4%; right: -6%; width: 34vw; height: 30vw;
-            background: #cfe6fb; opacity: .55;
+            top: 2%; right: -6%; width: 36vw; height: 32vw;
+            background: #7cb8e8; opacity: .55;
         }
         body.theme-liquid-glass .lg-blob-5 {
-            top: 26%; left: 34%; width: 28vw; height: 26vw;
-            background: #dcefff; opacity: .50;
+            top: 24%; left: 32%; width: 30vw; height: 28vw;
+            background: #9ccdf0; opacity: .48;
         }
 
         body.theme-liquid-glass {
@@ -3938,8 +3938,10 @@
             --lg-drop: 0 22px 50px -16px rgba(24, 62, 110, .34);
             --lg-hairline: rgba(255, 255, 255, .58);
 
-            /* 위는 옅은 하늘, 아래로 갈수록 흐려지는 구름 지평 */
-            background: linear-gradient(178deg, #dcecfd 0%, #eaf4ff 42%, #f6fbff 100%);
+            /* 하늘은 위가 진하고 아래로 옅어진다.
+               흰 구름이 드러나려면 하늘 쪽에 색이 남아 있어야 한다.
+               둘 다 연하게 만들면 대비가 사라져 유리가 아예 안 보인다. */
+            background: linear-gradient(180deg, #9fcdf0 0%, #c3e0f8 38%, #ddeeff 70%, #eef7ff 100%);
             background-attachment: fixed;
         }
 
