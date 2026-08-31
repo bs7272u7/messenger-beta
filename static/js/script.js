@@ -847,9 +847,9 @@
         const LG_BAR = { scale: -140, chroma: 6, blur: 2, saturate: 1.6 };
         const LG_POPOVER = { scale: -112, chroma: 6, blur: 3, saturate: 1.5 };
         const LG_TARGETS = [
-            { selector: ".friend-list", options: LG_PANEL },
+            // .chat(90만)과 .friend-list(25만)은 흐림도 굴절도 걸지 않는다.
+            // 면적이 커서 합성 비용이 프레임을 잡아먹는 데 비해 보이는 효과는 작다.
             { selector: "#desktop-chat-info", options: LG_PANEL },
-            // .chat은 90만 픽셀이라 굴절을 걸면 합성 비용이 커진다. CSS 유리만 적용한다.
             { selector: ".chat-header", options: LG_BAR },
             { selector: ".input-area", options: LG_BAR },
             { selector: "#friend-panel", options: LG_POPOVER },
