@@ -22,6 +22,18 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260829.3') }}">
 </head>
 <body>
+    <!-- 리퀴드 글래스 테마의 배경. 유리는 뒤에 있는 것을 밀어내 굴절을 만들기 때문에,
+         매끄러운 그라디언트만 있으면 밀어내도 결과가 같아 아무 효과가 보이지 않는다.
+         그래서 경계가 뚜렷한 색 덩어리를 깔아 굴절될 대상을 만든다. -->
+    <div class="lg-backdrop" aria-hidden="true">
+        <span class="lg-blob lg-blob-1"></span>
+        <span class="lg-blob lg-blob-2"></span>
+        <span class="lg-blob lg-blob-3"></span>
+        <span class="lg-blob lg-blob-4"></span>
+        <span class="lg-blob lg-blob-5"></span>
+        <span class="lg-blob lg-blob-6"></span>
+    </div>
+
     <!-- 글라스 테마의 물방울에만 쓰는 SVG 굴절 필터: 전체 화면 필터보다 가볍다. -->
     <svg class="glass-filter-defs" aria-hidden="true" focusable="false">
         <defs>
@@ -69,6 +81,17 @@
             </select>
         </label>
         <label class="office-motion-toggle"><input id="office-reduce-motion" type="checkbox"> <span>움직임 줄이기</span></label>
+        </div>
+    </details>
+    <details id="app-theme-item" class="office-comfort-trigger">
+        <summary><i class="fa-solid fa-droplet"></i><span>화면 테마</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></summary>
+        <div class="office-comfort-panel">
+            <label>테마
+                <select id="app-theme-select">
+                    <option value="liquid-glass">리퀴드 글래스</option>
+                    <option value="classic">클래식</option>
+                </select>
+            </label>
         </div>
     </details>
     <div class="settings-menu-divider"></div>
@@ -873,6 +896,8 @@
         window.CLOUD_CHESS_UI_ENABLED = {{ chess_ui_enabled|tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/i18n.js', v='20260817.1') }}"></script>
+    <!-- liquid-glass.js — MIT, (c) 2026 Deepika Rao · github.com/deepika-builds/liquid-glass -->
+    <script src="{{ url_for('static', filename='js/liquid-glass.js', v='20260831.2') }}"></script>
     <script src="{{ url_for('static', filename='js/script.js', v='20260816.6') }}"></script>
     <script>
         lucide.createIcons();

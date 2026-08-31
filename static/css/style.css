@@ -3871,3 +3871,210 @@
             font-size: 13px;
         }
         .settings-menu-link:hover { background: var(--friend-hover); }
+
+        /* ==========================================================
+           Liquid Glass 테마 v2
+           --------------------------------------------------------
+           굴절은 뒤에 있는 픽셀을 옆으로 밀어내는 연산이다. 인접 픽셀 색이
+           거의 같으면(매끄러운 그라디언트) 밀어내도 결과가 같아 아무 변화가
+           보이지 않는다. 그래서 배경에 경계가 뚜렷한 색 덩어리를 깔아
+           굴절될 대상을 먼저 만든다.
+           ========================================================== */
+        .lg-backdrop { display: none; }
+
+        body.theme-liquid-glass .lg-backdrop {
+            display: block;
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        body.theme-liquid-glass .lg-blob {
+            position: absolute;
+            display: block;
+            border-radius: 50%;
+            /* 흐림을 과하게 주면 경계가 사라져 굴절이 다시 보이지 않는다. */
+            filter: blur(26px);
+            opacity: .72;
+        }
+
+        body.theme-liquid-glass .lg-blob-1 { top: -6%;  left: 4%;   width: 30vw; height: 30vw; background: #58a6f0; }
+        body.theme-liquid-glass .lg-blob-2 { top: 44%;  left: -8%;  width: 34vw; height: 34vw; background: #7fd4e8; }
+        body.theme-liquid-glass .lg-blob-3 { top: 8%;   right: -4%; width: 26vw; height: 26vw; background: #4a90e2; }
+        body.theme-liquid-glass .lg-blob-4 { bottom: -10%; right: 8%; width: 32vw; height: 32vw; background: #9ad0f5; }
+        body.theme-liquid-glass .lg-blob-5 { top: 30%;  left: 38%;  width: 22vw; height: 22vw; background: #b6e3f7; }
+        body.theme-liquid-glass .lg-blob-6 { bottom: 18%; left: 22%; width: 18vw; height: 18vw; background: #6ec1e4; }
+
+        body.theme-liquid-glass {
+            --lg-tint: rgba(255, 255, 255, .40);
+            --lg-tint-soft: rgba(255, 255, 255, .24);
+            --lg-edge-hi: rgba(255, 255, 255, .95);
+            --lg-edge-lo: rgba(255, 255, 255, .28);
+            --lg-inner: inset 0 1px 0 rgba(255, 255, 255, .78);
+            --lg-drop: 0 22px 50px -16px rgba(24, 62, 110, .34);
+            --lg-hairline: rgba(255, 255, 255, .58);
+
+            background: linear-gradient(158deg, #eaf4ff 0%, #dcecfb 50%, #e9f3ff 100%);
+            background-attachment: fixed;
+        }
+
+        /* 패널은 배경 덩어리 위에 떠 있어야 하므로 z-index를 올린다. */
+        body.theme-liquid-glass .container,
+        body.theme-liquid-glass #desktop-chat-info { position: relative; z-index: 1; }
+
+        body.theme-liquid-glass .friend-list,
+        body.theme-liquid-glass .chat,
+        body.theme-liquid-glass #desktop-chat-info,
+        body.theme-liquid-glass .chat-header,
+        body.theme-liquid-glass .input-area,
+        body.theme-liquid-glass .message-menu,
+        body.theme-liquid-glass .attach-menu,
+        body.theme-liquid-glass #friend-panel,
+        body.theme-liquid-glass #mobile-chat-actions-sheet,
+        body.theme-liquid-glass .office-comfort-panel,
+        body.theme-liquid-glass .modal,
+        body.theme-liquid-glass .settings-modal,
+        body.theme-liquid-glass .chat-theme-modal,
+        body.theme-liquid-glass .friend-inbox-modal {
+            border: 1px solid transparent;
+            background-image:
+                linear-gradient(var(--lg-tint), var(--lg-tint)),
+                linear-gradient(135deg, var(--lg-edge-hi), var(--lg-edge-lo));
+            background-origin: border-box;
+            background-clip: padding-box, border-box;
+            background-color: transparent;
+            box-shadow: var(--lg-drop), var(--lg-inner);
+        }
+
+        @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+            body.theme-liquid-glass .friend-list,
+            body.theme-liquid-glass .chat,
+            body.theme-liquid-glass #desktop-chat-info,
+            body.theme-liquid-glass .chat-header,
+            body.theme-liquid-glass .input-area,
+            body.theme-liquid-glass .message-menu,
+            body.theme-liquid-glass .attach-menu,
+            body.theme-liquid-glass #friend-panel,
+            body.theme-liquid-glass #mobile-chat-actions-sheet,
+            body.theme-liquid-glass .office-comfort-panel,
+            body.theme-liquid-glass .modal,
+            body.theme-liquid-glass .settings-modal,
+            body.theme-liquid-glass .chat-theme-modal,
+            body.theme-liquid-glass .friend-inbox-modal {
+                background-image:
+                    linear-gradient(var(--lg-tint-soft), var(--lg-tint-soft)),
+                    linear-gradient(135deg, var(--lg-edge-hi), var(--lg-edge-lo));
+                -webkit-backdrop-filter: blur(14px) saturate(190%);
+                        backdrop-filter: blur(14px) saturate(190%);
+            }
+        }
+
+        /* 대화 영역과 그 안의 장식은 유리 뒤가 아니라 유리 안에 있으므로 비워 둔다. */
+        body.theme-liquid-glass .messages,
+        body.theme-liquid-glass .messages-wrap { background: transparent; }
+
+        /* 말풍선은 수가 많고 대화할 때마다 새로 생성되므로 backdrop-filter를 쓰지 않는다. */
+        body.theme-liquid-glass .message-left {
+            border: 1px solid var(--lg-hairline);
+            background: rgba(255, 255, 255, .78);
+            box-shadow: 0 6px 18px -8px rgba(24, 62, 110, .30), inset 0 1px 0 rgba(255, 255, 255, .85);
+        }
+        body.theme-liquid-glass .bubble {
+            border: 1px solid rgba(255, 255, 255, .42);
+            background: linear-gradient(135deg, rgba(74, 144, 226, .94), rgba(120, 184, 255, .88));
+            box-shadow: 0 8px 20px -8px rgba(24, 62, 110, .44), inset 0 1px 0 rgba(255, 255, 255, .36);
+        }
+
+        body.theme-liquid-glass .friend {
+            border: 1px solid transparent;
+            background: rgba(255, 255, 255, .34);
+        }
+        body.theme-liquid-glass .friend:hover { background: rgba(255, 255, 255, .60); }
+        body.theme-liquid-glass .friend.active {
+            background: rgba(74, 144, 226, .20);
+            border-color: rgba(255, 255, 255, .62);
+        }
+
+        body.theme-liquid-glass .input-area textarea {
+            background: rgba(255, 255, 255, .60);
+            border-color: var(--lg-hairline);
+        }
+
+        /* ---------- 다크 모드 ---------- */
+        body.theme-liquid-glass.dark-mode {
+            --lg-tint: rgba(22, 32, 48, .48);
+            --lg-tint-soft: rgba(22, 32, 48, .34);
+            --lg-edge-hi: rgba(255, 255, 255, .38);
+            --lg-edge-lo: rgba(255, 255, 255, .07);
+            --lg-inner: inset 0 1px 0 rgba(255, 255, 255, .18);
+            --lg-drop: 0 22px 50px -16px rgba(0, 0, 0, .60);
+            --lg-hairline: rgba(255, 255, 255, .16);
+            background: linear-gradient(158deg, #0f1622 0%, #141d2e 52%, #101825 100%);
+        }
+        body.theme-liquid-glass.dark-mode .lg-blob { opacity: .42; }
+        body.theme-liquid-glass.dark-mode .lg-blob-1 { background: #2f6cb0; }
+        body.theme-liquid-glass.dark-mode .lg-blob-2 { background: #2a7f96; }
+        body.theme-liquid-glass.dark-mode .lg-blob-3 { background: #2b5f9e; }
+        body.theme-liquid-glass.dark-mode .lg-blob-4 { background: #3d7ba8; }
+        body.theme-liquid-glass.dark-mode .lg-blob-5 { background: #35708f; }
+        body.theme-liquid-glass.dark-mode .lg-blob-6 { background: #2d6a8c; }
+        body.theme-liquid-glass.dark-mode .message-left {
+            background: rgba(45, 58, 78, .80);
+            box-shadow: 0 6px 18px -8px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .10);
+        }
+        body.theme-liquid-glass.dark-mode .friend { background: rgba(255, 255, 255, .06); }
+        body.theme-liquid-glass.dark-mode .friend:hover { background: rgba(255, 255, 255, .12); }
+        body.theme-liquid-glass.dark-mode .input-area textarea { background: rgba(15, 23, 42, .58); }
+
+        /* ---------- 유리를 끄는 조건 ----------
+           투명도 줄이기 설정, 고대비, 오피스 모드에서는 가독성이 우선이다. */
+        @media (prefers-reduced-transparency: reduce) {
+            body.theme-liquid-glass .lg-backdrop { display: none; }
+            body.theme-liquid-glass .friend-list,
+            body.theme-liquid-glass .chat,
+            body.theme-liquid-glass #desktop-chat-info,
+            body.theme-liquid-glass .chat-header,
+            body.theme-liquid-glass .input-area,
+            body.theme-liquid-glass .message-menu,
+            body.theme-liquid-glass .attach-menu,
+            body.theme-liquid-glass #friend-panel,
+            body.theme-liquid-glass #mobile-chat-actions-sheet,
+            body.theme-liquid-glass .office-comfort-panel,
+            body.theme-liquid-glass .modal,
+            body.theme-liquid-glass .settings-modal,
+            body.theme-liquid-glass .chat-theme-modal,
+            body.theme-liquid-glass .friend-inbox-modal,
+            body.theme-liquid-glass .message-left {
+                background-image: none !important;
+                background-color: var(--panel-bg) !important;
+                border-color: var(--border-color) !important;
+                -webkit-backdrop-filter: none !important;
+                        backdrop-filter: none !important;
+            }
+        }
+
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .lg-backdrop { display: none; }
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) { background: var(--bg-color); }
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .friend-list,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .chat,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) #desktop-chat-info,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .chat-header,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .input-area,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .message-menu,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .attach-menu,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) #friend-panel,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) #mobile-chat-actions-sheet,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .office-comfort-panel,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .modal,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .settings-modal,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .chat-theme-modal,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .friend-inbox-modal,
+        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .message-left {
+            background-image: none !important;
+            background-color: var(--panel-bg) !important;
+            border-color: var(--border-color) !important;
+            -webkit-backdrop-filter: none !important;
+                    backdrop-filter: none !important;
+        }

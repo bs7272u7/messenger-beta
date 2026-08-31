@@ -720,6 +720,7 @@
         const officeTextSizeSelect = document.querySelector("#office-text-size-select");
         const officeDensitySelect = document.querySelector("#office-density-select");
         const officeReduceMotion = document.querySelector("#office-reduce-motion");
+        const appThemeSelect = document.querySelector("#app-theme-select");
         const languageSelect = document.querySelector("#language-select");
         const languageSettingCurrent = document.querySelector("#language-setting-current");
         const deleteAccountPassword = document.querySelector("#delete-account-password");
@@ -814,6 +815,139 @@
             officeComfortItem.hidden = false;
         }
 
+        /* ======================================================
+           Liquid Glass 테마
+           굴절은 요소 뒤(backdrop)에만 걸리고 요소 안의 내용은 건드리지 않는다.
+           그래서 패널에 강한 굴절을 줘도 안쪽 글자는 그대로 읽힌다.
+           반대로 말풍선은 수가 많고 대화할 때마다 새로 생성되므로 대상에서 뺀다.
+           ====================================================== */
+        // 맵 생성 비용을 실측해서 잡은 예산이다.
+        // 70만 픽셀 12ms, 93만 픽셀 20ms 수준이고 리사이즈할 때만 다시 만든다.
+        // 100만이면 가장 큰 채팅 패널까지 덮고 컨테이너 전체(119만)는 제외된다.
+        const LG_MAX_AREA = 1000000;
+        const LG_MAX_SIDE = 1600;
+        const LG_MAX_INSTANCES = 10;
+        const LG_PANEL = { scale: -180, chroma: 8, blur: 2, saturate: 1.6 };
+        const LG_BAR = { scale: -140, chroma: 6, blur: 2, saturate: 1.6 };
+        const LG_POPOVER = { scale: -112, chroma: 6, blur: 3, saturate: 1.5 };
+        const LG_TARGETS = [
+            { selector: ".friend-list", options: LG_PANEL },
+            { selector: ".chat", options: LG_PANEL },
+            { selector: "#desktop-chat-info", options: LG_PANEL },
+            { selector: ".chat-header", options: LG_BAR },
+            { selector: ".input-area", options: LG_BAR },
+            { selector: "#friend-panel", options: LG_POPOVER },
+            { selector: "#settings-menu", options: LG_POPOVER },
+            { selector: "#attach-menu", options: LG_POPOVER },
+            { selector: "#message-menu", options: LG_POPOVER },
+            { selector: "#mobile-chat-actions-sheet", options: LG_POPOVER },
+            // 모달은 오버레이의 display가 바뀌므로 유리는 안쪽 상자에 건다.
+            { selector: ".modal-overlay .modal", options: LG_POPOVER },
+            { selector: ".modal-overlay .settings-modal", options: LG_POPOVER },
+            { selector: ".modal-overlay .chat-theme-modal", options: LG_POPOVER },
+            { selector: ".modal-overlay .friend-inbox-modal", options: LG_POPOVER },
+        ];
+        // 표시 상태가 바뀌는 요소들. 이들의 변화를 보고 대상 목록을 다시 계산한다.
+        const LG_WATCH_SELECTORS = [
+            ".modal-overlay", "#settings-menu", "#attach-menu",
+            "#message-menu", "#friend-panel", "#mobile-chat-actions-sheet",
+        ];
+        const lgInstances = new Map();
+        let lgObserver = null;
+        let lgTimer = null;
+
+        function lgEnabled() {
+            // 스크립트를 불러오지 못해도 앱은 그대로 동작해야 한다.
+            if (typeof window.liquidGlass !== "function") return false;
+            if (!document.body.classList.contains("theme-liquid-glass")) return false;
+            // 오피스 모드와 고대비 설정에서는 가독성이 우선이므로 굴절을 끈다.
+            if (document.body.classList.contains("office-mode")) return false;
+            if (document.body.classList.contains("office-contrast-high")) return false;
+            if (window.matchMedia("(prefers-reduced-transparency: reduce)").matches) return false;
+            if ((navigator.hardwareConcurrency || 8) <= 4) return false;
+            return true;
+        }
+
+        function lgAttach(element, options) {
+            if (!element || lgInstances.has(element)) return;
+            if (lgInstances.size >= LG_MAX_INSTANCES) return;
+            const width = element.offsetWidth;
+            const height = element.offsetHeight;
+            if (!width || !height) return;
+            if (width * height > LG_MAX_AREA) return;
+            if (width > LG_MAX_SIDE || height > LG_MAX_SIDE) return;
+            try {
+                lgInstances.set(element, window.liquidGlass(element, options));
+            } catch (error) {
+                console.warn("리퀴드 글래스를 적용하지 못했습니다.", error);
+            }
+        }
+
+        function lgDetach(element) {
+            const instance = lgInstances.get(element);
+            if (!instance) return;
+            instance.destroy();
+            lgInstances.delete(element);
+        }
+
+        function lgDetachAll() {
+            lgInstances.forEach(instance => instance.destroy());
+            lgInstances.clear();
+        }
+
+        function lgSync() {
+            if (!lgEnabled()) {
+                lgDetachAll();
+                return;
+            }
+            LG_TARGETS.forEach(({ selector, options }) => {
+                document.querySelectorAll(selector).forEach(element => {
+                    const visible = element.offsetWidth > 0 && element.offsetHeight > 0;
+                    if (visible) lgAttach(element, options);
+                    else lgDetach(element);
+                });
+            });
+        }
+
+        function lgScheduleSync(delay) {
+            clearTimeout(lgTimer);
+            lgTimer = setTimeout(lgSync, delay);
+        }
+
+        function lgWatch() {
+            if (lgObserver) return;
+            // 메뉴와 모달은 열릴 때 비로소 크기가 생기므로 표시 상태 변화를 지켜본다.
+            lgObserver = new MutationObserver(() => lgScheduleSync(60));
+            LG_WATCH_SELECTORS.forEach(selector => {
+                document.querySelectorAll(selector).forEach(element => {
+                    lgObserver.observe(element, {
+                        attributes: true,
+                        attributeFilter: ["style", "class", "hidden"],
+                    });
+                });
+            });
+            window.addEventListener("resize", () => lgScheduleSync(200), { passive: true });
+        }
+
+        function getAppTheme() {
+            return localStorage.getItem("appTheme") || "liquid-glass";
+        }
+
+        function applyAppTheme() {
+            const theme = getAppTheme();
+            const useGlass = theme === "liquid-glass";
+            document.body.classList.toggle("theme-liquid-glass", useGlass);
+            if (appThemeSelect) appThemeSelect.value = theme;
+            // 끌 때는 즉시 걷어내고, 켤 때는 맵 생성이 수십 ms 걸리므로
+            // 첫 페인트를 막지 않도록 한가할 때로 미룬다.
+            if (!useGlass) {
+                lgDetachAll();
+                return;
+            }
+            if (window.requestIdleCallback) window.requestIdleCallback(() => lgSync(), { timeout: 800 });
+            else lgScheduleSync(150);
+        }
+
         function syncLanguageSetting() {
             if (!window.CloudI18n || !languageSelect || !languageSettingCurrent) return;
             const language = window.CloudI18n.getLanguage();
@@ -856,6 +990,8 @@
         }
         syncOfficeModeLabel();
         applyOfficeComfortSettings();
+        applyAppTheme();
+        lgWatch();
         syncLanguageSetting();
 
         window.addEventListener("cloud-language-change", async function (event) {
@@ -879,12 +1015,21 @@
             control.addEventListener("change", function () {
                 localStorage.setItem(key, control.value);
                 applyOfficeComfortSettings();
+                // 고대비로 바꾸면 굴절을 꺼야 하므로 테마 상태를 다시 계산한다.
+                lgSync();
             });
         });
         officeReduceMotion.addEventListener("change", function () {
             localStorage.setItem("officeReduceMotion", String(officeReduceMotion.checked));
             applyOfficeComfortSettings();
         });
+
+        if (appThemeSelect) {
+            appThemeSelect.addEventListener("change", function () {
+                localStorage.setItem("appTheme", appThemeSelect.value);
+                applyAppTheme();
+            });
+        }
 
         officeModeItem.addEventListener("click", function (event) {
             event.stopPropagation();
@@ -898,6 +1043,8 @@
             }
             localStorage.setItem("officeMode", enabled ? "enabled" : "disabled");
             syncOfficeModeLabel();
+            // 오피스 모드에서는 굴절을 끄고, 해제하면 다시 적용한다.
+            lgSync();
             showToast(enabled ? "오피스 모드를 적용했습니다." : "오피스 모드를 해제했습니다.");
         });
 
