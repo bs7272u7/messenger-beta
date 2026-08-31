@@ -846,12 +846,10 @@
         const LG_PANEL = { scale: -180, chroma: 8, blur: 2, saturate: 1.6 };
         const LG_BAR = { scale: -140, chroma: 6, blur: 2, saturate: 1.6 };
         const LG_POPOVER = { scale: -112, chroma: 6, blur: 3, saturate: 1.5 };
+        // SVG 굴절은 잠깐 나타났다 사라지는 표면에만 건다.
+        // 항상 떠 있는 헤더·입력창·패널에 걸면 화면이 바뀔 때마다 다시 계산되어
+        // 상시 프레임 비용이 된다. 그쪽은 CSS 흐림만으로도 유리처럼 보인다.
         const LG_TARGETS = [
-            // .chat(90만)과 .friend-list(25만)은 흐림도 굴절도 걸지 않는다.
-            // 면적이 커서 합성 비용이 프레임을 잡아먹는 데 비해 보이는 효과는 작다.
-            { selector: "#desktop-chat-info", options: LG_PANEL },
-            { selector: ".chat-header", options: LG_BAR },
-            { selector: ".input-area", options: LG_BAR },
             { selector: "#friend-panel", options: LG_POPOVER },
             { selector: "#settings-menu", options: LG_POPOVER },
             { selector: "#attach-menu", options: LG_POPOVER },

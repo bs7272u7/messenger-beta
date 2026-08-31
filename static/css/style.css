@@ -4088,13 +4088,32 @@
             --lg-hairline: rgba(255, 255, 255, .16);
             background: linear-gradient(158deg, #0f1622 0%, #141d2e 52%, #101825 100%);
         }
-        body.theme-liquid-glass.dark-mode .lg-blob { opacity: .42; }
-        body.theme-liquid-glass.dark-mode .lg-blob-1 { background: #2f6cb0; }
-        body.theme-liquid-glass.dark-mode .lg-blob-2 { background: #2a7f96; }
-        body.theme-liquid-glass.dark-mode .lg-blob-3 { background: #2b5f9e; }
-        body.theme-liquid-glass.dark-mode .lg-blob-4 { background: #3d7ba8; }
-        body.theme-liquid-glass.dark-mode .lg-blob-5 { background: #35708f; }
-        body.theme-liquid-glass.dark-mode .lg-blob-6 { background: #2d6a8c; }
+        /* 밝은 테마와 같은 방사형 그라디언트를 써야 한다.
+           단색으로 덮으면 모서리가 각져서 배경에 사각형이 생긴다. */
+        body.theme-liquid-glass.dark-mode .lg-blob-1 {
+            background: radial-gradient(closest-side,
+                rgba(47,108,176,.42) 0%, rgba(47,108,176,.38) 76%, rgba(47,108,176,0) 100%);
+        }
+        body.theme-liquid-glass.dark-mode .lg-blob-2 {
+            background: radial-gradient(closest-side,
+                rgba(42,127,150,.38) 0%, rgba(42,127,150,.34) 76%, rgba(42,127,150,0) 100%);
+        }
+        body.theme-liquid-glass.dark-mode .lg-blob-3 {
+            background: radial-gradient(closest-side,
+                rgba(43,95,158,.40) 0%, rgba(43,95,158,.36) 74%, rgba(43,95,158,0) 100%);
+        }
+        body.theme-liquid-glass.dark-mode .lg-blob-4 {
+            background: radial-gradient(closest-side,
+                rgba(61,123,168,.40) 0%, rgba(61,123,168,.36) 76%, rgba(61,123,168,0) 100%);
+        }
+        body.theme-liquid-glass.dark-mode .lg-blob-5 {
+            background: radial-gradient(closest-side,
+                rgba(53,112,143,.34) 0%, rgba(53,112,143,.30) 74%, rgba(53,112,143,0) 100%);
+        }
+        body.theme-liquid-glass.dark-mode .lg-blob-6 {
+            background: radial-gradient(closest-side,
+                rgba(45,106,140,.32) 0%, rgba(45,106,140,.28) 74%, rgba(45,106,140,0) 100%);
+        }
         body.theme-liquid-glass.dark-mode .message-left {
             background: rgba(45, 58, 78, .80);
             box-shadow: 0 6px 18px -8px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .10);
