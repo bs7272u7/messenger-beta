@@ -827,6 +827,7 @@
         const LG_MAX_SIDE = 1600;             // 극단적인 비율만 차단하는 보조 상한
         const LG_SUBTLE = { scale: -60, chroma: 4 };
         const LG_DEFAULT = { scale: -112, chroma: 6 };
+        const LG_MAX_INSTANCES = 8;           // 동시에 살아 있는 굴절 레이어 상한
         const LG_TARGETS = [
             { selector: ".chat-header", options: LG_SUBTLE },
             { selector: ".input-area", options: LG_SUBTLE },
@@ -835,6 +836,20 @@
             { selector: "#attach-menu", options: LG_DEFAULT },
             { selector: "#message-menu", options: LG_DEFAULT },
             { selector: "#mobile-chat-actions-sheet", options: LG_DEFAULT },
+            // 모달은 오버레이의 display가 바뀌므로 유리는 안쪽 상자에 건다.
+            { selector: ".modal-overlay .modal", options: LG_DEFAULT },
+            { selector: ".modal-overlay .settings-modal", options: LG_DEFAULT },
+            { selector: ".modal-overlay .chat-theme-modal", options: LG_DEFAULT },
+            { selector: ".modal-overlay .friend-inbox-modal", options: LG_DEFAULT },
+        ];
+        // 표시 상태가 바뀌는 요소들. 이들의 변화를 보고 대상 목록을 다시 계산한다.
+        const LG_WATCH_SELECTORS = [
+            ".modal-overlay",
+            "#settings-menu",
+            "#attach-menu",
+            "#message-menu",
+            "#friend-panel",
+            "#mobile-chat-actions-sheet",
         ];
         const lgInstances = new Map();
         let lgObserver = null;
@@ -854,6 +869,7 @@
 
         function lgAttach(element, options) {
             if (!element || lgInstances.has(element)) return;
+            if (lgInstances.size >= LG_MAX_INSTANCES) return;
             const width = element.offsetWidth;
             const height = element.offsetHeight;
             if (!width || !height) return;
@@ -902,7 +918,7 @@
             if (lgObserver) return;
             // 메뉴와 시트는 열릴 때 비로소 크기가 생기므로 표시 상태 변화를 지켜본다.
             lgObserver = new MutationObserver(() => lgScheduleSync(60));
-            LG_TARGETS.forEach(({ selector }) => {
+            LG_WATCH_SELECTORS.forEach(selector => {
                 document.querySelectorAll(selector).forEach(element => {
                     lgObserver.observe(element, {
                         attributes: true,
