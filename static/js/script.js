@@ -852,6 +852,20 @@
             ".modal-overlay", "#settings-menu", "#attach-menu",
             "#message-menu", "#friend-panel", "#mobile-chat-actions-sheet",
         ];
+        // backdrop-filter는 position:fixed 자손의 컨테이닝 블록을 만든다.
+        // 유리 패널 안에 있는 고정 팝오버는 뷰포트가 아니라 패널 기준으로 배치돼
+        // 화면 밖으로 밀리거나 패널의 overflow에 잘린다. body 직속으로 옮겨 좌표를 되찾는다.
+        const LG_REPARENT = ["#message-menu", "#attach-menu", "#friend-panel", "#mobile-chat-actions-sheet"];
+
+        function lgReparentFixedPopovers() {
+            LG_REPARENT.forEach(selector => {
+                const element = document.querySelector(selector);
+                if (element && element.parentElement !== document.body) {
+                    document.body.appendChild(element);
+                }
+            });
+        }
+
         const lgInstances = new Map();
         let lgObserver = null;
         let lgTimer = null;
@@ -990,6 +1004,7 @@
         }
         syncOfficeModeLabel();
         applyOfficeComfortSettings();
+        lgReparentFixedPopovers();
         applyAppTheme();
         lgWatch();
         syncLanguageSetting();
