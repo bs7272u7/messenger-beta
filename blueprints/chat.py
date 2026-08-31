@@ -1,4 +1,4 @@
-"""대화방과 메시지 API의 URL 등록을 담당하는 Blueprint."""
+"""대화방·메시지 API의 URL과 기존 핸들러 이름을 한곳에서 연결합니다."""
 
 from collections.abc import Callable
 from typing import Any
@@ -45,7 +45,10 @@ CHAT_ROUTES = (
 
 
 def create_chat_blueprint(handlers: dict[str, Callable[..., Any]]) -> Blueprint:
-    """기존 URL·endpoint 이름을 보존한 채 채팅 API를 한 Blueprint에 등록한다."""
+    """기존 URL·endpoint 이름을 보존한 채 채팅 API를 Blueprint에 등록합니다.
+
+    실제 처리 함수는 app.py에서 주입하므로, 라우팅 이동 중에도 공개 API가 바뀌지 않습니다.
+    """
     chat_bp = Blueprint("chat", __name__)
     for rule, methods, endpoint in CHAT_ROUTES:
         chat_bp.add_url_rule(rule, endpoint=endpoint, view_func=handlers[endpoint], methods=methods)

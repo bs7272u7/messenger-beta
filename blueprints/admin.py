@@ -1,4 +1,4 @@
-"""관리자 페이지와 운영 API의 URL 등록 Blueprint."""
+"""관리자 페이지와 운영 API의 URL을 기존 핸들러에 연결합니다."""
 
 from collections.abc import Callable
 from typing import Any
@@ -30,6 +30,7 @@ ADMIN_ROUTES = (
 
 
 def create_admin_blueprint(handlers: dict[str, Callable[..., Any]]) -> Blueprint:
+    """관리자 API의 URL·메서드·핸들러 대응표를 한 번에 등록합니다."""
     admin_bp = Blueprint("admin", __name__)
     for rule, methods, endpoint in ADMIN_ROUTES:
         admin_bp.add_url_rule(

@@ -1,4 +1,4 @@
-"""프로필·계정 설정 API Blueprint."""
+"""프로필·표시 이름·언어 등 계정 화면 설정 API를 제공합니다."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ def create_profile_blueprint(
     profile_update_recipient_ids,
     profile_updated_notifier,
 ) -> Blueprint:
+    """DB 연결과 프로필 변경 알림 함수를 주입해 계정 라우트를 만듭니다."""
     profile_bp = Blueprint("profile", __name__)
 
     @profile_bp.route("/api/account/language", methods=["PATCH"])
@@ -47,6 +48,7 @@ def create_profile_blueprint(
     @profile_bp.route("/api/account/display-name", methods=["PATCH"])
     @api_login_required
     def update_display_name():
+        """빈 표시 이름을 막고, 대화 상대에게 변경 사실을 알립니다."""
         user_id = session["user_id"]
         data = request.get_json() or {}
         display_name = (data.get("display_name") or "").strip()
@@ -69,6 +71,7 @@ def create_profile_blueprint(
     @profile_bp.route("/api/account/profile", methods=["GET", "PATCH"])
     @api_login_required
     def account_profile():
+        """GET은 현재 프로필을 반환하고 PATCH는 소개·공개 범위만 갱신합니다."""
         user_id = session["user_id"]
 
         if request.method == "GET":
@@ -100,6 +103,7 @@ def create_profile_blueprint(
             )
 
         with connection_factory() as conn:
+            # PATCH에 공개 범위가 없으면 기존 설정을 유지합니다.
             if visibility is None:
                 current = conn.execute(
                     "SELECT profile_visibility FROM users WHERE id = %s",

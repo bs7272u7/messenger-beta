@@ -1,4 +1,4 @@
-"""친구 요청의 상태 전이와 1:1 대화방 생성을 관리한다."""
+"""친구 요청·친구 관계·차단과 1:1 대화방 복원을 관리합니다."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 
 class FriendServiceError(Exception):
+    """친구 기능의 예상 가능한 검증 오류와 HTTP 상태를 함께 전달합니다."""
     def __init__(self, message: str, status_code: int = 400) -> None:
         super().__init__(message)
         self.status_code = status_code
@@ -13,11 +14,13 @@ class FriendServiceError(Exception):
 
 @dataclass(frozen=True)
 class FriendRequestOutcome:
+    """친구 요청 뒤 실시간 알림을 보낼 대상과 자동 수락 여부입니다."""
     notify_user_id: int
     auto_accepted: bool = False
 
 
 class FriendService:
+    """친구 관계 상태를 채팅방 표시 상태와 분리해 관리합니다."""
     def __init__(self, connection_factory, now_string, blocked_either_way, accept_request) -> None:
         self._connection_factory = connection_factory
         self._now_string = now_string
@@ -25,6 +28,7 @@ class FriendService:
         self._accept_request = accept_request
 
     def send_request(self, requester_id: int, requester_username: str, target_username: str):
+        """역방향 보류 요청은 자동 수락하고, 나머지는 새 요청으로 저장합니다."""
         if not target_username:
             raise FriendServiceError("아이디를 입력해주세요.")
         if target_username == requester_username:
@@ -79,6 +83,7 @@ class FriendService:
         return FriendRequestOutcome(target_id)
 
     def respond(self, request_id: int, user_id: int, accepted: bool) -> int:
+        """수신자만 보류 중인 요청을 수락 또는 거절할 수 있게 합니다."""
         with self._connection_factory() as conn:
             request_row = conn.execute(
                 "SELECT * FROM friend_requests WHERE id = %s AND addressee_id = %s AND status = 'pending'",
@@ -96,6 +101,7 @@ class FriendService:
         return request_row["requester_id"]
 
     def cancel(self, request_id: int, user_id: int) -> int:
+        """요청자 본인만 아직 보류 중인 요청을 취소할 수 있게 합니다."""
         with self._connection_factory() as conn:
             request_row = conn.execute(
                 "SELECT id, addressee_id FROM friend_requests WHERE id = %s AND requester_id = %s AND status = 'pending'",
@@ -202,6 +208,7 @@ class FriendService:
         return conversation["id"]
 
     def list_blocks(self, user_id: int) -> list[dict]:
+        """현재 사용자가 직접 차단한 사용자만 최신순으로 반환합니다."""
         with self._connection_factory() as conn:
             rows = conn.execute(
                 "SELECT users.id, users.display_name, users.username FROM blocks JOIN users ON users.id = blocks.blocked_id WHERE blocks.blocker_id = %s ORDER BY blocks.created_at DESC",
@@ -210,6 +217,7 @@ class FriendService:
         return [dict(row) for row in rows]
 
     def block(self, user_id: int, target_id: int | None) -> int:
+        """자기 자신·없는 사용자·중복 차단을 안전하게 처리합니다."""
         if not target_id:
             raise FriendServiceError("차단할 대상을 지정해주세요.", 400)
         if target_id == user_id:
@@ -229,6 +237,7 @@ class FriendService:
         return target_id
 
     def unblock(self, user_id: int, target_id: int) -> None:
+        """현재 사용자가 만든 차단 관계만 해제합니다."""
         with self._connection_factory() as conn:
             conn.execute(
                 "DELETE FROM blocks WHERE blocker_id = %s AND blocked_id = %s",

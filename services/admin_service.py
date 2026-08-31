@@ -2,10 +2,12 @@
 
 
 class AdminServiceError(Exception):
-    pass
+    """관리자 입력값이 정책을 만족하지 않을 때 반환하는 예상 가능한 오류입니다."""
 
 
 class AdminService:
+    """관리자 API가 공통으로 쓰는 입력 정규화·길이 제한 규칙입니다."""
+
     MODERATION_ACTIONS = {"warning", "24h", "7d", "permanent", "lift"}
 
     @staticmethod
@@ -23,6 +25,7 @@ class AdminService:
 
     @classmethod
     def moderation_request(cls, action, report_id, reason) -> tuple[str, int | None, str]:
+        """신고 처리 요청을 DB 저장 전 안전한 값으로 정리합니다."""
         if action not in cls.MODERATION_ACTIONS:
             raise AdminServiceError("지원하지 않는 처리 방식입니다.")
         try:
@@ -36,6 +39,7 @@ class AdminService:
 
     @staticmethod
     def notice_content(title, content) -> tuple[str, str]:
+        """빈 공지나 지나치게 큰 공지가 저장되지 않도록 검사합니다."""
         title = (title or "").strip()
         content = (content or "").strip()
         if not title or not content:

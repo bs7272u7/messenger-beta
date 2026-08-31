@@ -1,15 +1,17 @@
-"""메시지 도메인에서 재사용하는 안전한 데이터 변환 서비스."""
+"""메시지 수정·삭제·반응·신고처럼 권한 확인이 필요한 상태 변경을 관리합니다."""
 
 import json
 
 
 class MessageServiceError(Exception):
+    """API 응답으로 변환할 수 있는 메시지 도메인 오류입니다."""
     def __init__(self, message: str, status_code: int = 400) -> None:
         super().__init__(message)
         self.status_code = status_code
 
 
 class MessageService:
+    """메시지와 대화방 멤버십을 함께 확인해 다른 방의 데이터를 보호합니다."""
     REPORT_REASONS = {"스팸", "욕설·괴롭힘", "부적절한 콘텐츠", "사칭", "기타"}
 
     def __init__(
@@ -28,6 +30,7 @@ class MessageService:
 
     @staticmethod
     def decode_json(value, fallback):
+        """과거 데이터의 비정상 JSON이 화면 렌더링을 중단시키지 않게 합니다."""
         if not value:
             return fallback
         try:
@@ -68,6 +71,7 @@ class MessageService:
         return message["conversation_id"], reactions
 
     def toggle_pin(self, message_id: int, user_id: int) -> tuple[int, bool]:
+        """대화방 멤버만 메시지 고정 상태를 반전할 수 있게 합니다."""
         """대화방 멤버가 메시지를 고정하거나 기존 고정을 해제한다."""
         if self._connection_factory is None:
             raise RuntimeError("메시지 서비스에 데이터베이스 연결이 설정되지 않았습니다.")
@@ -95,6 +99,7 @@ class MessageService:
         return conversation_id, now_pinned
 
     def edit_message(self, message_id: int, user_id: int, text: str) -> int:
+        """작성자 본인의 텍스트 메시지만 수정하고 대화방 ID를 반환합니다."""
         """작성자만 메시지 본문을 수정하도록 처리한다."""
         if not text:
             raise MessageServiceError("메시지 내용을 입력해주세요.")
@@ -124,6 +129,7 @@ class MessageService:
         return message["conversation_id"]
 
     def delete_message(self, message_id: int, user_id: int) -> tuple[int, str | None]:
+        """작성자 본인의 메시지를 지우고, 후처리에 필요한 첨부 경로를 반환합니다."""
         """작성자만 메시지를 삭제하고, 후속 파일 정리에 필요한 경로를 돌려준다."""
         if self._connection_factory is None:
             raise RuntimeError("메시지 서비스에 데이터베이스 연결이 설정되지 않았습니다.")
@@ -146,6 +152,7 @@ class MessageService:
         return message["conversation_id"], message["image"]
 
     def report_message(self, message_id: int, reporter_id: int, reason: str, detail: str) -> None:
+        """대화방 멤버의 신고만 저장하고, 허용된 사유와 상세 길이를 검증합니다."""
         """대화방 멤버가 타인의 메시지를 한 번만 신고하도록 처리한다."""
         if reason not in self.REPORT_REASONS:
             raise MessageServiceError("신고 사유를 선택해주세요.")
@@ -175,6 +182,7 @@ class MessageService:
             conn.commit()
 
     def forward_message(self, message_id: int, user_id: int, target_conversation_id: int) -> int:
+        """원본·대상 대화방 모두의 멤버인지 확인한 뒤 전달 메시지를 만듭니다."""
         """접근 가능한 메시지를 참여 중인 대화방으로 복사한다."""
         if not target_conversation_id:
             raise MessageServiceError("전달할 채팅방을 선택해주세요.")

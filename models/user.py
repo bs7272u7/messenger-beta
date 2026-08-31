@@ -1,4 +1,4 @@
-"""기존 users 테이블 행을 Flask-Login 사용자 객체로 변환한다."""
+"""기존 ``users`` 테이블 행을 Flask-Login 사용자 객체로 변환합니다."""
 
 from __future__ import annotations
 
@@ -10,6 +10,10 @@ from flask_login import UserMixin
 
 @dataclass
 class User(UserMixin):
+    """세션 인증과 화면 표시에 필요한 사용자 데이터 묶음입니다.
+
+    DB 행 전체를 뷰에 넘기지 않고, 로그인에 필요한 값만 명시적으로 보관합니다.
+    """
     id: int
     username: str
     display_name: str | None
@@ -32,7 +36,7 @@ class User(UserMixin):
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> User:
-        """psycopg2 조회 결과를 사용자 객체로 바꾼다."""
+        """psycopg2 조회 결과를 안전한 기본값을 가진 사용자 객체로 바꿉니다."""
         return cls(
             id=row["id"],
             username=row["username"],

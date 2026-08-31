@@ -13,8 +13,10 @@ class PasswordPolicy:
 
     @classmethod
     def is_valid(cls, password: str) -> bool:
+        """회원가입·변경·재설정에서 같은 규칙을 적용합니다."""
         return bool(cls._pattern.fullmatch(password))
 
     @classmethod
     def error_message(cls) -> str:
+        """입력창과 API가 같은 안내 문구를 쓰도록 반환합니다."""
         return "비밀번호는 영어 소문자, 숫자, 특수문자를 모두 포함해 7자 이상이어야 합니다."

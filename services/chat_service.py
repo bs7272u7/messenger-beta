@@ -1,21 +1,24 @@
-"""대화방 멤버십과 읽음 상태를 관리하는 서비스."""
+"""대화방의 멤버십·읽음 위치·공용 설정을 한 트랜잭션으로 관리합니다."""
 
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class LeaveConversationResult:
+    """나가기 처리 뒤 호출자가 정리해야 할 대화방 상태입니다."""
     conversation_deleted: bool
     image_paths: list[str]
 
 
 class ChatServiceError(Exception):
+    """클라이언트에 안전하게 전달할 수 있는 대화방 도메인 오류입니다."""
     def __init__(self, message: str, status_code: int = 400) -> None:
         super().__init__(message)
         self.status_code = status_code
 
 
 class ChatService:
+    """채팅방 상태 변경 전에 멤버·방장·종료 여부를 검사합니다."""
     SUPPORTED_THEMES = {
         "default",
         "heart",
@@ -37,6 +40,7 @@ class ChatService:
         self._default_profile_image = default_profile_image
 
     def is_member(self, conversation_id: int, user_id: int) -> bool:
+        """후속 메시지·설정 API가 사용할 최소 멤버십 검사입니다."""
         with self._connection_factory() as conn:
             return (
                 conn.execute(
@@ -47,6 +51,7 @@ class ChatService:
             )
 
     def member_ids(self, conversation_id: int) -> list[int]:
+        """실시간 이벤트를 보낼 현재 대화방 참여자 ID를 반환합니다."""
         with self._connection_factory() as conn:
             rows = conn.execute(
                 "SELECT user_id FROM conversation_members WHERE conversation_id = %s",
@@ -262,11 +267,13 @@ class ChatService:
             conn.commit()
 
     def create_group(self, owner_id: int, name: str, usernames: list[str]) -> int:
+        """방장 포함 최소 3명의 새 그룹 채팅방을 생성합니다."""
         if not name:
             raise ChatServiceError("방 이름을 입력해주세요.")
         if self._now_string is None or self._default_profile_image is None:
             raise RuntimeError("그룹 채팅 생성에 필요한 서비스 설정이 없습니다.")
         with self._connection_factory() as conn:
+            # set을 사용해 같은 사용자를 여러 번 넣어도 멤버십이 중복되지 않게 합니다.
             member_ids = {owner_id}
             for username in usernames:
                 row = conn.execute(
@@ -291,6 +298,7 @@ class ChatService:
         return conversation_id
 
     def invite_members(self, conversation_id: int, actor_id: int, usernames: list[str]) -> None:
+        """활성 그룹에 아직 참여하지 않은 사용자만 초대합니다."""
         with self._connection_factory() as conn:
             if not conn.execute(
                 "SELECT 1 FROM conversation_members WHERE conversation_id = %s AND user_id = %s",
@@ -323,6 +331,7 @@ class ChatService:
             conn.commit()
 
     def remove_member(self, conversation_id: int, owner_id: int, member_user_id: int) -> None:
+        """방장이 다른 멤버만 내보내도록 검증한 뒤 멤버십을 제거합니다."""
         with self._connection_factory() as conn:
             if not conn.execute(
                 "SELECT 1 FROM conversation_members WHERE conversation_id = %s AND user_id = %s",

@@ -498,12 +498,12 @@
         .status-dot {
             position: absolute;
             /* 원 중심을 아바타 모서리에 맞춰 절반은 겹치고 절반은 밖에 보이게 한다. */
-            right: -6px;
-            bottom: -6px;
-            width: 12px;
-            height: 12px;
+            right: -9px;
+            bottom: -9px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
-            border: 2px solid var(--panel-bg);
+            border: 3px solid var(--panel-bg);
             box-sizing: border-box;
             box-shadow: none;
             transition: background-color 0.2s, opacity 0.2s;

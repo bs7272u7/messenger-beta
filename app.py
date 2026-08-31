@@ -1,61 +1,62 @@
 # Cloud Chatting 서버의 중심 파일입니다.
 # 기능을 추가할 때는 "입력 검증 → 권한 확인 → DB 저장 → 실시간 알림" 순서를 먼저 확인합니다.
 
-from functools import wraps
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, abort
-from flask_socketio import SocketIO, join_room
-import json
-import os
 import base64
-import uuid
-import re
-import random
-import time
-import secrets
 import hmac
 import io
-import traceback
-from threading import Lock
-from collections import Counter, deque
-import resend
 import ipaddress
+import json
+import os
+import random
+import re
+import secrets
 import socket
+import time
+import traceback
+import uuid
+from collections import Counter, deque
+from datetime import UTC, datetime, timedelta, timezone
+from functools import wraps
 from html.parser import HTMLParser
-from html import escape
+from threading import Lock
 from urllib.parse import urljoin, urlparse
-import requests
+
 import cloudinary
 import cloudinary.uploader
-from datetime import datetime, timedelta, timezone
-from werkzeug.security import generate_password_hash, check_password_hash
-from PIL import Image, UnidentifiedImageError
-from dotenv import load_dotenv
-from extensions import init_extensions, login_manager
-from models.user import User
-from flask_login import current_user, login_user, logout_user
-from repositories.user_repository import UserRepository
-from services.auth_service import AuthService
-from services.password_policy import PasswordPolicy
-from services.registration_service import RegistrationService
-from services.friend_service import FriendService
-from services.chat_service import ChatService, ChatServiceError
-from services.message_service import MessageService, MessageServiceError
-from services.admin_service import AdminService, AdminServiceError
-from blueprints.auth import create_auth_blueprint
-from blueprints.profile import create_profile_blueprint
-from blueprints.support import create_support_blueprint
-from blueprints.friends import create_friends_blueprint
-from blueprints.chat import CHAT_ROUTES, create_chat_blueprint
-from blueprints.admin import ADMIN_ROUTES, create_admin_blueprint
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
-from chess_engine import ChessBoard, STARTING_FEN
+import requests
+import resend
+from dotenv import load_dotenv
+from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
+from flask_login import current_user, logout_user
+from flask_socketio import SocketIO, join_room
+from PIL import Image, UnidentifiedImageError
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from blueprints.admin import ADMIN_ROUTES, create_admin_blueprint
+from blueprints.auth import create_auth_blueprint
+from blueprints.chat import CHAT_ROUTES, create_chat_blueprint
+from blueprints.friends import create_friends_blueprint
+from blueprints.profile import create_profile_blueprint
+from blueprints.support import create_support_blueprint
+from chess_engine import STARTING_FEN, ChessBoard
 from chess_engine.board import opponent
 from config import AppConfig
+from extensions import init_extensions, login_manager
+from models.user import User
+from repositories.user_repository import UserRepository
+from services.admin_service import AdminService, AdminServiceError
+from services.auth_service import AuthService
+from services.chat_service import ChatService, ChatServiceError
+from services.friend_service import FriendService
+from services.message_service import MessageService, MessageServiceError
+from services.password_policy import PasswordPolicy
+from services.registration_service import RegistrationService
 
 try:
-    from pywebpush import webpush, WebPushException
+    from pywebpush import WebPushException, webpush
 except ImportError:
     webpush = None
     WebPushException = Exception
@@ -784,7 +785,7 @@ def current_message_timestamp_ms():
 
 def legacy_message_labels(sent_at_ms):
     """기존 time/date 컬럼 호환용 표기는 한국 시간으로만 유지하고, 화면 표시는 브라우저가 맡는다."""
-    moment = datetime.fromtimestamp(sent_at_ms / 1000, timezone.utc).astimezone(KST)
+    moment = datetime.fromtimestamp(sent_at_ms / 1000, UTC).astimezone(KST)
     hour = moment.hour % 12 or 12
     return (
         f"{'오후' if moment.hour >= 12 else '오전'} {hour}:{moment.minute:02d}",
@@ -4365,9 +4366,9 @@ def refresh_chess_clock(conn, game):
     if remaining == 0:
         winner = "b" if key == "white_remaining_ms" else "w"
         result = {"status": "timeout", "winner": winner}
+        # key는 위에서 선택한 두 컬럼 중 하나이므로 SQL 식별자로 직접 넣어도 안전합니다.
         conn.execute(
-            "UPDATE chess_games SET %s = %%s, status = 'finished', result = %%s, updated_at = %%s WHERE id = %%s"
-            % key,
+            f"UPDATE chess_games SET {key} = %s, status = 'finished', result = %s, updated_at = %s WHERE id = %s",
             (0, json.dumps(result), now_str(), game["id"]),
         )
         emit_safe(
@@ -4377,8 +4378,7 @@ def refresh_chess_clock(conn, game):
         )
     else:
         conn.execute(
-            "UPDATE chess_games SET %s = %%s, turn_started_ms = %%s, updated_at = %%s WHERE id = %%s"
-            % key,
+            f"UPDATE chess_games SET {key} = %s, turn_started_ms = %s, updated_at = %s WHERE id = %s",
             (remaining, now, now_str(), game["id"]),
         )
     return conn.execute("SELECT * FROM chess_games WHERE id = %s", (game["id"],)).fetchone()

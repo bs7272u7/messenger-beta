@@ -1,4 +1,4 @@
-"""인증 API Blueprint."""
+"""로그인·로그아웃·회원가입 API를 세션 처리와 함께 제공합니다."""
 
 from __future__ import annotations
 
@@ -27,11 +27,13 @@ def create_auth_blueprint(
     register_rate_limit,
     register_user_loader: Callable[[str], Any | None],
 ) -> Blueprint:
+    """인증 서비스와 보안 보조 함수를 주입해 인증 라우트를 만듭니다."""
     auth_bp = Blueprint("auth", __name__)
 
     @auth_bp.route("/api/login", methods=["POST"])
     @login_rate_limit
     def login():
+        """자격 증명을 검증하고, 정지 상태를 확인한 뒤 새 로그인 세션을 만듭니다."""
         data = request.get_json() or {}
         identifier = (data.get("identifier") or "").strip()
         password = data.get("password") or ""
@@ -80,6 +82,7 @@ def create_auth_blueprint(
                 403,
             )
 
+        # 이전 계정의 세션 키가 남지 않도록 로그인 성공 직전에 모두 비웁니다.
         session.clear()
         session["user_id"] = user["id"]
         session["username"] = user["username"]
@@ -116,6 +119,7 @@ def create_auth_blueprint(
     @auth_bp.route("/api/logout", methods=["POST"])
     @api_login_required
     def logout():
+        """Flask-Login과 Flask 세션을 함께 종료합니다."""
         logout_user()
         session.clear()
         return jsonify({"success": True})
@@ -123,6 +127,7 @@ def create_auth_blueprint(
     @auth_bp.route("/api/register", methods=["POST"])
     @register_rate_limit
     def register():
+        """입력 규칙·이메일 인증 코드를 확인한 뒤 가입과 자동 로그인을 처리합니다."""
         data = request.get_json() or {}
         password = data.get("password") or ""
         password_confirmation = (
@@ -164,6 +169,7 @@ def create_auth_blueprint(
         except RegistrationError as error:
             return jsonify({"success": False, "error": str(error)})
 
+        # 새 계정의 세션에 기존 사용자 정보가 섞이지 않게 초기화합니다.
         session.clear()
         session["user_id"] = registered_user.id
         session["username"] = registered_user.username

@@ -1,4 +1,4 @@
-"""고객 문의 API Blueprint."""
+"""문의 등록·이력 조회·수정·삭제와 첨부파일 후처리를 담당합니다."""
 
 import base64
 import re
@@ -26,12 +26,14 @@ def create_support_blueprint(
     logger,
     support_rate_limit,
 ) -> Blueprint:
+    """파일 저장·이메일 발송처럼 환경별 구현이 다른 함수를 주입해 만듭니다."""
     support_bp = Blueprint("support", __name__)
 
     @support_bp.route("/api/support-inquiries", methods=["POST"])
     @api_login_required
     @support_rate_limit
     def send_support_inquiry():
+        """일일 제한·첨부 조건을 확인한 뒤 문의를 저장하고 관리자에게 알립니다."""
         message = (request.form.get("message") or "").strip()
         if not 10 <= len(message) <= 3000:
             return (
@@ -65,6 +67,7 @@ def create_support_blueprint(
         attachment = request.files.get("attachment")
         attachment_data = attachment_url = attachment_name = None
         if attachment and attachment.filename:
+            # 확장자와 크기를 먼저 제한해 메일·저장소에 불필요한 파일이 가지 않게 합니다.
             extension = (
                 attachment.filename.rsplit(".", 1)[-1].lower() if "." in attachment.filename else ""
             )
@@ -103,6 +106,7 @@ def create_support_blueprint(
             return jsonify({"success": False, "error": "로그인 정보를 확인할 수 없습니다."}), 401
 
         if support_email:
+            # 이메일 발송 실패가 문의 자체의 유실로 이어지지 않게 저장 처리는 계속합니다.
             display_name = user["display_name"] or user["username"]
             params = {
                 "from": sender_getter(),
@@ -138,6 +142,7 @@ def create_support_blueprint(
     @support_bp.route("/api/support-inquiries/history", methods=["GET"])
     @api_login_required
     def get_my_support_inquiries():
+        """로그인한 사용자의 문의 이력만 최신순으로 반환합니다."""
         with connection_factory() as conn:
             rows = conn.execute(
                 """SELECT id, message, attachment_name, attachment_url, status, admin_reply, created_at, answered_at
@@ -149,6 +154,7 @@ def create_support_blueprint(
     @support_bp.route("/api/support-inquiries/<int:inquiry_id>", methods=["PATCH", "DELETE"])
     @api_login_required
     def update_or_delete_my_support_inquiry(inquiry_id):
+        """본인 문의만 수정·삭제하며, 삭제된 첨부파일은 DB 처리 후 정리합니다."""
         user_id = session["user_id"]
         with connection_factory() as conn:
             inquiry = conn.execute(

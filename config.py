@@ -23,7 +23,7 @@ class AppConfig:
     admin_email: str | None
 
     @classmethod
-    def from_env(cls, root_path: str) -> "AppConfig":
+    def from_env(cls, root_path: str) -> AppConfig:
         """기본값은 로컬 개발에 안전하도록 두고, 운영값은 환경 변수를 우선한다."""
         is_render = bool(os.environ.get("RENDER_EXTERNAL_URL"))
         return cls(

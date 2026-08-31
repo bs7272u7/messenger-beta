@@ -1,9 +1,9 @@
 """외부 체스 라이브러리 없이 FEN·SAN·합법 수를 처리하는 순수 체스 엔진."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections import Counter
-from typing import Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 FILES = "abcdefgh"
 RANKS = "12345678"
@@ -83,10 +83,10 @@ class ChessBoard:
         self.fullmove_number = int(fields[5])
 
     @classmethod
-    def from_fen(cls, fen: str) -> "ChessBoard":
+    def from_fen(cls, fen: str) -> ChessBoard:
         return cls(fen)
 
-    def clone(self) -> "ChessBoard":
+    def clone(self) -> ChessBoard:
         duplicate = ChessBoard(self.fen())
         duplicate.position_counts = self.position_counts.copy()
         duplicate.san_history = self.san_history.copy()
@@ -269,15 +269,19 @@ class ChessBoard:
         return matches[0]
 
     def _update_castling_rights(self, move: ChessMove, moving_piece: str, captured_piece: str | None) -> None:
+        """왕·룩이 움직이거나 룩이 잡히면 해당 캐슬링 권한만 제거합니다."""
         rights = set(self.castling)
-        if moving_piece == "K": rights -= {"K", "Q"}
-        if moving_piece == "k": rights -= {"k", "q"}
+        if moving_piece == "K":
+            rights -= {"K", "Q"}
+        if moving_piece == "k":
+            rights -= {"k", "q"}
         for square, right in (("h1", "K"), ("a1", "Q"), ("h8", "k"), ("a8", "q")):
             if move.from_sq == square or (move.to_sq == square and captured_piece):
                 rights.discard(right)
         self.castling = "".join(ch for ch in "KQkq" if ch in rights)
 
     def _apply_unchecked(self, move: ChessMove) -> None:
+        """합법성 검사를 이미 마친 수를 적용하고 FEN 상태를 함께 갱신합니다."""
         moving_piece = self.piece_at(move.from_sq)
         captured_piece = self.piece_at(move.to_sq)
         if not moving_piece:
@@ -344,6 +348,7 @@ class ChessBoard:
         return self.push(self.find_move(from_sq, to_sq, promotion))
 
     def is_insufficient_material(self) -> bool:
+        """킹만 남았거나 승격 없이는 메이트가 불가능한 최소 기물인지 판단합니다."""
         pieces = []
         bishops = []
         for row in range(8):
@@ -351,7 +356,8 @@ class ChessBoard:
                 piece = self.board[row][col]
                 if piece and piece.lower() != "k":
                     pieces.append(piece.lower())
-                    if piece.lower() == "b": bishops.append((row + col) % 2)
+                    if piece.lower() == "b":
+                        bishops.append((row + col) % 2)
         if not pieces:
             return True
         if len(pieces) == 1 and pieces[0] in {"b", "n"}:

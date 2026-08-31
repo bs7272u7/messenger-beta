@@ -13,6 +13,8 @@ class RegistrationError(Exception):
 
 @dataclass(frozen=True)
 class RegisteredUser:
+    """회원가입 직후 세션에 넣을 수 있는 최소 사용자 정보입니다."""
+
     id: int
     username: str
     display_name: str
@@ -22,6 +24,8 @@ class RegisteredUser:
 
 
 class RegistrationService:
+    """이메일 인증 확인부터 사용자 생성까지 한 트랜잭션으로 처리합니다."""
+
     def __init__(
         self,
         connection_factory,
@@ -44,6 +48,7 @@ class RegistrationService:
         language: str,
         code: str,
     ) -> RegisteredUser:
+        """검증된 이메일 코드로 계정을 만들고, 사용한 코드는 즉시 폐기합니다."""
         with self._connection_factory() as conn:
             verification = conn.execute(
                 "SELECT * FROM email_verification_codes WHERE email = %s AND code = %s",
@@ -58,7 +63,9 @@ class RegistrationService:
             if conn.execute("SELECT id FROM users WHERE username = %s", (username,)).fetchone():
                 raise RegistrationError("이미 사용 중인 아이디입니다.")
 
+            # 표시 이름이 비어 있으면 아이디를 그대로 사용해 화면 값이 비지 않게 합니다.
             resolved_name = display_name or username
+            created_at = self._now_string_getter()
             row = conn.execute(
                 """
                 INSERT INTO users (username, password_hash, display_name, profile_image, email, is_admin, language, created_at)
@@ -72,9 +79,10 @@ class RegistrationService:
                     email,
                     bool(self._admin_email and email == self._admin_email),
                     language,
-                    self._now_string_getter(),
+                    created_at,
                 ),
             ).fetchone()
+            # 인증 코드는 한 번만 쓰게 해 재사용 가입을 막습니다.
             conn.execute("DELETE FROM email_verification_codes WHERE email = %s", (email,))
             conn.commit()
 
