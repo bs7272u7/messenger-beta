@@ -3887,11 +3887,14 @@
            ========================================================== */
         .lg-backdrop { display: none; }
 
+        /* 배경을 뒤로 내려 두면 본문 쪽에 position을 줄 필요가 없다.
+           .container에 position:relative를 주면 그 안의 절대 위치 요소
+           (버전 표시 등)의 기준이 바뀌어 테마를 바꿀 때 위치가 달라진다. */
         body.theme-liquid-glass .lg-backdrop {
             display: block;
             position: fixed;
             inset: 0;
-            z-index: 0;
+            z-index: -1;
             overflow: hidden;
             pointer-events: none;
         }
@@ -3958,15 +3961,9 @@
             background-attachment: fixed;
         }
 
-        /* 패널은 배경 덩어리 위에 떠 있어야 하므로 z-index를 올린다. */
-        body.theme-liquid-glass .container,
-        body.theme-liquid-glass #desktop-chat-info { position: relative; z-index: 1; }
-
         body.theme-liquid-glass .friend-list,
         body.theme-liquid-glass .chat,
         body.theme-liquid-glass #desktop-chat-info,
-        body.theme-liquid-glass .chat-header,
-        body.theme-liquid-glass .input-area,
         body.theme-liquid-glass .message-menu,
         body.theme-liquid-glass .attach-menu,
         body.theme-liquid-glass #friend-panel,
@@ -4010,6 +4007,18 @@
                 -webkit-backdrop-filter: blur(14px) saturate(190%);
                         backdrop-filter: blur(14px) saturate(190%);
             }
+        }
+
+        /* 헤더와 입력창은 원래 한쪽에만 테두리가 있다. 사방에 1px을 두르면
+           높이가 커져서 테마를 바꿀 때 화면이 1~2px씩 밀린다.
+           원래 테두리 구조를 그대로 두고 색만 유리에 맞춘다. */
+        body.theme-liquid-glass .chat-header {
+            border-bottom-color: var(--lg-hairline);
+            box-shadow: var(--lg-inner);
+        }
+        body.theme-liquid-glass .input-area {
+            border-top-color: var(--lg-hairline);
+            box-shadow: var(--lg-inner);
         }
 
         /* 흐림이 없는 큰 패널은 틴트를 조금 더 올려 글자가 배경에 묻히지 않게 한다. */
