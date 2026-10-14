@@ -52,7 +52,8 @@
             color: var(--text-primary);
             font-family: 'Noto Sans KR', -apple-system, sans-serif;
             letter-spacing: -0.2px;
-            overflow: hidden;
+            /* 회원가입 폼이 화면보다 길어질 수 있으므로 세로 스크롤은 막지 않는다. */
+            overflow-x: hidden;
             position: relative;
         }
 
