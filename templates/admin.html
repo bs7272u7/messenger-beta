@@ -9,6 +9,10 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon-16x16.png', v='20260814') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
+        /*
+         * 색상·모서리 토큰. 일반 사용자 화면과 같은 연하늘 계열이며, 위험(--danger*)·성공(--success*) 색을 따로 둔다.
+         * 관리자 화면은 밝은 테마로 고정한다(color-scheme: light).
+         */
         :root {
             color-scheme: light;
             --bg: #f7fbff;
@@ -45,9 +49,10 @@
             line-height: 1.55;
         }
         ::selection { background: var(--accent-soft); }
+        /* 페이지 전체 폭(최대 1240px) 래퍼. */
         .admin-shell { width: min(1240px, calc(100% - 40px)); margin: 0 auto; padding: 26px 0 64px; }
 
-        /* 헤더 */
+        /* 상단 헤더: 제목 영역 + 보안 세션 상태·메신저로 돌아가기 링크. */
         .admin-header {
             display: flex; align-items: center; justify-content: space-between; gap: 18px;
             margin-bottom: 16px; padding: 18px 22px; border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -65,12 +70,14 @@
         }
         .back-link:hover { background: var(--item-hover); }
         .admin-actions { display: grid; justify-items: end; gap: 9px; }
+        /* 관리자 세션이 활성화되어 있음을 보여 주는 초록 점 배지. */
         .console-status {
             display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid var(--success-border);
             border-radius: 999px; background: var(--success-bg); color: var(--success); font-size: 11.5px; font-weight: 700;
         }
         .console-status i { color: var(--success); font-size: 8px; }
 
+        /* 접근 권한 안내 상자(서버가 권한을 확인한다는 설명). */
         .notice {
             display: flex; gap: 11px; align-items: center; padding: 12px 16px; margin-bottom: 18px;
             border: 1px solid #cfdff9; border-radius: var(--radius-md); background: var(--accent-soft); color: #16407e;
@@ -78,7 +85,7 @@
         .notice i { color: var(--accent-strong); font-size: 13px; }
         .notice p { margin: 0; font-size: 13px; line-height: 1.5; }
 
-        /* 개요 카드 */
+        /* 요약 카드 3개(답변 대기 문의 / 대기 중 신고 / 현재 접속자)를 3열로 배치한다. */
         .dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-bottom: 20px; }
         .card {
             padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md);
@@ -91,6 +98,7 @@
             display: grid; width: 36px; height: 36px; place-items: center; border-radius: 9px;
             background: var(--accent-soft); color: var(--accent-strong); font-size: 15px;
         }
+        /* 카드의 숫자 배지. data-zero="1"(0건)이면 회색, 아니면 강조색으로 보여 처리할 일이 있는지 한눈에 알 수 있다. */
         .card-badge {
             display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px;
             padding: 0 7px; border-radius: 999px; background: var(--danger-bg); color: var(--danger);
@@ -100,7 +108,7 @@
         .card h2 { margin: 2px 0 0; font-size: 15.5px; letter-spacing: -.01em; color: var(--text); }
         .card p { margin: 0; color: var(--text-mute); font-size: 12.5px; line-height: 1.5; }
 
-        /* 탭 */
+        /* 기능별 탭 줄(공지·문의·신고·사용자·리뷰·운영 현황). 선택한 탭은 .active로 표시한다. */
         .admin-tabs {
             display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 5px;
             border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel);
@@ -113,6 +121,7 @@
         }
         .admin-tab:hover { background: var(--item-hover); color: var(--text-dim); }
         .admin-tab.active { background: var(--accent); color: #fff; }
+        /* 탭 이름 옆의 미처리 건수 배지. 비활성 탭에서 처리할 건이 있으면 빨간색으로 눈에 띄게 하고, 0건이면 숨긴다. */
         .admin-tab .tab-badge {
             display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px;
             border-radius: 999px; background: rgba(255, 255, 255, .28); font-size: 11px; font-weight: 800;
@@ -123,8 +132,8 @@
 
         .admin-tabpanel[hidden] { display: none; }
 
-        /* 패널 */
         .admin-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+        /* 탭 안의 내용 패널(입력 폼 또는 목록). */
         .admin-panel {
             padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel);
             box-shadow: 0 1px 2px rgba(20, 24, 34, .04);
@@ -134,6 +143,7 @@
         .admin-panel-hint { margin: -7px 0 13px; color: var(--text-mute); font-size: 12.5px; line-height: 1.5; }
         .admin-panel-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 13px; }
         .admin-panel-heading-row h2 { margin: 0; }
+        /* 작은 보조 버튼(새로고침, 이전/다음 페이지). */
         .admin-refresh-btn {
             padding: 6px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim);
             background: var(--panel-2); font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s;
@@ -151,6 +161,7 @@
         .admin-panel input:focus, .admin-panel textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
         .admin-panel textarea { min-height: 130px; resize: vertical; }
         .admin-panel label:has(input[type="checkbox"]) { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-mute); }
+        /* 주 실행 버튼(공지 등록 등). */
         .admin-action {
             margin-top: 15px; padding: 11px 16px; border: 0; border-radius: var(--radius-sm); color: #fff; font: inherit;
             font-weight: 800; font-size: 14px; cursor: pointer; background: var(--accent);
@@ -161,15 +172,17 @@
 
         .admin-search-row { margin-bottom: 12px; }
 
+        /* 전체 가입자 목록의 페이지 이동 줄. */
         .admin-pager {
             display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px;
         }
         .admin-pager-info { color: var(--text-mute); font-size: 12.5px; font-weight: 600; }
 
-        /* 목록 카드 */
+        /* 목록 컨테이너: 항목이 많아도 560px 안에서 스크롤된다. */
         .admin-list { display: grid; gap: 9px; max-height: 560px; overflow-y: auto; padding-right: 2px; }
         .admin-list::-webkit-scrollbar { width: 8px; }
         .admin-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+        /* 목록의 한 항목(문의·신고·사용자 등). 내부 버튼은 .admin-item-actions에 모은다. */
         .admin-item {
             padding: 13px 15px; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--item);
             transition: border-color .15s, background .15s;
@@ -188,6 +201,7 @@
         .admin-item-actions button.danger:hover { background: #fbdada; }
         .admin-list > p { color: var(--text-mute); font-size: 13.5px; padding: 8px 2px; }
 
+        /* '전체 선택 + 선택 삭제' 줄(문의·리뷰 목록 상단). */
         .admin-bulk-actions {
             display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px;
             border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--panel-2); margin-bottom: 2px;
@@ -201,10 +215,12 @@
         .admin-item-avatar { padding-left: 58px; min-height: 46px; }
         .admin-item-avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; position: absolute; left: 15px; top: 13px; }
 
+        /* 태블릿 이하: 2열 패널과 3열 카드를 한 열로 쌓는다. */
         @media (max-width: 860px) {
             .admin-grid-2 { grid-template-columns: 1fr; }
             .dashboard { grid-template-columns: 1fr; }
         }
+        /* 모바일: 헤더를 세로로 쌓고 여백을 줄이며, 탭 줄은 가로로 스크롤되게 한다. */
         @media (max-width: 720px) {
             .admin-shell { width: min(100% - 24px, 560px); padding-top: 20px; }
             .admin-header { align-items: flex-start; flex-direction: column; }
@@ -217,6 +233,7 @@
     </style>
 </head>
 <body>
+    <!-- 관리자 콘솔. 이 화면이 열렸다는 것만으로 권한이 있는 것은 아니다. 서버가 관리자 계정과 접근 키 인증 세션을 확인한 뒤에만 이 템플릿을 내려준다. -->
     <main class="admin-shell">
         <header class="admin-header">
             <div>
@@ -235,6 +252,7 @@
             <p>이 페이지는 서버에서 권한을 확인한 계정만 열 수 있습니다. 아래 탭에서 항목별로 처리하세요.</p>
         </section>
 
+        <!-- 요약 카드: 숫자는 아래 스크립트의 load* 함수가 API 응답으로 채운다(setBadge). -->
         <section class="dashboard" aria-label="요약">
             <article class="card">
                 <div class="card-top">
@@ -262,6 +280,7 @@
             </article>
         </section>
 
+        <!-- 탭 줄. data-tab 값이 아래 .admin-tabpanel의 data-tabpanel과 짝을 이룬다. -->
         <nav class="admin-tabs" role="tablist">
             <button type="button" class="admin-tab active" data-tab="notices"><i class="fa-solid fa-bullhorn"></i> 공지사항</button>
             <button type="button" class="admin-tab" data-tab="inquiries"><i class="fa-regular fa-envelope"></i> 문의 <span id="tab-badge-inquiries" class="tab-badge" data-zero="1">0</span></button>
@@ -271,6 +290,7 @@
             <button type="button" class="admin-tab" data-tab="ops"><i class="fa-solid fa-server"></i> 운영 현황</button>
         </nav>
 
+        <!-- 공지사항 탭: 작성 폼 + 최근 공지 목록. 나머지 탭 패널은 처음에 hidden이다. -->
         <section class="admin-tabpanel" data-tabpanel="notices">
             <div class="admin-grid-2">
                 <article class="admin-panel">
@@ -301,6 +321,7 @@
             </article>
         </section>
 
+        <!-- 사용자 탭: 전체 가입자(검색·페이지 이동) + 이용 제한 중인 계정. -->
         <section class="admin-tabpanel" data-tabpanel="users" hidden>
             <div class="admin-grid-2">
                 <article class="admin-panel">
@@ -327,6 +348,7 @@
             </article>
         </section>
 
+        <!-- 운영 현황 탭: 현재 접속자와 최근 서버 오류 로그. -->
         <section class="admin-tabpanel" data-tabpanel="ops" hidden>
             <div class="admin-grid-2">
                 <article class="admin-panel">
@@ -348,6 +370,7 @@
     </main>
     <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script>
+        // 탭 전환: 눌린 탭만 active로 두고, data-tab과 같은 data-tabpanel 패널만 보여 준다.
         document.querySelectorAll(".admin-tab").forEach(tab => {
             tab.addEventListener("click", () => {
                 document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
@@ -358,12 +381,14 @@
                 });
             });
         });
+        // 건수 배지 갱신. 0건이면 data-zero=1로 표시해 CSS가 회색/숨김 처리하게 한다.
         function setBadge(el, count) {
             if (!el) return;
             el.textContent = String(count);
             el.dataset.zero = count > 0 ? "0" : "1";
         }
 
+        // 쓰기 요청마다 CSRF 토큰 헤더를 붙이는 fetch 래퍼(login.html과 같은 방식).
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const originalFetch = window.fetch;
         window.fetch = function(resource, options = {}) {
@@ -376,6 +401,7 @@
             return originalFetch(resource, options);
         };
 
+        // 사용자가 입력한 값(제목·아이디·신고 사유 등)을 innerHTML에 넣기 전에 반드시 거친다. 이스케이프 없이 넣으면 관리자 화면에서 스크립트가 실행될 수 있다(XSS).
         const escapeHTML = (value = "") => String(value).replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
         const noticeList = document.querySelector("#notice-list");
         const inquiryList = document.querySelector("#inquiry-list");
@@ -386,20 +412,24 @@
         const errorLogList = document.querySelector("#error-log-list");
         const onlineUserCount = document.querySelector("#online-user-count");
         const onlineUserList = document.querySelector("#online-user-list");
+        // 답변 입력창에 기존 답변을 미리 채우려고 마지막으로 불러온 문의·리뷰 목록을 보관한다.
         let lastInquiries = [];
         let lastReviews = [];
 
+        // 관리자 API 호출 공통 함수. HTTP 오류나 success:false 응답을 Error로 바꿔 호출부가 catch에서 한 번에 처리하게 한다.
         async function api(url, options) {
             const response = await fetch(url, options);
             const data = await response.json();
             if (!response.ok || data.success === false) throw new Error(data.error || "요청을 처리하지 못했습니다.");
             return data;
         }
+        // 공지 목록을 불러와 그린다.
         async function loadNotices() {
             const notices = await api("/api/admin/notices");
             noticeList.innerHTML = notices.length ? notices.map(n => `<article class="admin-item"><strong>${escapeHTML(n.title)}</strong><p>${escapeHTML(n.content)}</p><small>${n.created_at} · ${n.is_published ? "게시 중" : "비공개"}</small><div class="admin-item-actions"><button data-delete-notice="${n.id}" class="danger">삭제</button></div></article>`).join("") : "<p>등록된 공지가 없습니다.</p>";
         }
         const inquiryStatusLabel = {pending:"답변 대기", answered:"답변 완료", closed:"처리 완료"};
+        // 문의 목록을 불러오고 '답변 대기' 건수를 탭·카드 배지에 반영한다.
         async function loadInquiries() {
             const items = await api("/api/admin/inquiries");
             lastInquiries = items;
@@ -408,6 +438,7 @@
             setBadge(document.querySelector("#card-badge-inquiries"), pending);
             inquiryList.innerHTML = items.length ? `<div class="admin-bulk-actions"><label><input id="select-all-inquiries" type="checkbox"> 전체 선택</label><button id="bulk-delete-inquiries" class="danger" type="button">선택 삭제</button></div>` + items.map(i => `<article class="admin-item"><label class="admin-item-check"><input type="checkbox" class="inquiry-select" value="${i.id}" aria-label="문의 선택"></label><strong>${escapeHTML(i.display_name || i.username)} · ${inquiryStatusLabel[i.status] || escapeHTML(i.status)}</strong><p>${escapeHTML(i.message)}</p>${i.attachment_url ? `<p><a href="${escapeHTML(i.attachment_url)}" target="_blank">첨부 파일 열기</a></p>` : ""}${i.admin_reply ? `<p><strong>관리자 답변</strong> (${escapeHTML((i.answered_at || "").slice(0,16))})<br>${escapeHTML(i.admin_reply)}</p>` : ""}<small>@${escapeHTML(i.username)} · ${i.email || "이메일 없음"} · ${i.created_at}</small><div class="admin-item-actions"><button data-answer-inquiry="${i.id}">${i.admin_reply ? "답변 수정" : "답변/처리"}</button><button data-delete-inquiry="${i.id}" class="danger">삭제</button></div></article>`).join("") : "<p>문의가 없습니다.</p>";
         }
+        // 신고 목록을 불러온다. 신고 대상이 이미 정지 상태면 '정지 해제', 아니면 경고·정지 버튼을 보여 준다.
         async function loadReports() {
             const items = await api("/api/admin/reports");
             const pending = items.filter(r => r.status === "pending").length;
@@ -421,6 +452,7 @@
                 return `<article class="admin-item"><strong>${escapeHTML(r.reason)} · ${escapeHTML(r.status)}</strong><p>신고자: ${escapeHTML(r.reporter_username)} / 대상: ${escapeHTML(r.sender_username)}</p><p>${reportedContent}</p><small>${r.created_at}</small><div class="admin-item-actions"><button data-close-report="${r.id}">검토 완료</button>${moderation}<button data-delete-report="${r.id}" class="danger">신고 삭제</button></div></article>`;
             }).join("") : "<p>신고가 없습니다.</p>";
         }
+        // 이용 제한 중인 계정 목록(정지 기한 또는 영구 정지).
         async function loadSuspendedUsers() {
             const users = await api("/api/admin/users/suspended");
             suspendedUserList.innerHTML = users.length ? users.map(user => {
@@ -428,13 +460,16 @@
                 return `<article class="admin-item"><strong>${escapeHTML(user.display_name || user.username)}</strong><p>${escapeHTML(user.username)} · ${escapeHTML(user.suspension_reason || "운영 정책 위반")}</p><small>${until}</small><div class="admin-item-actions"><button data-lift-user="${user.id}">이용 제한 해제</button><button data-delete-user="${user.id}" data-username="${escapeHTML(user.username)}" class="danger">계정 삭제</button></div></article>`;
             }).join("") : "<p>이용 제한 중인 계정이 없습니다.</p>";
         }
+        // 전체 가입자 목록은 서버에서 페이지 단위(30명)로 받는다. userPage/userSearch가 현재 조회 조건이다.
         const USER_PAGE_SIZE = 30;
         let userPage = 1;
         let userSearch = "";
+        // 검색창에 글자를 칠 때마다 요청하지 않도록, 입력이 멈춘 뒤 delay(ms) 후 한 번만 실행한다.
         function debounce(fn, delay) {
             let timer;
             return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
         }
+        // 전체 가입자 한 페이지를 불러온다. 관리자 계정은 조치 버튼을 숨기고, 정지 중이면 해제·삭제, 정상이면 정지(24시간/7일/영구) 버튼을 보여 준다.
         async function loadAllUsers() {
             const params = new URLSearchParams({page: userPage, page_size: USER_PAGE_SIZE});
             if (userSearch) params.set("search", userSearch);
@@ -463,6 +498,7 @@
             document.querySelector("#user-prev-page").disabled = data.page <= 1;
             document.querySelector("#user-next-page").disabled = data.page >= totalPages;
         }
+        // 검색어가 바뀌면 1페이지부터 다시 조회한다.
         document.querySelector("#user-search").addEventListener("input", debounce(event => {
             userSearch = event.target.value.trim();
             userPage = 1;
@@ -477,15 +513,18 @@
             userPage += 1;
             loadAllUsers().catch(error => alert(error.message));
         });
+        // 사용자 리뷰 목록과 관리자 답장.
         async function loadReviews() {
             const items = await api("/api/admin/reviews");
             lastReviews = items;
             reviewList.innerHTML = items.length ? `<div class="admin-bulk-actions"><label><input id="select-all-reviews" type="checkbox"> 전체 선택</label><button id="bulk-delete-reviews" class="danger" type="button">선택 삭제</button></div>` + items.map(r => `<article class="admin-item"><label class="admin-item-check"><input type="checkbox" class="review-select" value="${r.id}" aria-label="리뷰 선택"></label><strong>${"★".repeat(r.rating)} · ${escapeHTML(r.display_name || r.username)}</strong><p>${escapeHTML(r.content)}</p>${r.admin_reply ? `<p><strong>답장:</strong> ${escapeHTML(r.admin_reply)}</p>` : ""}<div class="admin-item-actions"><button data-reply-review="${r.id}">${r.admin_reply ? "답장 수정" : "답장"}</button><button data-delete-review="${r.id}" class="danger">삭제</button></div></article>`).join("") : "<p>리뷰가 없습니다.</p>";
         }
+        // 서버 메모리에 쌓인 최근 오류 로그(재시작하면 사라진다).
         async function loadErrors() {
             const items = await api("/api/admin/errors");
             errorLogList.innerHTML = items.length ? items.map(e => `<article class="admin-item"><strong>${escapeHTML(e.method)} ${escapeHTML(e.path)}</strong><p>${escapeHTML(e.traceback)}</p><small>${escapeHTML(e.at)} · ${e.userId ? `user #${e.userId}` : "비로그인"}</small></article>`).join("") : "<p>최근 서버 오류가 없습니다.</p>";
         }
+        // 현재 소켓으로 연결된 사용자 수와 목록.
         async function loadOnlineUsers() {
             const data = await api("/api/admin/online-users");
             onlineUserCount.textContent = `${data.count}명 접속 중`;
@@ -493,15 +532,18 @@
             onlineUserList.innerHTML = data.users.length ? data.users.map(u => `<article class="admin-item admin-item-avatar"><img src="${escapeHTML(u.profileImage || "/static/default_profile.png")}" alt="" class="admin-item-avatar-img"><strong>${escapeHTML(u.displayName)}</strong><p>@${escapeHTML(u.username)}</p></article>`).join("") : "<p>지금 접속 중인 사용자가 없습니다.</p>";
         }
         document.querySelector("#refresh-online-users").addEventListener("click", () => { loadOnlineUsers().catch(error => alert(error.message)); });
+        // 공지 등록.
         document.querySelector("#notice-submit").addEventListener("click", async () => {
             try { await api("/api/admin/notices", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:document.querySelector("#notice-title").value, content:document.querySelector("#notice-content").value, is_published:document.querySelector("#notice-published").checked})}); document.querySelector("#notice-title").value=""; document.querySelector("#notice-content").value=""; await loadNotices(); alert("공지를 등록했습니다."); } catch (error) { alert(error.message); }
         });
+        // 이벤트 위임: 목록 안의 버튼은 다시 그려질 때마다 새로 생기므로, 목록 컨테이너에서 한 번만 클릭을 받아 data-* 속성으로 어떤 버튼인지 구분한다. (아래 목록들도 같은 방식이다.)
         noticeList.addEventListener("click", async event => {
             const id = event.target.dataset.deleteNotice;
             if (!id || !confirm("이 공지를 삭제할까요?")) return;
             try { await api(`/api/admin/notices/${id}`, {method:"DELETE"}); await loadNotices(); }
             catch (error) { alert(error.message); }
         });
+        // 문의 목록: 전체 선택, 선택 삭제, 개별 삭제, 답변 작성.
         inquiryList.addEventListener("click", async event => {
             const answerId = event.target.dataset.answerInquiry;
             const deleteId = event.target.dataset.deleteInquiry;
@@ -528,6 +570,7 @@
                 await loadInquiries();
             } catch (error) { alert(error.message); }
         });
+        // 신고 목록: 신고 삭제, 사용자 경고·정지·해제, 신고 상태 변경.
         reportList.addEventListener("click", async event => {
             const suspendUser = event.target.dataset.suspendUser;
             const liftUser = event.target.dataset.liftUser;
@@ -552,6 +595,7 @@
                 await loadReports();
             } catch (error) { alert(error.message); }
         });
+        // 이용 제한 계정 목록: 정지 해제와 계정 삭제. 삭제는 되돌릴 수 없으므로 아이디를 직접 입력해야 진행한다.
         suspendedUserList.addEventListener("click", async event => {
             const userId = event.target.dataset.liftUser;
             const deleteId = event.target.dataset.deleteUser;
@@ -570,6 +614,7 @@
                 await Promise.all([loadReports(), loadSuspendedUsers(), loadAllUsers()]);
             } catch (error) { alert(error.message); }
         });
+        // 전체 가입자 목록: 정지 해제 / 기간별 정지 / 계정 삭제. 정지에는 사유 입력이 필요하다.
         allUserList.addEventListener("click", async event => {
             const liftId = event.target.dataset.liftUser;
             const suspendId = event.target.dataset.suspendUser;
@@ -596,6 +641,7 @@
                 await Promise.all([loadReports(), loadSuspendedUsers(), loadAllUsers()]);
             } catch (error) { alert(error.message); }
         });
+        // 리뷰 목록: 전체 선택, 선택 삭제, 개별 삭제, 관리자 답장.
         reviewList.addEventListener("click", async event => {
             if (event.target.id === "select-all-reviews") {
                 reviewList.querySelectorAll(".review-select").forEach(box => box.checked = event.target.checked);
@@ -621,6 +667,7 @@
                 await loadReviews();
             } catch (error) { alert(error.message); }
         });
+        // 페이지가 열리면 모든 탭의 데이터를 한꺼번에 불러온다.
         Promise.all([loadNotices(), loadInquiries(), loadReports(), loadAllUsers(), loadSuspendedUsers(), loadReviews(), loadErrors(), loadOnlineUsers()]).catch(error => alert(error.message));
     </script>
 </body>

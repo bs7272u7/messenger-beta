@@ -1,4 +1,4 @@
-"""문의 등록·이력 조회·수정·삭제와 첨부파일 후처리를 담당합니다."""
+"""고객 문의의 등록·이력 조회·수정·삭제와 첨부파일 후처리를 담당한다."""
 
 import base64
 import re
@@ -26,15 +26,30 @@ def create_support_blueprint(
     logger,
     support_rate_limit,
 ) -> Blueprint:
-    """파일 저장·이메일 발송처럼 환경별 구현이 다른 함수를 주입해 만듭니다."""
+    """파일 저장·이메일 발송처럼 환경마다 구현이 다른 부분을 주입받아 문의 Blueprint를 만든다.
+
+    Args:
+        delete_attachment: 저장된 첨부파일을 지우는 함수.
+        save_attachment: 첨부파일을 저장하고 (URL, 원래 이름)을 돌려주는 함수.
+        email_sender: 관리자에게 문의 메일을 보내는 함수.
+        support_email: 문의를 받을 관리자 이메일. 없으면 메일은 보내지 않는다.
+        daily_limit: 사용자당 하루 문의 한도.
+        allowed_extensions: 첨부 허용 확장자.
+        attachment_max_bytes: 첨부파일 최대 크기(바이트).
+        support_rate_limit: IP 기준 요청 횟수 제한 데코레이터.
+    """
     support_bp = Blueprint("support", __name__)
 
     @support_bp.route("/api/support-inquiries", methods=["POST"])
     @api_login_required
     @support_rate_limit
     def send_support_inquiry():
-        """일일 제한·첨부 조건을 확인한 뒤 문의를 저장하고 관리자에게 알립니다."""
+        """문의를 저장하고 관리자에게 메일로 알린다.
+
+        처리 순서: 내용 길이 검증 → 하루 한도 확인 → 첨부 검증·저장 → 메일 발송 → DB 저장.
+        """
         message = (request.form.get("message") or "").strip()
+        # 문의 내용은 10~3,000자. 너무 짧은 문의와 과도하게 긴 본문을 함께 막는다.
         if not 10 <= len(message) <= 3000:
             return (
                 jsonify(
@@ -47,6 +62,7 @@ def create_support_blueprint(
             )
 
         user_id = session["user_id"]
+        # 한국 시간 기준으로 오늘 0시 이후의 문의 수를 세어 하루 한도를 적용한다.
         today_start = datetime.now(kst).strftime("%Y-%m-%d 00:00:00")
         with connection_factory() as conn:
             count = conn.execute(
@@ -65,9 +81,9 @@ def create_support_blueprint(
             )
 
         attachment = request.files.get("attachment")
+        # 첨부가 없을 수도 있으니 세 값을 먼저 비워 둔다.
         attachment_data = attachment_url = attachment_name = None
         if attachment and attachment.filename:
-            # 확장자와 크기를 먼저 제한해 메일·저장소에 불필요한 파일이 가지 않게 합니다.
             extension = (
                 attachment.filename.rsplit(".", 1)[-1].lower() if "." in attachment.filename else ""
             )
@@ -81,6 +97,7 @@ def create_support_blueprint(
                     ),
                     400,
                 )
+            # 한도보다 1바이트만 더 읽어 보면 초과 여부를 알 수 있어, 큰 파일을 통째로 메모리에 올리지 않는다.
             content = attachment.read(attachment_max_bytes + 1)
             if len(content) > attachment_max_bytes:
                 return (
@@ -89,11 +106,13 @@ def create_support_blueprint(
                     ),
                     400,
                 )
+            # 메일 첨부 이름에 쓸 수 없는 문자는 밑줄로 바꾼다.
             safe_name = re.sub(r"[^\w.가-힣-]", "_", attachment.filename)
             attachment_data = {
                 "filename": safe_name or f"attachment.{extension}",
                 "content": base64.b64encode(content).decode("ascii"),
             }
+            # 크기 검사를 하느라 끝까지 읽었으므로, 저장 함수가 처음부터 읽도록 되감는다.
             attachment.seek(0)
             attachment_url, attachment_name = save_attachment(attachment, "support")
 
@@ -106,12 +125,12 @@ def create_support_blueprint(
             return jsonify({"success": False, "error": "로그인 정보를 확인할 수 없습니다."}), 401
 
         if support_email:
-            # 이메일 발송 실패가 문의 자체의 유실로 이어지지 않게 저장 처리는 계속합니다.
             display_name = user["display_name"] or user["username"]
             params = {
                 "from": sender_getter(),
                 "to": [support_email],
                 "subject": f"[클라우드 채팅 문의] {display_name}",
+                # 사용자가 입력한 값은 escape()로 처리해, 메일 본문에 HTML이 끼어들지 못하게 한다.
                 "html": "<h2>새 문의사항</h2>"
                 f"<p><strong>이름:</strong> {escape(display_name)}</p>"
                 f"<p><strong>아이디:</strong> {escape(user['username'])}</p>"
@@ -142,7 +161,7 @@ def create_support_blueprint(
     @support_bp.route("/api/support-inquiries/history", methods=["GET"])
     @api_login_required
     def get_my_support_inquiries():
-        """로그인한 사용자의 문의 이력만 최신순으로 반환합니다."""
+        """내 문의 이력을 최신순으로 돌려준다."""
         with connection_factory() as conn:
             rows = conn.execute(
                 """SELECT id, message, attachment_name, attachment_url, status, admin_reply, created_at, answered_at
@@ -154,7 +173,10 @@ def create_support_blueprint(
     @support_bp.route("/api/support-inquiries/<int:inquiry_id>", methods=["PATCH", "DELETE"])
     @api_login_required
     def update_or_delete_my_support_inquiry(inquiry_id):
-        """본인 문의만 수정·삭제하며, 삭제된 첨부파일은 DB 처리 후 정리합니다."""
+        """내 문의를 수정(PATCH)하거나 삭제(DELETE)한다.
+
+        관리자가 답변하거나 처리한 문의는 수정할 수 없다.
+        """
         user_id = session["user_id"]
         with connection_factory() as conn:
             inquiry = conn.execute(
@@ -195,6 +217,7 @@ def create_support_blueprint(
                 )
                 conn.commit()
                 return jsonify({"success": True, "message": message})
+        # DB 삭제를 확정(commit)한 뒤에 파일을 지운다. 순서가 반대면 DB 오류 시 파일만 사라진다.
         if attachment_url:
             delete_attachment(attachment_url)
         return jsonify({"success": True})

@@ -1,30 +1,42 @@
+/*
+ * Cloud Chatting 화면 스타일 (메인 채팅 화면).
+ *
+ * 구성: 색상 토큰 → PC/모바일 레이아웃 → 목록·채팅·입력창 → 모달·메뉴 → 채팅 테마(.chat-theme-*)
+ *       → 오피스 모드 → 클라우드(Liquid Glass) 테마
+ *
+ * 수정 원칙: 공통 색은 CSS 변수(:root, body.dark-mode)에서 바꾸고, 채팅방별 분위기는 .chat-theme-* 에서만 바꾼다.
+ * 변수를 고칠지 특정 테마만 고칠지 먼저 구분한 뒤 수정한다.
+ */
 
-        /* # 전체 테마 컬러 토큰: 라이트/다크 모드에서 공통으로 쓰는 색상 값을 한 곳에서 관리한다. */
-
-        /*
-         * 화면 스타일의 기준 파일입니다. 공통 색은 변수로, 채팅방별 분위기는 .chat-theme-*로 분리합니다.
-         * 재현님이 디자인을 바꿀 때는 먼저 공통 변수인지, 특정 테마 전용인지 구분해서 수정합니다.
-         */
+        /* 한글 웹폰트(Pretendard). CDN에서 불러오며, 실패하면 아래 font-family의 시스템 글꼴로 대체된다. */
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
         body {
         font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
         }
 
-        /* ======================================================
-         * PC 앱 셸: 분리되어 보이던 요소를 한 화면의 메신저 구조로 통합
-         * ====================================================== */
+        /*
+         * ============================================================
+         * PC 앱 셸 (768px 이상)
+         * 목록 · 대화 · 대화 정보를 한 화면의 메신저 구조로 통합한다.
+         * ============================================================
+         */
         @media (min-width: 768px) {
             .container {
                 display: grid;
-                /* 주변 정보는 유지하되, 대화에 가장 넓은 시선을 배분한다. */
+                /*
+                 * 왼쪽 채팅방 목록 270px, 가운데 대화창(남는 폭 전부), 오른쪽 대화 정보 170px.
+                 * 주변 정보는 유지하되 대화에 가장 넓은 시선을 배분한다.
+                 * (주의: 파일 아래쪽 '모바일 1차 레이아웃' 뒤의 PC 규칙이 같은 속성을 290px / 250px로 다시 덮어쓴다.)
+                 */
                 grid-template-columns: 270px minmax(0, 1fr) 170px;
                 gap: 12px;
-                /* 바깥 여백은 줄이고, 남는 폭은 중앙 채팅 영역에 우선 배분한다. */
+                /* 바깥 여백은 줄이고, 남는 폭은 가운데 대화 영역에 우선 배분한다. */
                 width: min(1520px, calc(100vw - 24px));
                 height: min(860px, calc(100vh - 48px));
             }
 
+            /* 왼쪽 채팅방 목록 패널. 위쪽에 옅은 브랜드색 그라데이션을 깐다. */
             .friend-list {
                 width: auto;
                 padding: 18px;
@@ -133,6 +145,7 @@
             .desktop-conversation-actions button:hover { border-color: var(--brand-color); color: var(--brand-color); }
         }
 
+        /* 메시지함(친구 요청) 모달. */
         .friend-inbox-modal { width: 480px; max-width: 92vw; padding: 0; overflow: hidden; text-align: left; }
         .friend-inbox-modal .settings-modal-header { position: relative; justify-content: center; padding: 20px 58px 18px; text-align: center; }
         .friend-inbox-modal .settings-modal-header > div { display: grid; justify-items: center; gap: 4px; }
@@ -144,7 +157,7 @@
         .friend-inbox-tabs span { margin-left: 4px; font-size: 11px; }
         .friend-inbox-body { min-height: 230px; max-height: 48vh; padding: 10px 18px 18px; overflow-y: auto; }
         .friend-inbox-list { display: grid; gap: 8px; }
-        /* hidden 속성을 클래스의 display:grid가 덮어쓰지 않게 해 받은/보낸 요청을 분리한다. */
+        /* hidden 속성이 .friend-inbox-list의 display:grid에 덮어써지지 않게 해, 받은 요청과 보낸 요청 목록을 확실히 나눈다. */
         .friend-inbox-list[hidden] { display: none !important; }
         .friend-inbox-list .friend-request-item { padding: 12px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--panel-bg); }
         .friend-inbox-list .friend-request-item > span:first-child { font-weight: 650; }
@@ -153,6 +166,7 @@
         .friend-inbox-list .accept-request-icon { background: rgba(46, 167, 101, .10); }
         .friend-inbox-list .decline-request-icon { background: rgba(224, 82, 82, .10); }
 
+        /* 모바일(767px 이하): PC 전용 요소(대화 정보, 프로필 카드)를 숨기고 메시지함 버튼을 간단한 형태로 바꾼다. */
         @media (max-width: 767px) {
             #desktop-chat-info { display: none; }
             .desktop-profile-card { display: none; }
@@ -168,6 +182,11 @@
             .friend-inbox-modal .settings-modal-close { right: 16px; }
         }
 
+        /*
+         * ============================================================
+         * 색상 토큰: 라이트 모드 기본값. 다크 모드는 아래 body.dark-mode가 같은 이름의 변수를 덮어쓴다.
+         * ============================================================
+         */
         :root {
             --bg-color: #f7fbff;
             --text-color: #172033;
@@ -177,10 +196,10 @@
             --chat-bg: #f4f8ff;
             --friend-hover: #edf5ff;
 
-            /* 상대 메시지 */
+            /* 말풍선: 상대 메시지 배경. */
             --message-left-bg: #e8f2ff;
 
-            /* 내 메시지 */
+            /* 말풍선: 내 메시지 배경과 글자색. */
             --bubble-bg: #4a90e2;
             --bubble-text: #ffffff;
             --bubble-reply-bg: rgba(255, 255, 255, 0.18);
@@ -191,15 +210,18 @@
             --brand-color: #4a90e2;
             --brand-hover: #2f72c4;
 
+            /* 채팅창 배경 장식(떠다니는 말풍선)에 쓰는 색(RGB 숫자만)과 투명도. rgba(var(--decor-1), …) 형태로 쓴다. */
             --decor-1: 74, 144, 226;
             --decor-2: 120, 184, 255;
             --decor-opacity: 0.05;
 
+            /* 패널 위쪽에 깔리는 옅은 브랜드색 그라데이션, 그리고 키보드 포커스 링 색. */
             --panel-tint: rgba(74, 144, 226, 0.045);
             --panel-tint-strong: rgba(74, 144, 226, 0.09);
             --ring-color: rgba(74, 144, 226, 0.32);
         }
 
+        /* 다크 모드 색상 토큰. body에 dark-mode 클래스가 붙으면 위 :root의 같은 변수를 덮어쓴다. */
         body.dark-mode {
             --bg-color: #18191a;
             --text-color: #e4e6eb;
@@ -207,26 +229,24 @@
             --panel-bg: #242526;
             --chat-bg: #0f1419;
             --friend-hover: #3a3b3c;
-            --message-left-bg: #2e3450; /* 상대방 말풍선 - 짙은 인디고 */
-            --bubble-bg: #3b4570; /* 내 말풍선 - 짙은 인디고 */
-            --bubble-text: #eef1fb; /* 내 말풍선 안 텍스트 색 */
+            --message-left-bg: #2e3450;
+            --bubble-bg: #3b4570;
+            --bubble-text: #eef1fb;
             --bubble-reply-bg: rgba(255, 255, 255, 0.1);
             --input-border: #393a3b;
             --brand-color: #4a90e2;
             --brand-hover: #357abd;
 
-            /* 채팅창 은은한 배경 애니메이션용 톤 (다크모드) */
-            --decor-1: 90, 155, 235;   /* 밝힌 #4a90e2 */
-            --decor-2: 63, 127, 214;   /* #3f7fd6 - 다크모드 헤더 톤 */
+            --decor-1: 90, 155, 235;
+            --decor-2: 63, 127, 214;
             --decor-opacity: 0.07;
 
-            /* 사이드 내비 · 친구목록 패널에 쓰는 브랜드 블루 포인트 (다크모드) */
             --panel-tint: rgba(90, 155, 235, 0.07);
             --panel-tint-strong: rgba(90, 155, 235, 0.14);
             --ring-color: rgba(90, 155, 235, 0.4);
         }
 
-        /* 공통 인터랙션: 키보드 사용자와 비동기 처리 상태도 눈에 바로 보이게 한다. */
+        /* 공통 인터랙션: 키보드 사용자에게 포커스 위치가 보이게 하고, 비활성(처리 중) 버튼은 눈에 띄게 흐리게 한다. */
         button:focus-visible,
         input:focus-visible,
         textarea:focus-visible,
@@ -239,6 +259,7 @@
             opacity: .58;
         }
 
+        /* 토스트(잠깐 뜨는 알림)가 쌓이는 오른쪽 아래 영역. 클릭을 가로채지 않도록 pointer-events를 끄고, 모달(z-index)보다 위에 둔다. */
         #toast-region {
             position: fixed;
             right: 20px;
@@ -271,7 +292,7 @@
         @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes toast-out { to { opacity: 0; transform: translateY(6px); } }
 
-
+        /* 스크롤바: 얇게, 트랙은 투명하게(Chromium/Safari 계열). */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -287,6 +308,7 @@
             background: #555;
         }
 
+        /* 페이지 전체 배경: 두 군데에 옅은 파란 빛을 깔고 var(--bg-color)로 마무리한다. 다크 모드 전환 시 색이 부드럽게 바뀌게 transition을 둔다. */
         body {
             background:
                 radial-gradient(50% 40% at 10% 12%, rgba(74, 144, 226, 0.10), transparent 60%),
@@ -330,7 +352,7 @@
             margin: 14px 0 10px;
         }
 
-
+        /* (레거시) 왼쪽 고정 내비게이션. 현재 PC 레이아웃은 .friend-list 안의 프로필·빠른 버튼을 쓰므로 이 블록은 보조용이다. */
         .side-nav {
             position: fixed;
             top: 50%;
@@ -407,6 +429,7 @@
             box-shadow: 0 6px 14px var(--panel-tint-strong);
         }
 
+        /* 채팅방 목록의 한 줄. 호버하면 살짝 오른쪽으로 밀리며 배경이 바뀐다. */
         .friend {
             display: flex;
             align-items: center;
@@ -424,6 +447,7 @@
             border-bottom-color: transparent;
         }
 
+        /* 원형 프로필 사진 틀(목록·헤더 공통). 사진이 없으면 회색 원 위에 사람 아이콘이 보인다. */
         .profile {
             width: 55px;
             height: 55px;
@@ -449,12 +473,11 @@
             object-fit: cover;
         }
 
-        /* 친구 행은 채팅을 열고, 사진만 누르면 상세 프로필을 연다. */
+        /* 채팅방 행 전체는 대화를 열고, 프로필 사진만 누르면 상세 프로필 카드를 연다. */
         .friend-profile-trigger {
             cursor: pointer;
             outline: 2px solid transparent;
             outline-offset: 2px;
-            /* 접속 상태 점은 아바타 바깥에 걸쳐 보여야 하므로 여기만 잘림을 해제한다. */
             overflow: visible;
             transition: transform .16s ease, outline-color .16s ease, box-shadow .16s ease;
         }
@@ -488,9 +511,12 @@
             white-space: nowrap;
         }
 
+        /*
+         * 접속 상태 점. 아바타의 오른쪽 아래 모서리에 걸쳐(절반은 겹치고 절반은 밖에) 보이도록 위치를 잡는다.
+         * 아바타 틀의 overflow가 점을 자르지 않도록 .friend-profile-trigger에서 overflow를 풀어 둔다.
+         */
         .status-dot {
             position: absolute;
-            /* 원 중심을 아바타 모서리에 맞춰 절반은 겹치고 절반은 밖에 보이게 한다. */
             right: -9px;
             bottom: -9px;
             width: 18px;
@@ -528,6 +554,7 @@
             white-space: nowrap;
         }
 
+        /* 안 읽은 메시지 개수를 보여 주는 빨간 배지. */
         .unread-badge {
             background-color: #e05252;
             color: white;
@@ -543,6 +570,7 @@
             flex-shrink: 0;
         }
 
+        /* 내 메시지 옆의 '안 읽은 사람 수' 숫자. 내 말풍선(파랑) 위에서도 읽히도록 노란색을 쓴다. */
         .read-status {
             font-size: 11px;
             color: #ffcc00;
@@ -557,6 +585,7 @@
             height: min(850px, 90vh);
         }
 
+        /* 가운데 대화창 본체. 세로로 헤더 → (검색) → 메시지 → 입력창이 쌓인다. */
         .chat {
             flex: 1;
             border-radius: 20px;
@@ -568,6 +597,7 @@
             overflow: hidden;
         }
 
+        /* 대화창 상단 헤더(상대 사진·이름·기능 아이콘). 메시지 영역 위로 그림자가 드리우도록 z-index를 높인다. */
         .chat-header {
             padding: 20px 28px;
             font-size: 20px;
@@ -582,6 +612,7 @@
             z-index: 10;
         }
 
+        /* 다크 모드 헤더: 흰색 그라데이션 대신 짙은 청회색 그라데이션을 쓴다. */
         body.dark-mode .chat-header {
             background: linear-gradient(140deg, #26282b 0%, #202537 60%, #1c2536 100%);
             border-bottom: 1px solid var(--border-color);
@@ -620,6 +651,7 @@
             font-size: 220%;
         }
 
+        /* 대화 내 검색 바. 기본은 숨겨져 있고 검색 버튼을 누르면 display:flex로 열린다(script.js). */
         .search-bar {
             display: none;
             align-items: center;
@@ -653,6 +685,7 @@
             color: var(--text-color);
         }
 
+        /* 검색어와 일치한 글자의 형광펜 효과(<mark>). */
         .search-highlight {
             background-color: #ffe44d;
             color: black;
@@ -665,6 +698,7 @@
             color: #fff;
         }
 
+        /* 메시지 입력창 영역. 위쪽 경계선과 반투명 흰 배경을 쓴다. */
         .input-area {
             display: flex;
             padding: 15px 20px;
@@ -686,6 +720,7 @@
             border-color: var(--input-border);
         }
 
+        /* 메시지 입력칸. 최대 120px까지 늘어나고 그 이상은 안에서 스크롤한다(resize는 막는다). */
         .input-area textarea {
             flex: 1;
             min-height: 48px;
@@ -731,6 +766,7 @@
             box-shadow: 0 10px 20px rgba(74, 144, 226, .3);
         }
 
+        /* 전송 중에는 아이콘을 숨기고 빙글빙글 도는 표시를 보여 준다(중복 전송 방지, script.js의 setComposerBusy). */
         .input-area #send-btn.is-busy {
             position: relative;
             pointer-events: none;
@@ -751,9 +787,10 @@
         }
         @keyframes composer-spin { to { transform: rotate(360deg); } }
 
-        /* ── 채팅창 배경: 메시지 영역(스크롤)과 은은한 애니메이션 장식을 분리한 래퍼 ──
-           장식은 래퍼 안에 고정되어 메시지가 위로 쌓여도 함께 흘러가지 않고,
-           스크롤되는 .messages는 배경을 투명하게 두어 장식이 은은하게 비치게 한다. */
+        /*
+         * 채팅창 배경: 스크롤되는 메시지 영역(.messages)과 은은한 장식(.chat-bg-decor)을 분리한 래퍼.
+         * 장식은 래퍼 안에 고정되어 메시지가 쌓여도 함께 흘러가지 않고, .messages는 배경을 투명하게 두어 장식이 비쳐 보인다.
+         */
         .messages-wrap {
             position: relative;
             flex: 1;
@@ -762,7 +799,14 @@
             background-color: var(--chat-bg);
         }
 
-        /* 채팅 테마는 대화창 변수만 바꿔 전체 라이트/다크 모드와 독립적으로 동작한다. */
+        /*
+         * ============================================================
+         * 채팅 테마 (.chat-theme-*)
+         * 채팅 테마는 대화창의 변수와 일부 요소만 바꾸므로, 전체 라이트/다크 모드와 독립적으로 동작한다.
+         * 테마마다 라이트 → 다크(body.dark-mode …) 순서로 정의한다.
+         * ============================================================
+         * 하트 테마
+         */
         .chat-theme-heart {
             --chat-bg: #fff5f8;
             --message-left-bg: rgba(255, 255, 255, .94);
@@ -782,7 +826,7 @@
         .chat-theme-heart .input-area { background:rgba(255, 248, 252, .94); border-top-color:rgba(205, 99, 147, .14); }
         .chat-theme-heart .input-area textarea { border-color:rgba(209, 118, 158, .24); background:rgba(255,255,255,.92); }
 
-        /* 다크모드에서도 핑크의 분위기는 유지하되, 눈부시지 않은 로즈 톤으로 맞춘다. */
+        /* 다크 모드에서도 핑크의 분위기는 유지하되, 눈부시지 않은 로즈 톤으로 맞춘다. */
         body.dark-mode .chat-theme-heart {
             --chat-bg: #302332;
             --message-left-bg: rgba(76, 54, 74, .92);
@@ -801,6 +845,7 @@
         }
         body.dark-mode .chat-theme-heart .input-area textarea { background:#493647; border-color:rgba(255, 180, 204, .18); }
 
+        /* 테디베어 테마 */
         .chat-theme-teddy {
             --chat-bg: #fcf4e7;
             --message-left-bg: rgba(255, 253, 247, .96);
@@ -819,7 +864,7 @@
         .chat-theme-teddy .input-area { background:rgba(255, 249, 239, .94); border-top-color:rgba(166, 110, 61, .16); }
         .chat-theme-teddy .input-area textarea { border-color:rgba(172, 117, 71, .24); background:rgba(255,255,255,.88); }
 
-        /* 테디베어 테마도 검정에 가깝게 떨어지지 않도록 따뜻한 코코아 톤을 사용한다. */
+        /* 다크 모드에서도 검정에 가깝게 떨어지지 않도록 따뜻한 코코아 톤을 쓴다. */
         body.dark-mode .chat-theme-teddy {
             --chat-bg: #3c3029;
             --message-left-bg: rgba(88, 68, 54, .94);
@@ -838,7 +883,10 @@
         }
         body.dark-mode .chat-theme-teddy .input-area textarea { background:#514037; border-color:rgba(255, 218, 183, .16); }
 
-        /* 글라스: 유리층은 CSS로, 물방울 굴절은 작은 SVG 장식에만 제한한다. */
+        /*
+         * 글라스 테마: 유리 질감은 CSS(backdrop-filter)로 만들고, 물방울 굴절(SVG 필터)은 작은 장식에만 제한한다.
+         * 이 요소는 SVG 필터 정의를 담기만 하고 화면에는 보이지 않는다.
+         */
         .glass-filter-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
         .chat-theme-glass {
             --chat-bg: #f8f8f7;
@@ -893,6 +941,7 @@
         body.dark-mode .chat-theme-glass .input-area { background: rgba(29, 66, 76, .88); border-top-color: rgba(161, 235, 244, .16); }
         body.dark-mode .chat-theme-glass .input-area textarea { background: rgba(55, 103, 115, .70); border-color: rgba(176, 237, 243, .20); }
 
+        /* 채팅 테마 선택 창: 분류 탭(기본/계절/시즌) + 테마 카드 격자 + 미리보기. */
         .chat-theme-modal { width: 430px; max-width: 90vw; padding: 0; overflow: hidden; }
         .chat-theme-category-tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin:0 18px; padding:5px; border-radius:12px; background:color-mix(in srgb, var(--chat-bg) 76%, var(--panel-bg)); }
         .chat-theme-category { min-height:34px; padding:0 5px; border:0; border-radius:8px; background:transparent; color:color-mix(in srgb, var(--text-color) 62%, transparent); cursor:pointer; font:inherit; font-size:11px; font-weight:700; }
@@ -908,6 +957,7 @@
         .chat-theme-option strong { margin-top: 9px; font-size: 13px; }
         .chat-theme-option small { margin-top: 3px; color: gray; font-size: 11px; }
         .chat-theme-preview { display: grid; place-items: center; height: 52px; border-radius: 12px; font-size: 26px; }
+        /* 테마 카드의 미리보기 이미지. 각 테마의 대표 색과 질감을 그라데이션으로 흉내 낸다. */
         .theme-preview-default { background: linear-gradient(135deg, #e5ebf2, #c9d7f7); }
         .theme-preview-heart { background: linear-gradient(135deg, #853bb6, #d9418d 52%, #f47b59); color: #fff; }
         .theme-preview-teddy { background: radial-gradient(circle at 1px 1px, rgba(151, 104, 67, .16) 1px, transparent 1.5px) 0 0 / 12px 12px, linear-gradient(135deg, #fff8ed, #e7b47d); }
@@ -923,6 +973,10 @@
         .season-recommendation { display:none; margin-left:4px; padding:2px 5px; border-radius:999px; color:#fff; background:#d37842; font-size:9px; font-style:normal; font-weight:700; vertical-align:1px; }
         .chat-theme-option.season-recommended .season-recommendation { display:inline-block; }
 
+        /*
+         * 채팅창 뒤에서 천천히 떠다니는 장식 요소(말풍선·하트 등). 클릭을 가로채지 않고(pointer-events:none) 메시지 아래(z-index 0)에 둔다.
+         * 테마마다 모양과 움직임을 아래에서 덮어쓴다.
+         */
         .chat-bg-decor {
             position: absolute;
             inset: 0;
@@ -938,7 +992,7 @@
 
         .chat-bg-decor .deco-bubble svg { display: block; }
 
-        /* 하트 테마에서는 기본 말풍선 SVG 대신 Font Awesome 하트가 떠다닌다. */
+        /* 하트 테마에서는 기본 말풍선 SVG 대신 Font Awesome 하트 글리프(\f004)가 떠다닌다. */
         .chat-theme-heart .chat-bg-decor .deco-bubble {
             width: auto;
             height: auto;
@@ -1011,7 +1065,7 @@
         .chat-theme-teddy .chat-bg-decor .deco-5 { display: none; }
         body.dark-mode .chat-theme-teddy .chat-bg-decor .deco-bubble { opacity: .29; }
 
-        /* 글라스 테마 전용 영문 배경: 프로젝트 안에서 직접 작성한 문구만 사용한다. */
+        /* 글라스 테마 전용 영문 배경 문구. 프로젝트 안에서 직접 작성한 문구만 사용한다. */
         .glass-editorial-copy { display:none; }
         .chat-theme-glass .glass-editorial-copy {
             position:absolute;
@@ -1052,7 +1106,7 @@
         body.dark-mode .chat-theme-glass .glass-editorial-copy span { color:#a5d8d5; }
         body.dark-mode .chat-theme-glass .glass-editorial-copy p { color:#c1dbd9; }
 
-        /* 오로라: 메시지 자체는 또렷하게 두고, 배경의 빛만 천천히 흐르게 한다. */
+        /* 오로라 테마: 메시지 자체는 또렷하게 두고, 배경의 빛만 천천히 흐르게 한다. */
         .chat-theme-aurora {
             --chat-bg: #edf4fa;
             --message-left-bg: rgba(255, 255, 255, .92);
@@ -1083,7 +1137,7 @@
         body.dark-mode .chat-theme-aurora .input-area { background: #272943; border-top-color: rgba(184, 180, 255, .16); }
         body.dark-mode .chat-theme-aurora .input-area textarea { background: #3b3d61; border-color: rgba(184, 180, 255, .18); }
 
-        /* 모노: 긴 대화를 위한 저자극 테마. 장식 없이 정보 계층과 대비에만 집중한다. */
+        /* 모노 테마: 긴 대화를 위한 저자극 테마. 장식 없이 정보 계층과 대비에만 집중한다. */
         .chat-theme-mono {
             --chat-bg: #f3f4f6;
             --message-left-bg: #ffffff;
@@ -1111,7 +1165,7 @@
         body.dark-mode .chat-theme-mono .input-area { background: #202228; border-top-color: #343840; }
         body.dark-mode .chat-theme-mono .input-area textarea { background: #2a2d33; border-color: #444952; }
 
-        /* 크리스마스: 원색을 과하게 쓰지 않고 네이비·소나무 그린·골드로 정리한 시즌 테마. */
+        /* 크리스마스 테마: 원색을 과하게 쓰지 않고 네이비·소나무 그린·골드로 정리한 시즌 테마. */
         .chat-theme-christmas {
             --chat-bg:#eef5f4;
             --message-left-bg:rgba(255,255,255,.94);
@@ -1141,7 +1195,7 @@
         body.dark-mode .chat-theme-christmas .chat-bg-decor .deco-bubble { opacity:.25; }
         body.dark-mode .chat-theme-christmas .chat-bg-decor .deco-bubble::after { color:#9fcdb2; }
 
-        /* 할로윈: 읽기 쉬운 먹색·보라 기반 위에 오렌지 포인트만 남긴다. */
+        /* 할로윈 테마: 읽기 쉬운 먹색·보라 기반 위에 오렌지 포인트만 남긴다. */
         .chat-theme-halloween {
             --chat-bg:#f5f0f7;
             --message-left-bg:rgba(255,255,255,.94);
@@ -1171,7 +1225,10 @@
         body.dark-mode .chat-theme-halloween .chat-bg-decor .deco-bubble { opacity:.24; }
         body.dark-mode .chat-theme-halloween .chat-bg-decor .deco-bubble::after { color:#c39ae0; }
 
-        /* 계절 테마: 과한 장식보다 계절별 색온도와 배경의 깊이로 분위기를 구분한다. */
+        /*
+         * 계절 테마(봄·여름·가을·겨울): 과한 장식보다 계절별 색온도와 배경의 깊이로 분위기를 구분한다.
+         * 한 테마를 한 줄 변수 정의 + 몇 개의 요소 규칙으로 간단히 정의하고, 다크 모드 규칙이 바로 뒤따른다.
+         */
         .chat-theme-spring { --chat-bg:#f8f3f5; --message-left-bg:rgba(255,255,255,.94); --bubble-bg:linear-gradient(135deg, #de719c, #c15f91 55%, #8ba96d); --bubble-text:#fff; --bubble-reply-bg:rgba(255,255,255,.18); }
         .chat-theme-spring .messages-wrap { background:radial-gradient(circle at 12% 12%, rgba(255,191,213,.35), transparent 28%), radial-gradient(circle at 88% 88%, rgba(158,205,154,.24), transparent 32%), linear-gradient(145deg, #fff9fb, #f9edf1 52%, #f0f5e9); }
         .chat-theme-spring .bubble { background:var(--bubble-bg); box-shadow:0 7px 16px rgba(180,79,128,.19); }
@@ -1232,12 +1289,14 @@
         body.dark-mode .chat-theme-winter .input-area { background:#293b48; border-top-color:rgba(205,231,247,.14); }
         body.dark-mode .chat-theme-winter .input-area textarea { background:#3a5260; border-color:rgba(205,231,247,.18); }
 
+        /* 기본 장식 말풍선 5개의 위치·크기·움직임. 테마별 규칙이 이 값을 덮어쓴다. */
         .chat-bg-decor .deco-1 { top: 6%;  left: 8%;  width: 130px; animation: chat-float-a 13s ease-in-out infinite; }
         .chat-bg-decor .deco-2 { top: 58%; left: -3%; width: 90px;  animation: chat-float-b 10.5s ease-in-out infinite; }
         .chat-bg-decor .deco-3 { top: 14%; right: 6%; width: 100px; animation: chat-float-b 11.5s ease-in-out infinite; }
         .chat-bg-decor .deco-4 { bottom: 8%; right: 10%; width: 150px; animation: chat-float-a 15s ease-in-out infinite; }
         .chat-bg-decor .deco-5 { bottom: 30%; left: 40%; width: 80px; animation: chat-float-b 12.5s ease-in-out infinite; }
 
+        /* 장식이 위아래로 천천히 떠다니는 애니메이션 모음. 테마마다 이름(heart, christmas, …)을 달리해 움직임의 폭과 회전을 조금씩 다르게 한다. */
         @keyframes chat-float-a {
             0%, 100% { transform: translateY(0) rotate(0deg); }
             50% { transform: translateY(-16px) rotate(3deg); }
@@ -1302,21 +1361,23 @@
             from { background-position: 0% 35%; }
             to { background-position: 100% 65%; }
         }
+        /* 운영체제에서 '동작 줄이기'를 켠 사용자에게는 배경 장식 애니메이션을 모두 끈다. */
         @media (prefers-reduced-motion: reduce) {
             .chat-bg-decor .deco-bubble,
             .theme-heart-extra,
             .glass-editorial-copy,
             .chat-theme-aurora .messages-wrap { animation: none !important; }
         }
+        /* 아주 좁은 화면에서는 장식 2개를 숨겨 메시지를 가리지 않게 한다. */
         @media (max-width: 480px) {
             .chat-bg-decor .deco-3,
             .chat-bg-decor .deco-5 { display: none; }
 
-            /* 글라스 테마는 모바일에서도 물방울 장식 수를 유지한다. */
             .chat-theme-glass .chat-bg-decor .deco-3,
             .chat-theme-glass .chat-bg-decor .deco-5 { display: block; }
         }
 
+        /* 메시지 목록(스크롤 영역). 배경은 투명하게 두어 뒤의 장식(.chat-bg-decor)이 비치게 하고, 장식 위(z-index 1)에 놓는다. */
         .messages {
             position: relative;
             z-index: 1;
@@ -1333,6 +1394,7 @@
             box-sizing: border-box;
         }
 
+        /* 상대 메시지 말풍선: 왼쪽 아래 모서리만 각지게 해 말꼬리처럼 보이게 한다. white-space: pre-wrap으로 줄바꿈과 공백을 그대로 보여 준다. */
         .message-left {
             background-color: var(--message-left-bg);
             padding: 14px 20px;
@@ -1346,7 +1408,7 @@
             white-space: pre-wrap;
         }
 
-
+        /* 내 메시지 줄: 오른쪽 정렬. */
         .message-right {
             display: flex;
             justify-content: flex-end;
@@ -1369,6 +1431,7 @@
             background-color: rgba(74, 144, 226, 0.18);
         }
 
+        /* 내 메시지 말풍선: 오른쪽 아래 모서리만 각지게 한다. 색은 var(--bubble-bg)라서 테마가 바꿀 수 있다. */
         .bubble {
             background-color: var(--bubble-bg);
             color: var(--bubble-text);
@@ -1382,9 +1445,10 @@
             white-space: pre-wrap;
         }
 
-        /* PC에서는 화면이 넓어진 만큼 말풍선도 가로로 더 늘어나게 한다.
-           글자 크기와 여백은 오피스 모드 설정과 함께 걸려야 하므로 아래쪽
-           office-* 규칙 뒤에서 단계별로 지정한다. */
+        /*
+         * PC에서는 화면이 넓어진 만큼 말풍선도 가로로 더 늘어나게 한다(최대 62% 또는 560px).
+         * 글자 크기·여백은 오피스 모드 설정과 함께 적용되어야 하므로, 아래쪽 office-* 규칙 뒤에서 단계별로 지정한다.
+         */
         @media (min-width: 768px) {
             .message-left,
             .bubble {
@@ -1401,6 +1465,7 @@
             max-width: min(68px, 340px);
         }
 
+        /* 파일 첨부 메시지의 다운로드 카드. */
         .chat-file-card {
             display: flex;
             align-items: center;
@@ -1414,8 +1479,9 @@
             text-decoration: none;
             background: color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color));
         }
+        /* 상대 프로필 카드(배경 사진 + 원형 사진 + 이름·소개글). 아래 규칙은 카드와 ⋮ 메뉴, 시스템 메시지, 오디오 등 메시지 주변의 작은 요소들이다. */
         .profile-card { position:relative; width:min(380px,calc(100vw - 32px)); overflow:hidden; border-radius:18px; background:var(--panel-bg); color:var(--text-color); box-shadow:0 20px 60px rgba(0,0,0,.28); }
-        /* 커버 사진 위에 뜨는 닫기·더보기 버튼을 우측 상단에 나란히 고정한다. */
+        /* 커버 사진 위에 뜨는 닫기·더보기 버튼을 오른쪽 위에 나란히 고정한다. 사진 위에서도 보이도록 반투명 어두운 배경을 쓴다. */
         .profile-card #profile-card-close,
         .profile-card #profile-card-menu-btn { position:absolute; top:12px; z-index:3; background:rgba(15,23,42,.42); color:#fff; }
         .profile-card #profile-card-close:hover,
@@ -1431,6 +1497,7 @@
         .profile-card-avatar { width:86px; height:86px; margin:-43px 0 0 22px; border:4px solid var(--panel-bg); border-radius:50%; object-fit:cover; background:#fff; }
         .profile-card-body { padding:12px 22px 24px; }
         .profile-card-body h3 { margin:0; font-size:20px; }.profile-card-body p { margin:7px 0; line-height:1.5; }.profile-card-body span { color:var(--brand-color); font-size:12px; font-weight:700; }
+        /* 시스템 메시지(입장·퇴장·테마 변경 등): 말풍선 없이 가운데에 흐린 글씨로 표시한다. */
         .message-system { margin:15px auto; max-width:76%; color:color-mix(in srgb,var(--text-color) 62%,transparent); font-size:12px; text-align:center; }
         .chat-audio { width:min(260px, 65vw); height:38px; }
         .friend-request-item { align-items:center; gap:9px; }
@@ -1445,7 +1512,7 @@
         .profile-cover-preview span { display:inline-flex; align-items:center; gap:7px; padding:7px 10px; border-radius:999px; background:color-mix(in srgb, var(--panel-bg) 88%, transparent); }
         .profile-cover-preview.has-image { border-style:solid; }
 
-        /* 프로필 결과를 먼저 보여주고 세부 항목을 아래에서 편집하는 카드형 편집 화면. */
+        /* 프로필 편집창: 결과(배경 + 사진)를 위에 먼저 보여 주고 세부 항목을 아래에서 편집하는 카드형 화면. */
         .profile-editor-modal {
             width: min(460px, calc(100vw - 28px));
             max-width: 460px;
@@ -1480,7 +1547,7 @@
         .profile-editor-body { display:grid; gap:15px; padding:19px 22px 18px; }
         .profile-editor-identity { display:grid; gap:7px; }
         .profile-editor-identity label { position:relative; color:color-mix(in srgb, var(--text-color) 78%, transparent); font-size:12px; font-weight:750; text-align:center; }
-        /* 글자 수 안내는 제목의 정렬 폭에 포함하지 않아 제목이 정확히 중앙을 유지한다. */
+        /* 글자 수 안내는 제목의 정렬 폭에 포함하지 않도록 절대 위치로 띄워, 제목이 정확히 가운데에 오게 한다. */
         .profile-editor-identity label small { position:absolute; right:0; color:color-mix(in srgb, var(--text-color) 50%, transparent); font-size:11px; font-weight:500; }
         .profile-editor-modal .settings-input { width:100%; min-height:42px; margin:0; box-sizing:border-box; border-radius:10px; }
         .profile-editor-modal textarea.settings-input { min-height:76px; resize:vertical; }
@@ -1503,11 +1570,13 @@
         .chat-file-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
         .chat-file-card small { color: color-mix(in srgb, var(--text-color) 55%, transparent); font-size: 11px; }
 
+        /* 메시지 시각 표시. 내 메시지는 오른쪽, 상대 메시지는 왼쪽 여백을 조금 둔다. */
         .time {
             font-size: 12px;
             color: gray;
         }
 
+        /* '수정 됨' 표시. */
         .edited-label {
             font-size: 11px;
             color: gray;
@@ -1524,6 +1593,7 @@
             margin-left: 5px;
         }
 
+        /* 상대 메시지 한 줄(아바타 + 말풍선 묶음). 그룹 채팅(.group-message)에서는 이름과 말풍선이 위에서부터 쌓이도록 위쪽 정렬로 바꾼다. */
         .message-left-container {
             display: flex;
             align-items: flex-end;
@@ -1535,6 +1605,7 @@
             align-items: flex-start;
         }
 
+        /* 그룹 채팅에서 상대 메시지 옆에 보이는 작은 프로필 사진. */
         .msg-avatar {
             width: 36px;
             height: 36px;
@@ -1571,8 +1642,8 @@
             margin-left: 2px;
         }
 
+        /* 메시지 우클릭 메뉴(복사·답장·수정·삭제 등). 메시지 영역의 스크롤이나 첨부 미디어 크기와 무관하게 화면 좌표(fixed)에 표시한다. */
         .message-menu {
-            /* 메시지 영역의 스크롤·첨부 미디어 크기와 무관하게 화면 좌표에서 표시한다. */
             position: fixed;
             display: none;
             background: white;
@@ -1593,7 +1664,7 @@
             background: #f3f3f3;
         }
 
-        /* 설정 메뉴는 한 줄 목록이 아니라 기능 성격이 보이는 작은 섹션으로 나눈다. */
+        /* 설정 메뉴는 한 줄 목록이 아니라 기능 성격(화면 · 계정·알림 · 지원)이 보이는 작은 섹션으로 나눈다. */
         #settings-menu {
             min-width: 210px;
             padding: 7px;
@@ -1634,7 +1705,7 @@
         }
         #settings-menu .settings-menu-divider:hover { background: var(--border-color); }
 
-        /* 언어는 전역 설정이라 계정·알림 영역에서 바로 바꾸고, 모바일에서도 같은 구조로 펼쳐진다. */
+        /* 언어는 전역 설정이라 계정·알림 영역에서 바로 바꿀 수 있게 하고, 모바일에서도 같은 구조로 펼쳐진다. */
         #settings-menu .language-setting-item { margin:0; }
         #settings-menu .language-setting-item > summary {
             display:flex; align-items:center; gap:10px; min-height:39px; padding:0 11px;
@@ -1647,6 +1718,7 @@
         .language-setting-panel { padding:4px 10px 9px; }
         .language-setting-panel select { width:100%; min-height:34px; padding:0 9px; border:1px solid var(--input-border); border-radius:8px; outline:none; background:var(--panel-bg); color:var(--text-color); font:inherit; font-size:12px; }
 
+        /* 메시지 반응(이모지) 선택창. 더블클릭한 메시지 위에 띄운다. */
         .reaction-picker {
             position: absolute;
             display: none;
@@ -1675,6 +1747,7 @@
             transform: scale(1.3);
         }
 
+        /* 메시지 아래에 걸쳐 표시되는 반응 배지 줄. 말풍선 모서리에 살짝 겹치도록 절대 위치로 놓는다. */
         .reactions-row {
             display: flex;
             gap: 4px;
@@ -1705,6 +1778,7 @@
             cursor: pointer;
         }
 
+        /* 메시지 속 링크의 미리보기 카드(이미지 + 제목·설명). */
         .link-preview {
             display: flex;
             width: min(360px, 100%);
@@ -1727,6 +1801,7 @@
         .message-link { color: var(--brand-color); text-decoration: underline; word-break: break-all; }
         .message-right .link-preview { align-self: flex-end; }
 
+        /* 메시지를 옆으로 밀 때 나타나는 답장 아이콘. 평소에는 투명하고, 밀린 정도에 따라 script.js가 투명도를 올린다. */
         .swipe-reply-icon {
             position: absolute;
             top: 50%;
@@ -1737,6 +1812,12 @@
             pointer-events: none;
         }
 
+        /*
+         * ============================================================
+         * 모달(팝업 창)
+         * .modal-overlay가 화면 전체를 덮는 어두운 배경이고, 그 안의 .modal-box가 실제 창이다. 기본은 숨김(display:none)이며 script.js가 flex로 연다.
+         * ============================================================
+         */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -1751,14 +1832,15 @@
             z-index: 1000;
         }
 
-        /* 모달 겹침 순서를 DOM 순서(우연)가 아니라 명시적인 층으로 고정한다.
-           #modal-overlay(공용 알림/확인창)는 다른 모든 오버레이가 열려 있어도
-           그 위에서 항상 보여야 한다 — 안 그러면 alert가 화면 뒤로 숨는다. */
+        /*
+         * 모달 겹침 순서는 DOM 순서(우연)가 아니라 명시적인 층(z-index)으로 고정한다.
+         * #modal-overlay(공용 알림/확인창)는 다른 모든 오버레이가 열려 있어도 그 위에서 보여야 한다. 안 그러면 alert가 화면 뒤로 숨는다.
+         * (주의: 이 값은 아래의 같은 선택자 규칙이 2000으로 다시 덮어쓴다.)
+         */
         #modal-overlay {
             z-index: 1200;
         }
-        /* 의도적으로 부모 모달 위에 뜨는 자식 모달(프로필 편집 위의 사진 자르기,
-           그룹원 관리 위의 초대 목록, 프로필 카드 위의 신고 모달)은 부모보다 명시적으로 높은 층에 둔다. */
+        /* 의도적으로 부모 모달 위에 뜨는 자식 모달(프로필 편집 위의 사진 자르기, 그룹원 관리 위의 초대 목록, 프로필 카드 위의 신고 창)은 부모보다 명시적으로 높은 층에 둔다. */
         #image-crop-overlay,
         #invite-member-overlay,
         #report-message-overlay {
@@ -1777,9 +1859,7 @@
             text-align: center;
         }
 
-        /* 계정 삭제 / 그룹 채팅 삭제 등 각종 확인(confirm) 모달은
-           다른 오버레이(계정 설정, 그룹 멤버 등) 위에 항상 떠야 하므로
-           z-index를 더 높이고 박스 크기를 조금 줄인다 */
+        /* 계정 삭제·그룹 채팅 삭제 같은 확인(confirm) 모달은 다른 오버레이(계정 설정, 그룹 멤버 등) 위에 항상 떠야 하므로 z-index를 가장 높이고, 박스 크기는 조금 줄인다. */
         #modal-overlay {
             z-index: 2000;
         }
@@ -1796,6 +1876,7 @@
             color: white;
         }
 
+        /* 확인/알림 창의 문구. word-break: keep-all로 한글이 단어 중간에서 끊기지 않게 한다. */
         .modal-message {
             font-size: 18px;
             margin-bottom: 20px;
@@ -1822,9 +1903,11 @@
             border: none;
         }
 
-        /* ======================================================
-         * 계정 설정 / 그룹 설정 공용 UI (settings sheet)
-         * ====================================================== */
+        /*
+         * ============================================================
+         * 계정 설정 / 그룹 설정 등 공용 설정 창(settings sheet)
+         * ============================================================
+         */
         .settings-modal {
             width: 380px;
             max-width: 90vw;
@@ -1833,6 +1916,7 @@
             overflow: hidden;
         }
 
+        /* 설정 창 머리: 제목과 닫기(X) 버튼. */
         .settings-modal-header {
             display: flex;
             align-items: center;
@@ -1869,6 +1953,7 @@
             background: #dcecff;
         }
 
+        /* 프로필·그룹 사진 자르기 창. 편집 영역은 원형(.image-crop-viewport)이고, 드래그로 위치를, 슬라이더로 배율을 조절한다(script.js). */
         .image-crop-modal {
             width: 390px;
             max-width: 92vw;
@@ -1877,6 +1962,7 @@
             text-align: left;
         }
 
+        /* 자르기 창은 프로필 편집창(부모) 위에 떠야 해서 별도 층을 쓴다. 앞의 공통 규칙(1050)보다 우선하는 값이다. */
         #image-crop-overlay { z-index: 1500; }
 
         .image-crop-description {
@@ -1887,6 +1973,7 @@
             text-align: center;
         }
 
+        /* touch-action: none으로 브라우저 기본 스크롤·확대를 막아, 터치로 사진을 끌 때 화면이 같이 움직이지 않게 한다. */
         .image-crop-viewport {
             width: min(320px, calc(92vw - 64px));
             aspect-ratio: 1;
@@ -1914,12 +2001,14 @@
         .image-crop-zoom-label input { width: 100%; accent-color: var(--brand-color); }
         .image-crop-buttons { margin: 0; padding: 0 22px 20px; }
 
+        /* 설정 창 본문. 내용이 길면 창 안에서만 스크롤된다(최대 높이 70vh). */
         .settings-modal-body {
             padding: 20px 22px 22px;
             max-height: 70vh;
             overflow-y: auto;
         }
 
+        /* 설정 창 안의 한 묶음(제목 + 입력칸 + 버튼). .danger를 붙이면 제목이 빨간색(계정 삭제 등 위험한 작업)이 된다. */
         .settings-section {
             margin-bottom: 22px;
         }
@@ -1941,6 +2030,7 @@
             color: #e05252;
         }
 
+        /* 설정 창의 입력칸·버튼 공통 스타일. 주요 버튼(.settings-btn)은 브랜드색, 위험한 작업(.settings-btn-danger)은 빨간 테두리를 쓴다. */
         .settings-input {
             width: 100%;
             height: 42px;
@@ -2004,6 +2094,7 @@
             margin: 22px 0;
         }
 
+        /* 그룹 관리 창: 그룹 사진(원형 + 카메라 버튼), 이름, 멤버 목록, 초대 버튼에 쓰는 스타일. */
         .group-photo-wrap {
             text-align: center;
             margin-bottom: 18px;
@@ -2135,10 +2226,12 @@
             background: rgba(224, 82, 82, 0.08);
         }
 
-        /* ======================================================
-         * 대화방 미선택 시 웰컴 화면
-         * (헤더/입력창을 숨기고 메신저 앱다운 안내 화면을 보여준다)
-         * ====================================================== */
+        /*
+         * ============================================================
+         * 대화방을 선택하지 않았을 때의 웰컴 화면
+         * 헤더·입력창 등을 숨기고 안내 화면만 보여 준다. 열린 대화가 없다는 사실은 script.js가 .no-conversation 클래스로 알린다.
+         * ============================================================
+         */
         .chat.no-conversation .chat-header,
         .chat.no-conversation .search-bar,
         .chat.no-conversation #pinned-message,
@@ -2173,6 +2266,7 @@
             line-height: 1.5;
         }
 
+        /* 채팅방이 하나도 없을 때 목록에 보이는 안내. */
         .empty-friends {
             display: grid;
             justify-items: center;
@@ -2181,6 +2275,7 @@
             color: color-mix(in srgb, var(--text-color) 66%, transparent);
             text-align: center;
         }
+        /* 채팅방이 없으면 안내 문구를 목록 가운데에 놓는다(script.js가 .is-empty 클래스를 붙인다). */
         #friend-list.is-empty {
             display: grid;
             min-height: calc(100% - 146px);
@@ -2190,6 +2285,7 @@
         .empty-friends strong { color: var(--text-color); font-size: 15px; }
         .empty-friends p { margin: 0; font-size: 13px; line-height: 1.55; }
 
+        /* 입력창 위의 '답장 중' 미리보기와 취소 버튼. 평소에는 숨겨져 있다. */
         .reply-preview {
             display: none;
             padding: 10px 15px;
@@ -2224,6 +2320,7 @@
             cursor: pointer;
         }
 
+        /* 답장한 메시지 위에 보이는 원본 인용 말풍선. */
         .reply-quote {
             padding: 8px 14px;
             border-radius: 16px;
@@ -2242,6 +2339,7 @@
             display: block;
         }
 
+        /* 사진 모아보기: 정사각형 썸네일 4열 격자. */
         .gallery-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -2261,6 +2359,7 @@
         }
 
         .gallery-grid img:hover {
+            /* 접근성: 글자 대비 기준(4.5:1)을 지키기 위한 값이다. 0.65이면 대비가 4.15로 기준에 못 미치고, 0.8이면 6.42로 여유가 있다. */
             opacity: 0.8;
         }
 
@@ -2271,13 +2370,13 @@
             padding: 30px 0;
         }
 
-        /* 인용은 말풍선 안이 아니라 말풍선 위쪽 대화 배경에 놓인다.
-           그래서 말풍선 기준 색(흰 글씨 + 반투명 흰 배경)을 쓰면 배경에 묻힌다.
-           왼쪽 인용과 같은 방식으로 밝은 면 위에 본문 색을 올린다. */
+        /*
+         * 인용은 말풍선 안이 아니라 말풍선 위쪽 대화 배경에 놓인다.
+         * 그래서 말풍선 기준 색(흰 글씨 + 반투명 흰 배경)을 쓰면 배경에 묻힌다. 왼쪽 인용과 같은 방식으로 밝은 면 위에 본문 색을 올린다.
+         */
         .message-right .reply-quote {
             background-color: var(--message-left-bg);
             color: var(--text-color);
-            /* 0.65면 대비가 4.15로 기준에 못 미친다. 0.8이면 6.42로 여유가 있다. */
             opacity: 0.8;
         }
 
@@ -2291,6 +2390,7 @@
             align-items: flex-end;
         }
 
+        /* 입력창 왼쪽의 + 버튼과 첨부 메뉴(사진·파일·동영상·음성). */
         #plus-btn {
             width: 45px;
             height: 45px;
@@ -2303,6 +2403,10 @@
             font-size: 18px;
         }
 
+        /*
+         * 첨부 메뉴. 입력창 기준으로 위쪽에 뜬다(position:absolute). 기준이 부모라서 다른 곳으로 옮기면 위치가 틀어진다(script.js의 LG_REPARENT 주석 참고).
+         * (참고: 아래 box-shadow의 rgba 값은 인자가 3개뿐이라 유효하지 않아 그림자는 적용되지 않는다.)
+         */
         .attach-menu {
             position: absolute;
             bottom: 65px;
@@ -2330,13 +2434,14 @@
             background: #f3f3f3;
         }
 
-        /* # 채팅 이미지 표시용 스타일: 첨부된 사진을 카드처럼 보여주고 확대 모달과 연결한다. */
+        /* 채팅 이미지 표시: 첨부된 사진을 둥근 카드처럼 보여 주고, 누르면 확대 창(.image-modal)과 연결된다. */
         .chat-image {
             max-width: 250px;
             border-radius: 12px;
             display: block;
         }
 
+        /* 이미지 확대 창: 화면 전체를 어둡게 덮고 사진을 가운데에 크게 보여 준다. 토스트와 같은 최상단 층(z-index 3000)이다. */
         .image-modal {
             display: none;
 
@@ -2388,6 +2493,7 @@
             cursor: pointer;
         }
 
+        /* 날짜가 바뀌는 곳의 구분선. 양쪽 선은 ::before/::after로 만든다. */
         .date-divider {
             text-align: center;
             color: gray;
@@ -2419,6 +2525,7 @@
             margin: 0 10px;
         }
 
+        /* 친구 관리 패널을 여는 오른쪽 가장자리 탭 버튼(모바일에서는 숨김). */
         #friend-panel-tab {
             position: fixed;
             top: 50%;
@@ -2436,6 +2543,7 @@
             z-index: 500;
         }
 
+        /* 친구 관리 패널: 평소에는 오른쪽 밖(-300px)에 숨어 있다가 .open이 붙으면 슬라이드해서 나타난다. */
         #friend-panel {
             position: fixed;
             top: 0;
@@ -2467,7 +2575,6 @@
             color: var(--text-color);
         }
 
-        /* 친구 추가와 친구 찾기는 같은 입력 기능이므로, 패널 안에서는 같은 보조 라벨 위계를 사용한다. */
         #friend-panel .friend-panel-header h3 {
             color: color-mix(in srgb, var(--text-color) 74%, transparent);
             font-size: 12px;
@@ -2508,6 +2615,7 @@
             cursor: pointer;
         }
 
+        /* 친구 관리 패널의 친구 한 줄(프로필 보기 + 채팅/차단/삭제 아이콘). 아이콘 색: 삭제=빨강, 차단=주황, 차단 해제=파랑. */
         .friend-panel-item {
             display: flex;
             justify-content: space-between;
@@ -2604,6 +2712,7 @@
             color: #4a90e2;
         }
 
+        /* 친구 찾기(아이디로 검색) 영역. */
         .friend-search-box { margin-top:14px; padding-top:14px; border-top:1px solid var(--input-border); }
         .friend-search-box label, .profile-visibility-label { display:block; margin:0 0 7px; color:color-mix(in srgb, var(--text-color) 74%, transparent); font-size:12px; font-weight:700; }
         .friend-search-result { min-height:0; margin-top:8px; }
@@ -2639,6 +2748,7 @@
             transform: translate(1px, -1px);
         }
 
+        /* 전송 버튼의 종이비행기가 날아가는 효과(script.js가 .launch 클래스를 붙인다). 움직임 줄이기 설정에서는 꺼진다. */
         @keyframes plane-launch {
             0%   { transform: translate(0, 0) rotate(0deg); opacity: 1; }
             45%  { transform: translate(9px, -9px) rotate(12deg); opacity: 0; }
@@ -2662,6 +2772,7 @@
             font-size: 14px;
         }
 
+        /* 채팅 화면 구석의 버전 표시. 클릭을 가로채지 않도록 pointer-events를 끈다. */
         .version-label {
             position: absolute;
             right: 16px;
@@ -2721,6 +2832,7 @@
             gap: 6px;
         }
 
+        /* 설정 메뉴 '알림 설정' 옆의 NEW 배지. 새 업데이트가 있을 때만 script.js가 보이게 한다. */
         .update-notice-badge {
             margin-left: auto;
             border-radius: 99px;
@@ -2757,6 +2869,7 @@
             background: var(--bg-color);
         }
 
+        /* 업데이트 내역 목록. overscroll-behavior: contain으로 목록 끝에서 스크롤이 뒤의 화면으로 번지지 않게 한다. */
         .update-history-list {
             display: grid;
             gap: 8px;
@@ -2792,6 +2905,7 @@
 
         .previous-updates-btn:hover { background: var(--panel-tint); }
 
+        /* '이전 업데이트' 창. */
         .previous-updates-modal {
             width: 520px;
             max-width: 92vw;
@@ -2818,6 +2932,7 @@
             line-height: 1.6;
         }
 
+        /* 도움말 창의 계정 복구 영역(아이디 찾기, 비밀번호 재설정). 펼침 목록(details)으로 항목을 접었다 펼친다. */
         .account-recovery-section {
             padding: 14px;
             border: 1px solid var(--input-border);
@@ -2871,6 +2986,7 @@
             margin-top: 0;
         }
 
+        /* 이메일 인증번호 입력 줄(입력칸 + '인증하기' 버튼 + 남은 시간). 인증을 마치면 버튼이 .verified로 바뀐다. */
         .verification-code-row {
             display: flex;
             align-items: center;
@@ -2905,6 +3021,7 @@
             color: #143a36;
         }
 
+        /* 숫자 폭이 일정한 글꼴(tabular-nums)을 써서, 카운트다운이 줄어들 때 숫자가 좌우로 흔들리지 않게 한다. */
         .verification-code-timer {
             flex: 0 0 38px;
             color: #e05252;
@@ -2936,6 +3053,7 @@
             margin-top: 8px;
         }
 
+        /* 고객 문의 카드(문의 내용 입력 + 사진·동영상 첨부 + 전송). */
         .support-card {
             padding: 16px;
             border: 1px solid var(--input-border);
@@ -2959,7 +3077,7 @@
             line-height: 1.55;
         }
 
-        /* 무료 Icons8 아이콘의 출처는 테마 선택을 방해하지 않도록 도움말 최하단에만 표시한다. */
+        /* 무료 Icons8 아이콘의 출처 표기. 테마 선택을 방해하지 않도록 도움말 맨 아래에만 작게 둔다. */
         .icon-attribution {
             margin: 12px 2px 0;
             color: gray;
@@ -3013,6 +3131,7 @@
             color: gray;
         }
 
+        /* 실제 파일 입력칸은 화면에서 감추고(접근성을 위해 display:none 대신 1px로 줄임) 라벨 버튼으로 대신 연다. */
         #support-attachment {
             position: absolute;
             width: 1px;
@@ -3039,11 +3158,13 @@
         .support-inquiry-result.success { color: #2e7d32; }
         .support-inquiry-result.error { color: #e05252; }
 
+        /* 내 문의 내역 목록과 관리자 답변 표시. */
         .support-inquiry-history { display:grid; gap:9px; max-height:320px; overflow-y:auto; }
         .support-history-item { padding:12px; border:1px solid var(--input-border); border-radius:10px; background:color-mix(in srgb, var(--panel-bg) 90%, var(--brand-color)); }
         .support-history-head { display:flex; justify-content:space-between; gap:10px; font-size:12px; }.support-history-head strong { color:var(--brand-color); }.support-history-head span { color:color-mix(in srgb, var(--text-color) 55%, transparent); }
         .support-history-item > p, .support-admin-reply p { margin:8px 0; white-space:pre-wrap; font-size:13px; line-height:1.55; }.support-history-item > a { color:var(--brand-color); font-size:12px; }
         .support-admin-reply { margin-top:10px; padding:10px; border-left:3px solid var(--brand-color); border-radius:0 8px 8px 0; background:var(--panel-tint); }.support-admin-reply strong { font-size:12px; color:var(--brand-color); }
+        /* 운영 경고 팝업(주황 계열). 다음 접속 때 한 번 확인해야 닫힌다. */
         .moderation-warning-modal { width:min(390px, calc(100vw - 32px)); padding:28px; text-align:center; border:1px solid rgba(226, 155, 57, .34); background:linear-gradient(150deg, var(--panel-bg), color-mix(in srgb, var(--panel-bg) 88%, #f0b24b)); box-shadow:0 20px 54px rgba(0,0,0,.26); }
         .moderation-warning-icon { display:grid; width:48px; height:48px; margin:0 auto 13px; place-items:center; border-radius:15px; color:#b66b12; background:rgba(240, 178, 75, .18); font-size:21px; }
         .moderation-warning-eyebrow { margin:0 0 7px; color:#ad761f; font-size:11px; font-weight:800; letter-spacing:.08em; }
@@ -3060,6 +3181,7 @@
         body.dark-mode .moderation-warning-reason { background:rgba(255,255,255,.05); }
         .support-history-actions { display:flex; justify-content:flex-end; gap:7px; margin-top:8px; }.support-history-actions button { padding:5px 8px; border:1px solid var(--input-border); border-radius:7px; background:transparent; color:var(--text-color); font-size:11px; cursor:pointer; }.support-history-actions .danger { color:#d75c5c; }.support-history-empty { margin:0; color:color-mix(in srgb, var(--text-color) 55%, transparent); font-size:12px; }
 
+        /* 사용자 리뷰 창(내 리뷰 작성 카드 + 전체 리뷰 목록). */
         .reviews-modal { width:min(620px, calc(100vw - 28px)); }
         .reviews-modal .settings-modal-header { align-items:flex-start; }
         .reviews-modal .settings-modal-header h3 { margin:0; }
@@ -3100,11 +3222,14 @@
             line-height: 1.7;
         }
 
-        /* ======================================================
+        /*
+         * ============================================================
          * 모바일 1차 레이아웃
-         * 767px 이하는 메신저 앱처럼 '목록 → 대화' 한 화면씩 보여준다.
-         * PC용 구조는 유지하므로 기능마다 별도 모바일 페이지를 만들 필요가 없다.
-         * ====================================================== */
+         * 767px 이하는 메신저 앱처럼 '목록 → 대화' 한 화면씩 보여 준다.
+         * PC용 구조를 그대로 두고 표시만 바꾸므로, 기능마다 별도 모바일 페이지를 만들 필요가 없다.
+         * ============================================================
+         * 모바일 전용 요소는 기본값으로 숨기고, 아래 모바일 규칙에서만 보이게 한다.
+         */
         #mobile-back-btn {
             display: none;
         }
@@ -3122,11 +3247,10 @@
             display: none;
         }
 
-        /* PC에서는 목록·대화·대화 정보를 한 화면에 정리한다. */
+        /* PC에서는 목록·대화·대화 정보를 한 화면에 정리한다. 대화 정보는 읽기 편하게 넓히고(250px), 가운데 대화 영역과 명확히 구분한다. */
         @media (min-width: 768px) {
             .container {
                 display: grid;
-                /* 대화 정보는 읽기 편하게 넓히고, 중앙 대화 영역과 명확히 구분한다. */
                 grid-template-columns: 290px minmax(0, 1fr) 250px;
                 gap: 14px;
                 width: min(1680px, calc(100vw - 48px));
@@ -3142,6 +3266,10 @@
             #desktop-chat-info { display: flex; min-width: 0; }
         }
 
+        /*
+         * 모바일 규칙 시작. 화면을 꽉 채우는 한 칸 레이아웃: 목록과 대화창을 번갈아 보여 준다(body.mobile-chat-open이면 대화창).
+         * 100dvh와 env(safe-area-inset-*)로 주소창·홈 인디케이터에 가려지지 않게 한다.
+         */
         @media (max-width: 767px) {
             body {
                 display: block;
@@ -3172,6 +3300,7 @@
                 display: none;
             }
 
+            /* 대화를 열면(body.mobile-chat-open) 목록을 숨기고 대화창을 보여 준다. */
             body.mobile-chat-open .friend-list {
                 display: none;
             }
@@ -3191,7 +3320,6 @@
                 width: 46px;
                 height: 46px;
             }
-            
 
             .friend:hover {
                 transform: none;
@@ -3231,7 +3359,7 @@
                 height: 34px;
             }
 
-            /* 검색만 헤더에 남기고 나머지 채팅 기능은 더보기 메뉴로 묶는다. */
+            /* 검색만 헤더에 남기고 나머지 채팅 기능은 더보기 메뉴(⋮)로 묶는다. 헤더의 인라인 스타일을 덮어써야 해서 !important를 쓴다. */
             .chat-header > div:last-child {
                 gap: 8px !important;
                 flex-shrink: 0;
@@ -3258,6 +3386,7 @@
                 cursor: pointer;
             }
 
+            /* 모바일 채팅 '더보기' 시트: 헤더 오른쪽 아래에 뜨는 작은 메뉴(테마·사진 모아보기·고정·알림 끄기·그룹 관리). */
             #mobile-chat-actions-sheet {
                 position: fixed;
                 top: 58px;
@@ -3341,6 +3470,10 @@
                 display: none;
             }
 
+            /*
+             * 하단 탭바(메시지·친구·설정 등). 화면 아래에 고정하고, 아이폰 홈 인디케이터를 피하려고 safe-area-inset-bottom만큼 여백을 더한다.
+             * color-mix를 지원하지 않는 브라우저는 바로 위 불투명 background 선언으로 대체된다.
+             */
             #mobile-bottom-nav {
                 position: fixed;
                 right: 0;
@@ -3387,10 +3520,12 @@
                 opacity: 1;
             }
 
+            /* 대화를 열면 입력창이 하단 탭바와 겹치므로 탭바를 숨긴다. */
             body.mobile-chat-open #mobile-bottom-nav {
                 display: none;
             }
 
+            /* 토스트 알림 위치. 하단 탭바(약 64px)에 가려지지 않게 위로 띄운다. */
             #toast-region {
                 right: 12px;
                 bottom: calc(80px + env(safe-area-inset-bottom));
@@ -3400,6 +3535,7 @@
                 bottom: calc(18px + env(safe-area-inset-bottom));
             }
 
+            /* 모바일에서는 친구 관리 패널을 오른쪽 슬라이드 대신 아래에서 올라오는 시트로 바꾼다. 기본은 화면 밖(translateY(105%))에 두고 .open이면 올라온다. */
             #friend-panel {
                 top: auto;
                 right: 0;
@@ -3419,7 +3555,7 @@
                 transform: translateY(0);
             }
 
-            /* 설정·친구 관리는 손가락으로 닫기 쉬운 하단 시트로 통일한다. */
+            /* 설정·친구 관리는 손가락으로 닫기 쉬운 하단 시트로 통일한다. 시트 뒤를 어둡게 덮는 배경이며 눌러서 닫는다. */
             #mobile-sheet-backdrop {
                 position: fixed;
                 inset: 0;
@@ -3433,6 +3569,7 @@
                 display: block;
             }
 
+            /* 설정 메뉴도 하단 시트로 표시한다. 열림 상태는 body.mobile-settings-open 클래스로 제어하며, PC용 인라인 위치(left/top)를 덮어쓰려고 !important를 쓴다. */
             #settings-menu {
                 position: fixed;
                 right: 0;
@@ -3454,6 +3591,7 @@
                 transform: translateY(0);
             }
 
+            /* 시트 위쪽의 작은 손잡이(drag handle) 막대. */
             #settings-menu::before,
             #friend-panel::before {
                 content: "";
@@ -3465,6 +3603,7 @@
                 background: var(--input-border);
             }
 
+            /* 시트의 각 항목은 터치하기 쉽게 높이 48px 이상으로 키운다. */
             #settings-menu div {
                 display: flex;
                 align-items: center;
@@ -3491,7 +3630,7 @@
                 color: #e05252;
             }
 
-            /* 하단 메뉴바 위의 오른쪽 안전영역에 두어 메시지함 등 상단 버튼과 분리한다. */
+            /* 버전 표시는 하단 메뉴바 위의 오른쪽 안전영역에 두어 메시지함 등 상단 버튼과 분리한다. */
             .version-label {
                 position: fixed;
                 top: auto;
@@ -3504,6 +3643,7 @@
                 display: none;
             }
 
+            /* 모바일 채팅 테마 선택 창: 카드 간격을 줄여 한 화면에 더 많이 보이게 한다. */
             .chat-theme-options {
                 gap: 8px;
                 padding: 14px;
@@ -3513,6 +3653,7 @@
                 min-height: 120px;
             }
 
+            /* 모바일 모달 공통: 화면 가장자리에 붙지 않도록 바깥 여백을 두고 폭을 화면 안으로 제한한다. */
             .modal-overlay {
                 padding: 12px;
                 box-sizing: border-box;
@@ -3528,16 +3669,20 @@
                 padding: 18px;
             }
 
+            /* 문의 입력칸 아래 안내(글자 수 등)가 좁은 화면에서 줄바꿈되도록 허용한다. */
             .support-form-meta {
                 align-items: flex-start;
                 flex-wrap: wrap;
             }
         }
 
-        /* ======================================================
+        /*
+         * ============================================================
          * 오피스 모드
          * 기능은 그대로 두고, 장시간 사용하는 업무용 화면 밀도와 명암만 절제한다.
-         * ====================================================== */
+         * 색은 모두 CSS 변수로 덮어써서 기존 컴포넌트 규칙이 그대로 어두운 업무용 톤을 따르게 한다.
+         * ============================================================
+         */
         body.office-mode {
             --bg-color: #181818;
             --text-color: #e7e7e7;
@@ -3564,6 +3709,7 @@
                 linear-gradient(145deg, #202020 0%, #181818 56%, #161616 100%);
         }
 
+        /* 패널 테두리와 그림자를 낮은 대비로 통일한다. */
         body.office-mode .friend-list,
         body.office-mode .chat,
         body.office-mode #desktop-chat-info,
@@ -3579,6 +3725,7 @@
             background: linear-gradient(155deg, #262626 0%, #202020 46%, #1d1d1d 100%);
         }
 
+        /* 채팅 영역과 헤더·입력창·말풍선의 색을 차분한 차콜/블루 계열로 맞춘다. */
         body.office-mode .chat { background: #1b1b1b; }
         body.office-mode .chat-header {
             background: linear-gradient(110deg, #262626 0%, #212121 58%, #1d222b 100%);
@@ -3610,6 +3757,7 @@
         body.office-mode .profile,
         body.office-mode .chat-header-avatar,
         body.office-mode .group-photo-circle img { border-radius: 8px; }
+        /* 배경 장식은 흐리게 하고 움직임(animation)은 끈다. */
         body.office-mode .chat-bg-decor { opacity: .25; }
         body.office-mode .chat-bg-decor .deco-bubble,
         body.office-mode .theme-heart-extra { animation: none !important; }
@@ -3621,10 +3769,12 @@
         body.office-mode .chat-theme-mono .chat-header,
         body.office-mode .chat-theme-christmas .chat-header,
         body.office-mode .chat-theme-halloween .chat-header { background: linear-gradient(110deg, #262626, #20242b); }
+        /* 스크롤바와 설정 메뉴의 '오피스 모드' 항목 강조색. */
         body.office-mode ::-webkit-scrollbar-thumb { background: #4a4a4a; }
 
         body.office-mode #office-mode-item { background: rgba(111, 156, 255, .12); color: #b8ceff; }
         body.office-mode #office-mode-item i { color: #8fb2ff; }
+        /* 오피스 모드에서는 다크/라이트 전환이 막혀 있으므로 해당 항목을 비활성 모양으로 보여 준다. */
         #theme-toggle-item.disabled { opacity: .52; cursor: not-allowed; }
         #theme-toggle-item.disabled:hover { background: transparent; color: inherit; }
         body.office-mode #theme-toggle-item.disabled { color:#9ea8b8; }
@@ -3678,7 +3828,10 @@
             filter: none;
         }
 
-        /* 오피스 모드 전용 개인 설정: 화면 자극은 줄이고, 읽기 대비는 사용자가 조절한다. */
+        /*
+         * 오피스 모드 전용 개인 설정: 화면 자극은 줄이고, 읽기 대비는 사용자가 조절한다.
+         * <details>/<summary>로 접고 펼치며, 펼침 표시용 화살표는 직접 그린다.
+         */
         #settings-menu .office-comfort-trigger { margin:0; }
         #settings-menu .office-comfort-trigger > summary {
             display:flex;
@@ -3696,6 +3849,7 @@
         #settings-menu .office-comfort-trigger > summary:hover { background:var(--friend-hover); }
         .office-comfort-trigger .office-comfort-chevron { margin-left:auto; font-size:11px; transition:transform .16s ease; }
         .office-comfort-trigger[open] .office-comfort-chevron { transform:rotate(180deg); }
+        /* 펼쳐지는 설정 패널(글자 크기·밀도·대비·움직임 줄이기). */
         #settings-menu .office-comfort-panel {
             display:grid;
             gap:8px;
@@ -3706,6 +3860,7 @@
             border-radius:8px;
             background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color));
         }
+        /* 접힌 상태에서는 패널을 완전히 숨긴다. */
         #settings-menu .office-comfort-trigger:not([open]) .office-comfort-panel { display:none; }
         #settings-menu .office-comfort-panel:hover { background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color)); }
         .office-comfort-panel label { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; color:color-mix(in srgb, var(--text-color) 76%, transparent); font-size:11px; font-weight:700; }
@@ -3725,6 +3880,7 @@
             #settings-menu .language-setting-panel { display:block; min-height:0; padding:3px 12px 10px; }
         }
 
+        /* 대비 3단계: comfort(부드럽게) / standard(기본) / high(선명하게). body 클래스로 선택하고, 변수만 덮어쓴다. */
         body.office-mode.office-contrast-comfort {
             --bg-color:#1a1c1f;
             --panel-bg:#23262a;
@@ -3744,7 +3900,7 @@
         body.office-mode.office-contrast-high .desktop-profile-copy span,
         body.office-mode.office-contrast-high .empty-chat-subtitle { color:#c1c8d1; }
 
-        /* 일반 테마에서도 대비 선택은 유지하되, 각 채팅 테마의 고유 색은 덮어쓰지 않는다. */
+        /* 일반 테마에서도 대비 선택은 유지하되, 각 채팅 테마의 고유 색은 덮어쓰지 않는다(글자·테두리·강조색 변수만 변경). */
         body:not(.office-mode).office-contrast-comfort {
             --text-color:#26313d;
             --border-color:#d6dce4;
@@ -3770,6 +3926,7 @@
             --brand-color:#9bc4ff;
         }
 
+        /* 글자 크기 3단계(small/medium/large): 말풍선과 입력창 글자 크기·줄 간격. */
         body.office-text-small .bubble,
         body.office-text-small .message-left { font-size:15px; line-height:1.45; }
         body.office-text-medium .bubble,
@@ -3780,8 +3937,10 @@
         body.office-text-medium .input-area textarea { font-size:15px; }
         body.office-text-large .input-area textarea { font-size:16px; }
 
-        /* 밀도 3단계는 넉넉히 > 보통 > 촘촘히 순서로 벌어져야 한다.
-           말풍선 여백만 반대로 들어가 있어 촘촘히가 가장 넓었다. */
+        /*
+         * 밀도 3단계는 넉넉히 > 보통 > 촘촘히 순서로 벌어져야 한다.
+         * (과거에 말풍선 여백만 반대로 들어가 촘촘히가 가장 넓었던 버그를 고친 값이다.)
+         */
         body.office-density-comfortable .messages { padding:28px; gap:12px; }
         body.office-density-comfortable .message-right { margin-top:18px; }
         body.office-density-comfortable .message-left,
@@ -3794,10 +3953,11 @@
         body.office-density-compact .message-left,
         body.office-density-compact .bubble { padding:7px 11px; }
 
-        /* PC 전용 말풍선 크기.
-           오피스 모드 설정(body.office-*)이 우선순위가 높아 일반 규칙으로는 덮이지 않으므로,
-           같은 선택자 구조로 단계마다 한 단계씩 올린다. 기본값인
-           medium + comfortable 조합이 18px / 16px 24px가 된다. */
+        /*
+         * PC 전용 말풍선 크기.
+         * 오피스 모드 설정(body.office-*)이 우선순위가 높아 일반 규칙으로는 덮이지 않으므로,
+         * 같은 선택자 구조로 단계마다 한 단계씩 올린다. 기본값인 medium + comfortable 조합이 18px / 16px 24px가 된다.
+         */
         @media (min-width: 768px) {
             body.office-text-small .bubble,
             body.office-text-small .message-left { font-size:17px; line-height:1.5; }
@@ -3814,6 +3974,7 @@
             body.office-density-compact .bubble { padding:11px 17px; }
         }
 
+        /* '움직임 줄이기': 모든 애니메이션·전환을 사실상 즉시 끝낸다(0.01ms). 0으로 두면 일부 브라우저에서 animationend 이벤트가 발생하지 않아 거의 0으로 둔다. */
         body.office-reduce-motion *,
         body.office-reduce-motion *::before,
         body.office-reduce-motion *::after {
@@ -3824,11 +3985,13 @@
         }
 
         @media (max-width: 767px) {
+            /* 모바일 오피스 모드: 화면 전체를 쓰므로 모서리를 각지게 한다. */
             body.office-mode .friend-list,
             body.office-mode .chat { border-radius: 0; }
             body.office-mode #mobile-bottom-nav { border-radius: 0; background: #202020; }
         }
 
+        /* 설정 메뉴의 외부 링크 항목(<a>). 다른 메뉴 항목과 같은 높이·모양으로 맞춘다. */
         .settings-menu-link {
             display: flex;
             align-items: center;
@@ -3842,19 +4005,22 @@
         }
         .settings-menu-link:hover { background: var(--friend-hover); }
 
-        /* ==========================================================
-           Liquid Glass 테마 v2
-           --------------------------------------------------------
-           굴절은 뒤에 있는 픽셀을 옆으로 밀어내는 연산이다. 인접 픽셀 색이
-           거의 같으면(매끄러운 그라디언트) 밀어내도 결과가 같아 아무 변화가
-           보이지 않는다. 그래서 배경에 경계가 뚜렷한 색 덩어리를 깔아
-           굴절될 대상을 먼저 만든다.
-           ========================================================== */
+        /*
+         * ============================================================
+         * Liquid Glass 테마 v2
+         * 굴절은 뒤에 있는 픽셀을 옆으로 밀어내는 연산이다. 인접 픽셀 색이 거의 같으면(매끄러운 그라디언트)
+         * 밀어내도 결과가 같아 아무 변화가 보이지 않는다. 그래서 배경에 경계가 뚜렷한 색 덩어리를 깔아
+         * 굴절될 대상을 먼저 만든다.
+         * ============================================================
+         * 다른 테마에서는 배경 덩어리 레이어를 렌더링하지 않는다.
+         */
         .lg-backdrop { display: none; }
 
-        /* 배경을 뒤로 내려 두면 본문 쪽에 position을 줄 필요가 없다.
-           .container에 position:relative를 주면 그 안의 절대 위치 요소
-           (버전 표시 등)의 기준이 바뀌어 테마를 바꿀 때 위치가 달라진다. */
+        /*
+         * 배경을 뒤로 내려 두면 본문 쪽에 position을 줄 필요가 없다.
+         * .container에 position:relative를 주면 그 안의 절대 위치 요소(버전 표시 등)의 기준이 바뀌어
+         * 테마를 바꿀 때 위치가 달라진다.
+         */
         body.theme-liquid-glass .lg-backdrop {
             display: block;
             position: fixed;
@@ -3864,19 +4030,19 @@
             pointer-events: none;
         }
 
-        /* 구름 결. 대비는 채도가 아니라 흰 구름과 옅은 하늘의 명도 차이에서 얻는다.
-           그래야 전체 톤을 연하게 유지하면서도 굴절될 경계가 남는다.
-
-           흐림 필터(blur) 대신 방사형 그라디언트로 부드러운 경계를 만든다.
-           blur를 6겹(약 190만 픽셀) 쓰면 합성 비용이 크고, 그 위를 덮는
-           backdrop-filter가 매 합성마다 흐림 결과를 다시 읽어야 해서 더 무거워진다.
-           그라디언트는 배경에 한 번 칠해지고 끝이라 추가 비용이 없다. */
+        /*
+         * 구름 결. 대비는 채도가 아니라 흰 구름과 옅은 하늘의 명도 차이에서 얻는다.
+         * 그래야 전체 톤을 연하게 유지하면서도 굴절될 경계가 남는다.
+         * 흐림 필터(blur) 대신 방사형 그라디언트로 부드러운 경계를 만든다.
+         * blur를 6겹(약 190만 픽셀) 쓰면 합성 비용이 크고 그 위를 덮는 backdrop-filter가 매번 다시 읽어야 해서 더 무거워진다.
+         * 그라디언트는 배경에 한 번 칠해지고 끝이라 추가 비용이 없다.
+         */
         body.theme-liquid-glass .lg-blob {
             position: absolute;
             display: block;
         }
 
-        /* 흰 구름 — 경계를 만드는 층 */
+        /* 흰 구름 — 굴절될 경계를 만드는 층(1·2·4·6번). */
         body.theme-liquid-glass .lg-blob-1 {
             top: -4%; left: 2%; width: 42vw; height: 20vw;
             background: radial-gradient(closest-side,
@@ -3898,7 +4064,7 @@
                 rgba(255,255,255,.70) 0%, rgba(255,255,255,.67) 74%, rgba(255,255,255,0) 100%);
         }
 
-        /* 하늘의 깊이감 — 구름과 대비를 만드는 파란 층 */
+        /* 하늘의 깊이감 — 구름과 대비를 만드는 파란 층(3·5번). */
         body.theme-liquid-glass .lg-blob-3 {
             top: 2%; right: -6%; width: 36vw; height: 32vw;
             background: radial-gradient(closest-side,
@@ -3910,6 +4076,11 @@
                 rgba(156,205,240,.48) 0%, rgba(156,205,240,.45) 74%, rgba(156,205,240,0) 100%);
         }
 
+        /*
+         * 유리 질감용 변수: 틴트(반투명 흰색), 테두리 그라디언트의 밝은/어두운 끝, 안쪽 하이라이트, 바깥 그림자.
+         * 하늘은 위가 진하고 아래로 옅어진다. 흰 구름이 드러나려면 하늘 쪽에 색이 남아 있어야 한다.
+         * 둘 다 연하게 만들면 대비가 사라져 유리가 아예 안 보인다.
+         */
         body.theme-liquid-glass {
             --lg-tint: rgba(255, 255, 255, .40);
             --lg-tint-soft: rgba(255, 255, 255, .24);
@@ -3919,14 +4090,12 @@
             --lg-drop: 0 22px 50px -16px rgba(24, 62, 110, .34);
             --lg-hairline: rgba(255, 255, 255, .58);
 
-            /* 하늘은 위가 진하고 아래로 옅어진다.
-               흰 구름이 드러나려면 하늘 쪽에 색이 남아 있어야 한다.
-               둘 다 연하게 만들면 대비가 사라져 유리가 아예 안 보인다. */
             background: linear-gradient(180deg, #9fcdf0 0%, #c3e0f8 38%, #ddeeff 70%, #eef7ff 100%);
             background-attachment: fixed;
         }
 
         body.theme-liquid-glass .friend-list,
+        /* 흐림이 없는 큰 패널은 틴트를 조금 더 올려 글자가 배경에 묻히지 않게 한다. */
         body.theme-liquid-glass .chat,
         body.theme-liquid-glass #desktop-chat-info,
         body.theme-liquid-glass .message-menu,
@@ -3938,6 +4107,7 @@
         body.theme-liquid-glass .settings-modal,
         body.theme-liquid-glass .chat-theme-modal,
         body.theme-liquid-glass .friend-inbox-modal {
+            /* 투명 테두리 + 두 겹 배경(padding-box에는 틴트, border-box에는 그라디언트)으로 그라디언트 테두리를 만든다. */
             border: 1px solid transparent;
             background-image:
                 linear-gradient(var(--lg-tint), var(--lg-tint)),
@@ -3948,11 +4118,12 @@
             box-shadow: var(--lg-drop), var(--lg-inner);
         }
 
-        /* backdrop-filter는 걸린 면적에 비례해 매 합성마다 비용이 든다.
-           .chat(90만 픽셀)과 .friend-list(25만)에 걸면 그것만으로 프레임을 잡아먹고,
-           그 안에 있는 헤더·입력창이 중첩 필터가 되어 바깥 결과를 다시 샘플링한다.
-           그래서 흐림은 작은 표면에만 걸고, 큰 패널은 반투명 틴트와 테두리로만 만든다.
-           뒤가 부드러운 하늘이라 큰 면적을 흐려도 보이는 차이는 거의 없다. */
+        /*
+         * backdrop-filter는 걸린 면적에 비례해 매 합성마다 비용이 든다.
+         * .chat(90만 픽셀)과 .friend-list(25만)에 걸면 그것만으로 프레임을 잡아먹고, 그 안의 헤더·입력창이
+         * 중첩 필터가 되어 바깥 결과를 다시 샘플링한다. 그래서 흐림은 작은 표면에만 걸고,
+         * 큰 패널은 반투명 틴트와 테두리로만 만든다. 뒤가 부드러운 하늘이라 큰 면적을 흐려도 보이는 차이는 거의 없다.
+         */
         @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
             body.theme-liquid-glass .chat-header,
             body.theme-liquid-glass .input-area,
@@ -3974,8 +4145,10 @@
             }
         }
 
-        /* 설정 창은 어두운 오버레이 위에 뜨므로 유리로 두면 회색으로 탁해진다.
-           라이트 모드에서는 불투명한 연하늘→흰색 면으로 읽기 쉽게 한다. */
+        /*
+         * 설정 창은 어두운 오버레이 위에 뜨므로 유리로 두면 회색으로 탁해진다.
+         * 라이트 모드에서는 불투명한 연하늘→흰색 면으로 읽기 쉽게 한다.
+         */
         body.theme-liquid-glass:not(.dark-mode) .settings-modal {
             background-image: linear-gradient(180deg, #e3f1ff 0%, #f3f9ff 38%, #ffffff 100%);
             background-color: #ffffff;
@@ -3987,9 +4160,10 @@
             background: linear-gradient(135deg, #ffffff, #eaf5ff);
         }
 
-        /* 헤더와 입력창은 원래 한쪽에만 테두리가 있다. 사방에 1px을 두르면
-           높이가 커져서 테마를 바꿀 때 화면이 1~2px씩 밀린다.
-           원래 테두리 구조를 그대로 두고 색만 유리에 맞춘다. */
+        /*
+         * 헤더와 입력창은 원래 한쪽에만 테두리가 있다. 사방에 1px을 두르면 높이가 커져서
+         * 테마를 바꿀 때 화면이 1~2px씩 밀린다. 원래 테두리 구조를 그대로 두고 색만 유리에 맞춘다.
+         */
         body.theme-liquid-glass .chat-header {
             border-bottom-color: var(--lg-hairline);
             box-shadow: var(--lg-inner);
@@ -3999,7 +4173,6 @@
             box-shadow: var(--lg-inner);
         }
 
-        /* 흐림이 없는 큰 패널은 틴트를 조금 더 올려 글자가 배경에 묻히지 않게 한다. */
         body.theme-liquid-glass .chat,
         body.theme-liquid-glass .friend-list {
             background-image:
@@ -4013,22 +4186,26 @@
                 linear-gradient(135deg, var(--lg-edge-hi), var(--lg-edge-lo));
         }
 
-        /* 대화 영역과 그 안의 장식은 유리 뒤가 아니라 유리 안에 있으므로 비워 둔다. */
+        /* 대화 영역과 그 안의 장식은 유리 뒤가 아니라 유리 안에 있으므로 배경을 비워 둔다. */
         body.theme-liquid-glass .messages,
         body.theme-liquid-glass .messages-wrap { background: transparent; }
 
-        /* backdrop-filter는 stacking context를 만든다. 그래서 입력창 위로 펼쳐지는
-           첨부 메뉴의 z-index가 .input-area 안에 갇혀, 메뉴가 보이는데도 클릭은
-           뒤의 .messages가 가로챈다. 입력창 자체를 대화 영역 위로 올려 해결한다. */
+        /*
+         * backdrop-filter는 stacking context를 만든다. 그래서 입력창 위로 펼쳐지는 첨부 메뉴의 z-index가
+         * .input-area 안에 갇혀, 메뉴가 보이는데도 클릭은 뒤의 .messages가 가로챈다.
+         * 입력창 자체를 대화 영역 위로 올려 해결한다.
+         */
         body.theme-liquid-glass .input-area { z-index: 20; }
 
-        /* 떠다니는 장식은 헤더·입력창의 backdrop 안에 있어서, 움직일 때마다
-           그 위 유리의 굴절이 매 프레임 다시 계산된다. 유리 테마에서는 멈춰 둔다. */
+        /*
+         * 떠다니는 장식은 헤더·입력창의 backdrop 안에 있어서, 움직일 때마다 그 위 유리의 굴절이 매 프레임 다시 계산된다.
+         * 유리 테마에서는 멈춰 둔다.
+         */
         body.theme-liquid-glass .chat-bg-decor .deco-bubble {
             animation: none !important;
         }
 
-        /* 말풍선은 수가 많고 대화할 때마다 새로 생성되므로 backdrop-filter를 쓰지 않는다. */
+        /* 말풍선은 수가 많고 대화할 때마다 새로 생성되므로 backdrop-filter를 쓰지 않는다(반투명 배경만 사용). */
         body.theme-liquid-glass .message-left {
             border: 1px solid var(--lg-hairline);
             background: rgba(255, 255, 255, .78);
@@ -4040,6 +4217,7 @@
             box-shadow: 0 8px 20px -8px rgba(24, 62, 110, .44), inset 0 1px 0 rgba(255, 255, 255, .36);
         }
 
+        /* 친구 목록 항목: 기본/hover/선택(active) 상태를 흰색 투명도 차이로 구분한다. */
         body.theme-liquid-glass .friend {
             border: 1px solid transparent;
             background: rgba(255, 255, 255, .34);
@@ -4055,7 +4233,10 @@
             border-color: var(--lg-hairline);
         }
 
-        /* ---------- 다크 모드 ---------- */
+        /*
+         * ---------- 다크 모드 ----------
+         * 같은 변수를 어두운 값으로 바꿔 유리 질감을 유지한다.
+         */
         body.theme-liquid-glass.dark-mode {
             --lg-tint: rgba(22, 32, 48, .48);
             --lg-tint-soft: rgba(22, 32, 48, .34);
@@ -4066,8 +4247,7 @@
             --lg-hairline: rgba(255, 255, 255, .16);
             background: linear-gradient(158deg, #0f1622 0%, #141d2e 52%, #101825 100%);
         }
-        /* 밝은 테마와 같은 방사형 그라디언트를 써야 한다.
-           단색으로 덮으면 모서리가 각져서 배경에 사각형이 생긴다. */
+        /* 밝은 테마와 같은 방사형 그라디언트를 써야 한다. 단색으로 덮으면 모서리가 각져서 배경에 사각형이 생긴다. */
         body.theme-liquid-glass.dark-mode .lg-blob-1 {
             background: radial-gradient(closest-side,
                 rgba(47,108,176,.42) 0%, rgba(47,108,176,.38) 76%, rgba(47,108,176,0) 100%);
@@ -4100,8 +4280,10 @@
         body.theme-liquid-glass.dark-mode .friend:hover { background: rgba(255, 255, 255, .12); }
         body.theme-liquid-glass.dark-mode .input-area textarea { background: rgba(15, 23, 42, .58); }
 
-        /* ---------- 유리를 끄는 조건 ----------
-           투명도 줄이기 설정, 고대비, 오피스 모드에서는 가독성이 우선이다. */
+        /*
+         * ---------- 유리를 끄는 조건 ----------
+         * 투명도 줄이기 설정, 고대비, 오피스 모드에서는 가독성이 우선이다. 배경 이미지·블러를 모두 끄고 불투명 패널 색을 쓴다.
+         */
         @media (prefers-reduced-transparency: reduce) {
             body.theme-liquid-glass .lg-backdrop { display: none; }
             body.theme-liquid-glass .friend-list,
@@ -4127,6 +4309,7 @@
             }
         }
 
+        /* 고대비 또는 오피스 모드: 위와 같은 해제를 :is()로 한 번에 적용한다. */
         body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .lg-backdrop { display: none; }
         body.theme-liquid-glass:is(.office-contrast-high, .office-mode) { background: var(--bg-color); }
         body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .friend-list,

@@ -14,6 +14,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /*
+         * 색상 토큰. 배경(--bg-*), 면(--surface*), 글자(--text-*), 강조(--accent*), 오류(--error)를 한곳에서 관리한다.
+         * 메인 화면(style.css)과 같은 연하늘 계열을 써서 로그인 → 메신저 전환이 자연스럽다.
+         */
         :root {
             --bg-a: #f7fbff;
             --bg-b: #eef6ff;
@@ -36,8 +40,13 @@
             --gradient: linear-gradient(135deg, #4a90e2 0%, #78b8ff 100%);
         }
 
+        /* padding·border를 width에 포함시켜 폼 폭 계산을 단순하게 한다. */
         * { box-sizing: border-box; }
 
+        /*
+         * 화면 가운데에 로그인 카드를 놓는 레이아웃. 배경은 연하늘 방사형 그라디언트 두 겹 + 기본 선형 그라디언트다.
+         * 회원가입 폼이 화면보다 길어질 수 있으므로 세로 스크롤은 막지 않고, 가로 스크롤만 막는다(overflow-x).
+         */
         body {
             margin: 0;
             min-height: 100vh;
@@ -52,12 +61,11 @@
             color: var(--text-primary);
             font-family: 'Noto Sans KR', -apple-system, sans-serif;
             letter-spacing: -0.2px;
-            /* 회원가입 폼이 화면보다 길어질 수 있으므로 세로 스크롤은 막지 않는다. */
             overflow-x: hidden;
             position: relative;
         }
 
-        /* ── 배경에 떠다니는 말풍선 장식 ── */
+        /* 배경에 떠다니는 말풍선 장식. pointer-events를 꺼서 폼 클릭을 방해하지 않게 한다. */
         .bubble-deco {
             position: fixed;
             pointer-events: none;
@@ -71,6 +79,7 @@
         .bubble-3 { top: 18%; right: 9%; width: 70px; animation: float-b 8.5s ease-in-out infinite; opacity: 0.4; }
         .bubble-4 { bottom: 10%; right: 12%; width: 100px; animation: float-a 10.5s ease-in-out infinite; opacity: 0.3; }
 
+        /* 장식 말풍선이 위/아래로 천천히 떠오르는 움직임 두 가지(a: 위로, b: 아래로). */
         @keyframes float-a {
             0%, 100% { transform: translateY(0) rotate(0deg); }
             50% { transform: translateY(-18px) rotate(3deg); }
@@ -79,15 +88,18 @@
             0%, 100% { transform: translateY(0) rotate(0deg); }
             50% { transform: translateY(14px) rotate(-4deg); }
         }
+        /* 시스템에서 '동작 줄이기'를 켠 사용자에게는 장식 애니메이션을 끈다. */
         @media (prefers-reduced-motion: reduce) {
             .bubble-deco { animation: none !important; }
         }
+        /* 작은 화면: 장식을 숨기고 카드 안쪽 여백을 줄이며, 제출 버튼을 터치하기 쉬운 높이(48px)로 키운다. */
         @media (max-width: 640px) {
             .bubble-deco { display: none; }
             .auth-panel { padding: 32px 22px 26px; border-radius: 22px; }
             .submit-btn { min-height: 48px; }
         }
 
+        /* 로그인·회원가입·계정 찾기 폼이 들어가는 유리 느낌의 카드. 장식(z-index 0) 위(1)에 놓는다. */
         .auth-panel {
             position: relative;
             z-index: 1;
@@ -103,12 +115,13 @@
             animation: panel-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
+        /* 카드가 열릴 때 아래에서 살짝 떠오르며 나타나는 효과. */
         @keyframes panel-in {
             from { opacity: 0; transform: translateY(14px) scale(0.98); }
             to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        /* ── 로고 마크: 말풍선 + 대화 점(...) ── */
+        /* 로고 마크: 말풍선 + 대화 점(...). */
         .brand-mark {
             width: 52px;
             height: 52px;
@@ -128,6 +141,7 @@
             .brand-mark span { animation: none; opacity: 1; }
         }
 
+        /* 제목·부제목 텍스트. */
         .auth-title {
             font-size: 23px;
             font-weight: 800;
@@ -144,6 +158,7 @@
             margin-bottom: 26px;
         }
 
+        /* 입력 한 줄(라벨 + 입력칸)의 공통 모양. */
         .field {
             margin-bottom: 14px;
         }
@@ -171,12 +186,14 @@
 
         .field input::placeholder { color: var(--text-faint); }
 
+        /* 포커스 표시. 키보드 사용자도 현재 위치를 알 수 있도록 테두리와 링을 함께 바꾼다. */
         .field input:focus {
             border-color: var(--accent);
             background: rgba(255, 255, 255, 0.08);
             box-shadow: 0 0 0 3px var(--accent-soft);
         }
 
+        /* 키보드로 이동할 때만 보이는 포커스 링(마우스 클릭에는 나타나지 않는다). */
         .submit-btn:focus-visible,
         .switch-link:focus-visible,
         .account-recovery-links button:focus-visible,
@@ -185,10 +202,12 @@
             outline-offset: 3px;
         }
 
+        /* 비밀번호 입력칸 래퍼(보기 토글 아이콘 위치의 기준). */
         .password_wrapper {
             position: relative;
         }
 
+        /* '비밀번호 보기'와 '로그인 상태 유지' 체크 줄. */
         .field .show-password-row,
         .field .remember-row {
             display: flex;
@@ -201,6 +220,7 @@
             user-select: none;
         }
 
+        /* 브라우저 기본 체크박스 대신 직접 그린 체크박스. 체크되면 강조색으로 채우고 ::after로 체크 표시를 만든다. */
         .remember-row input[type="checkbox"],
         .show-password-row input[type="checkbox"] {
             appearance: none;
@@ -236,6 +256,7 @@
             transform: rotate(45deg);
         }
 
+        /* 입력 아래 오류 문구. 높이를 미리 확보(min-height)해 문구가 나타날 때 폼이 밀리지 않게 한다. */
         .error-text {
             color: var(--error);
             font-size: 12px;
@@ -243,6 +264,7 @@
             min-height: 14px;
         }
 
+        /* 주 버튼(로그인/회원가입 등). 누르면 눌린 느낌으로 내려가고, 비활성화되면 흐려진다. */
         .submit-btn {
             width: 100%;
             padding: 13px 0;
@@ -262,6 +284,7 @@
         .submit-btn:active { transform: translateY(0); }
         .submit-btn:disabled { opacity: 0.5; cursor: default; transform: none; box-shadow: none; }
 
+        /* '인증번호 받기' 버튼: 주 버튼보다 눈에 덜 띄는 보조 스타일(투명 배경 + 테두리)로 덮어쓴다. */
         #send-code-btn {
             width: auto;
             padding: 0 14px;
@@ -275,6 +298,7 @@
         }
         #send-code-btn:hover { transform: none; background: rgba(255, 255, 255, 0.1); box-shadow: none; }
 
+        /* '계정이 없으신가요?' 같은 로그인 ↔ 회원가입 전환 안내 줄. */
         .switch-row {
             margin-top: 20px;
             text-align: center;
@@ -282,6 +306,7 @@
             color: var(--text-muted);
         }
 
+        /* 회원가입 방식 탭(일반/이메일 등)을 묶는 알약 모양 컨테이너. */
         .signup-tabs {
             display: flex;
             gap: 4px;
@@ -292,6 +317,7 @@
             background: rgba(255, 255, 255, 0.04);
         }
 
+        /* 탭 버튼. 선택된 탭(.active)만 강조색 면으로 채운다. */
         .tab-btn {
             flex: 1;
             padding: 8px 0;
@@ -314,6 +340,7 @@
 
         #code-timer { color: var(--error); }
 
+        /* 로그인 ↔ 회원가입으로 바꾸는 텍스트 링크 버튼. */
         .switch-link {
             color: var(--accent-2);
             font-weight: 700;
@@ -321,10 +348,12 @@
         }
         .switch-link:hover { text-decoration: underline; }
 
+        /* 아주 좁은 화면 보정. */
         @media (max-width: 400px) {
             .auth-panel { padding: 32px 22px 28px; border-radius: 22px; }
         }
 
+        /* '아이디 찾기 · 비밀번호 찾기' 링크 줄. */
         .account-recovery-links {
             display: flex;
             justify-content: center;
@@ -349,6 +378,7 @@
             text-decoration: underline;
         }
 
+        /* 계정 찾기 팝업: 화면 전체를 덮는 어두운 배경. */
         .recovery-overlay {
             position: fixed;
             inset: 0;
@@ -360,6 +390,7 @@
             background: rgba(15, 23, 42, 0.55);
         }
 
+        /* 계정 찾기 팝업 본체(아이디 찾기/비밀번호 재설정 입력 폼). */
         .recovery-modal {
             position: relative;
             width: min(100%, 380px);
@@ -412,6 +443,7 @@
             box-shadow: 0 0 0 3px var(--accent-soft);
         }
 
+        /* 팝업 닫기 버튼. */
         .recovery-close-btn {
             position: absolute;
             top: 12px;
@@ -423,6 +455,7 @@
             font-size: 18px;
         }
 
+        /* 계정 찾기 결과·오류 메시지 영역. */
         .recovery-result {
             min-height: 20px;
             margin-bottom: 10px !important;
@@ -435,6 +468,7 @@
         .recovery-inline-row .submit-btn { width: auto; padding: 0 12px; white-space: nowrap; }
         #password-reset-fields label { margin-top: 12px; }
 
+        /* 이메일 인증번호 확인 버튼. 인증이 끝나면 .verified로 바뀌어 색이 달라진다. */
         .verify-code-btn {
             flex-shrink: 0;
             padding: 11px 12px;
@@ -448,17 +482,21 @@
             cursor: pointer;
         }
         .verify-code-btn.verified { background: var(--accent-2); border-color: var(--accent-2); color: #173a39; }
+        /* 인증 진행 상태 문구(성공/오류 색상 구분). */
         .verification-status { min-height: 18px; margin: 6px 0 0; font-size: 12px; color: var(--text-muted); }
         .verification-status.success { color: var(--accent-2); font-weight: 700; }
         .verification-status.error { color: var(--error); }
 
     </style>
 </head>
+{# initial_mode(login/register)는 app.py의 /login, /register 라우트가 넘긴다. 아래 스크립트가 data-auth-mode로 읽어 첫 화면 상태를 맞춘다. #}
 <body data-auth-mode="{{ initial_mode }}">
+    <!-- 언어 선택. data-language-select를 i18n.js가 찾아 선택값을 저장하고 화면 문구를 바꾼다. -->
     <select class="auth-language-select" data-language-select aria-label="언어">
         <option value="ko">한국어</option><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option><option value="es">español</option>
     </select>
 
+    <!-- 배경 장식 말풍선 4개(순수 장식이라 스크린리더·클릭 대상에서 제외된다). -->
     <div class="bubble-deco bubble-1">
         <svg viewBox="0 0 90 70" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 0h66a12 12 0 0112 12v28a12 12 0 01-12 12H34L14 66V52H12A12 12 0 010 40V12A12 12 0 0112 0z" fill="#ff6f91" fill-opacity="0.35"/>
@@ -480,6 +518,7 @@
         </svg>
     </div>
 
+    <!-- 로그인·회원가입 공용 카드. 모드에 따라 필요한 입력칸(.field)만 스크립트가 보이게 한다. -->
     <div class="auth-panel">
         <div class="brand-mark">
             <img
@@ -491,12 +530,14 @@
         <div class="auth-title" id="form-title">{{ "회원가입" if initial_mode == "register" else "로그인" }}</div>
         <div class="auth-subtitle" id="form-subtitle">{{ "Cloud Chatting 계정을 만들고 대화를 시작하세요." if initial_mode == "register" else "계정으로 로그인해서 대화를 이어가세요." }}</div>
 
+        <!-- 모든 입력칸은 로그인/회원가입 모드에 따라 display와 required를 스크립트(applyMode)가 바꾼다. 제출 처리는 submit 핸들러에서 fetch로 한다. -->
         <form id="auth-form">
             <div class="field" id="username-field">
                 <label for="username" id="username-label">아이디 또는 이메일</label>
                 <input type="text" id="username" autocomplete="username" required>
             </div>
 
+            <!-- 회원가입 전용: 이메일 입력 + 인증번호 받기. -->
             <div class="field" id="email-field" style="display: none;">
                 <label for="email">이메일</label>
                 <div style="display: flex; gap: 6px;">
@@ -505,6 +546,7 @@
                 </div>
             </div>
 
+            <!-- 회원가입 전용: 인증번호 입력, 인증하기 버튼, 만료까지 남은 시간. 인증번호를 보낸 뒤에만 보인다. -->
             <div class="field" id="code-field" style="display: none;">
                 <label for="code">인증번호</label>
                 <div style="display:flex; gap:6px; align-items:center;">
@@ -515,6 +557,7 @@
                 <p id="verification-status" class="verification-status" aria-live="polite"></p>
             </div>
 
+            <!-- 회원가입 전용 아이디 입력칸. 로그인 화면의 '아이디 또는 이메일' 칸과 분리해 둔다. -->
             <div class="field" id="register-username-field" style="display: none;">
                 <label for="register-username">아이디</label>
                 <input type="text" id="register-username" autocomplete="username" placeholder="영문 소문자, 숫자 5자 이상" required>
@@ -527,6 +570,7 @@
                 </div>
             </div>
 
+            <!-- 회원가입 전용: 비밀번호 확인 입력칸과 일치 여부 안내. -->
             <div class="field" id="password-confirmation-field" style="display: none;">
                 <label for="password-confirmation">비밀번호 확인</label>
                 <input
@@ -538,6 +582,7 @@
                 <p id="password-confirmation-status" class="verification-status" aria-live="polite"></p>
             </div>
 
+            <!-- 로그인 아이디 저장과 비밀번호 표시 토글. -->
             <div class="field password-options">
                 <label class="remember-row" for="remember-me">
                     <input type="checkbox" id="remember-me">
@@ -553,11 +598,13 @@
             <button type="submit" class="submit-btn" id="submit-btn">{{ "회원가입" if initial_mode == "register" else "로그인" }}</button>
         </form>
 
+        <!-- 로그인 ↔ 회원가입 전환. 페이지를 새로 불러오지 않고 스크립트가 모드만 바꾼다. -->
         <div class="switch-row">
             <span id="switch-label">{{ "계정이 있으신가요?" if initial_mode == "register" else "계정이 없으신가요?" }}</span>
             <span class="switch-link" id="switch-link">{{ "로그인" if initial_mode == "register" else "회원가입" }}</span>
         </div>
 
+        <!-- 계정 찾기 진입점. 아래쪽의 팝업(#find-username-overlay, #find-password-overlay)을 연다. -->
         <div class="account-recovery-links">
             <button type="button" id="find-username-link">
                 아이디 찾기
@@ -571,8 +618,10 @@
 
     <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script>
+        // CSRF 보호: 서버가 meta 태그로 내려준 토큰을 읽어, 상태를 바꾸는 요청(POST 등)의 X-CSRF-Token 헤더에 자동으로 붙인다.
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const originalFetch = window.fetch;
+        // fetch를 감싸서 모든 쓰기 요청에 토큰을 붙이므로, 각 호출부에서 헤더를 신경 쓰지 않아도 된다.
         window.fetch = function(resource, options = {}) {
             const method = (options.method || (resource instanceof Request && resource.method) || "GET").toUpperCase();
             if (csrfToken && ["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
@@ -583,6 +632,7 @@
             return originalFetch(resource, options);
         };
 
+        // 자주 쓰는 DOM 요소를 한 번만 찾아 둔다.
         const form = document.getElementById("auth-form");
         const usernameInput = document.getElementById("username");
         const passwordInput = document.getElementById("password");
@@ -616,6 +666,7 @@
         const verifyCodeBtn = document.getElementById("verify-code-btn");
         const verificationStatus = document.getElementById("verification-status");
 
+        // 회원가입 이메일 인증 상태: 코드 발송 여부, 인증 완료 여부, 만료 카운트다운 타이머 핸들.
         let codeSent = false;
         let emailVerified = false;
         let timerInterval = null;
@@ -630,6 +681,8 @@
             element.textContent = window.CloudI18n ? window.CloudI18n.t(koreanText) : koreanText;
         }
 
+        // 현재 mode(login/register)에 맞게 제목·버튼 문구·입력칸 표시/필수 여부를 한꺼번에 바꾼다.
+        // 입력칸을 숨길 때 required도 함께 꺼야 숨은 칸 때문에 제출이 막히지 않는다.
         function applyMode() {
             errorText.textContent = "";
             if (mode === "login") {
@@ -674,12 +727,14 @@
             }
         }
 
+        // '비밀번호 표시' 체크박스: 비밀번호와 확인 칸을 같이 text/password로 전환한다.
         showPasswordCheckbox.addEventListener("change", function () {
             const type = showPasswordCheckbox.checked ? "text" : "password";
             passwordInput.type = type;
             passwordConfirmationInput.type = type;
         });
 
+        // 회원가입 중 비밀번호와 확인 칸이 같은지 입력할 때마다 안내한다(서버 검증과 별개의 즉시 피드백).
         function updatePasswordConfirmationStatus() {
             if (mode !== "register") {
                 passwordConfirmationStatus.textContent = "";
@@ -707,11 +762,14 @@
         passwordInput.addEventListener("input", updatePasswordConfirmationStatus);
         passwordConfirmationInput.addEventListener("input", updatePasswordConfirmationStatus);
 
+        // 로그인 ↔ 회원가입 모드 전환.
         switchLink.addEventListener("click", function () {
             mode = mode === "login" ? "register" : "login";
             applyMode();
         });
 
+        // 제출 처리: 모드에 따라 /api/login 또는 /api/register로 보낸다.
+        // 회원가입은 이메일 인증을 마쳐야 하고, 비밀번호 확인이 일치해야 요청한다. 성공하면 메인('/')으로 이동한다.
         form.addEventListener("submit", async function (event) {
             event.preventDefault();
             errorText.textContent = "";
@@ -727,6 +785,7 @@
             const body = mode === "login"
                 ? { identifier: usernameInput.value.trim(), password: passwordInput.value }
                 : { password: passwordInput.value };
+            // 서버가 보내는 메일·오류 문구의 언어를 맞추기 위해 현재 선택 언어를 함께 보낸다.
             body.language = window.CloudI18n ? window.CloudI18n.getLanguage() : "ko";
 
             if (mode === "register") {
@@ -752,6 +811,7 @@
                 if (result.success) {
                     if (mode === "login") {
                         if (rememberCheckbox.checked) {
+                            // '로그인 정보 저장'은 아이디만 브라우저에 저장한다. 비밀번호는 저장하지 않는다.
                             localStorage.setItem("savedIdentifier", usernameInput.value.trim());
                         } else {
                             localStorage.removeItem("savedIdentifier");
@@ -768,6 +828,7 @@
             }
         });
 
+        // '인증번호 받기': /api/send-verification-code로 이메일을 보내고, 성공하면 인증번호 칸과 만료 타이머를 보여 준다.
         sendCodeBtn.addEventListener("click", async function () {
             const email = emailInput.value.trim();
             if (!email) {
@@ -810,6 +871,7 @@
             }
         });
 
+        // 이미 인증한 뒤 인증번호를 고치면 인증 상태를 풀어, 바꾼 코드로 다시 확인하게 한다.
         codeInput.addEventListener("input", function () {
             if (!emailVerified) return;
             emailVerified = false;
@@ -820,6 +882,7 @@
             verifyCodeBtn.disabled = false;
         });
 
+        // 이메일을 바꾸면 기존 코드는 다른 주소용이므로 발송·인증 상태와 타이머를 모두 초기화한다.
         emailInput.addEventListener("input", function () {
             if (!codeSent) return;
             codeSent = false;
@@ -836,6 +899,7 @@
             verifyCodeBtn.disabled = false;
         });
 
+        // '인증하기': /api/verify-email-code로 코드를 검증한다. 성공하면 emailVerified가 true가 되어 회원가입 제출이 가능해진다.
         verifyCodeBtn.addEventListener("click", async function () {
             const email = emailInput.value.trim();
             const code = codeInput.value.trim();
@@ -875,6 +939,7 @@
             }
         });
 
+        // 인증번호 만료까지 남은 시간을 mm:ss로 1초마다 갱신한다. 0이 되면 '만료됨'을 표시한다.
         function startCodeTimer(seconds) {
             clearInterval(timerInterval);
             codeTimer.hidden = false;
@@ -895,12 +960,14 @@
             timerInterval = setInterval(tick, 1000);
         }
 
+        // 저장해 둔 아이디가 있으면 입력칸을 미리 채우고 체크박스도 켠다.
         const savedIdentifier = localStorage.getItem("savedIdentifier");
         if (savedIdentifier) {
             usernameInput.value = savedIdentifier;
             rememberCheckbox.checked = true;
         }
 
+        // 계정 찾기 팝업(아이디 찾기 / 비밀번호 재설정) 동작. 팝업 마크업이 스크립트 아래에 있어서 DOM이 모두 준비된 뒤에 연결한다.
         window.addEventListener("DOMContentLoaded", function () {
             const findUsernameLink = document.getElementById("find-username-link");
             const findUsernameOverlay = document.getElementById("find-username-overlay");
@@ -909,6 +976,7 @@
             const findUsernameSubmitBtn = document.getElementById("find-username-submit-btn");
             const findUsernameResult = document.getElementById("find-username-result");
 
+            // 팝업을 열 때 이전 입력과 결과를 비운다.
             findUsernameLink.addEventListener("click", function () {
                 findUsernameEmail.value = "";
                 findUsernameResult.textContent = "";
@@ -920,10 +988,12 @@
                 findUsernameOverlay.style.display = "none";
             });
 
+            // 팝업 바깥(어두운 배경)을 누르면 닫는다. 내부 클릭은 target이 달라 닫히지 않는다.
             findUsernameOverlay.addEventListener("click", function (event) {
                 if (event.target === findUsernameOverlay) findUsernameOverlay.style.display = "none";
             });
 
+            // /api/find-username 호출. 계정 존재 여부를 노출하지 않도록 서버가 주는 안내 문구를 그대로 보여 준다.
             findUsernameSubmitBtn.addEventListener("click", async function () {
                 const email = findUsernameEmail.value.trim();
                 if (!email) {
@@ -975,6 +1045,7 @@
             findPasswordOverlay.addEventListener("click", function (event) {
                 if (event.target === findPasswordOverlay) findPasswordOverlay.style.display = "none";
             });
+            // 비밀번호 재설정 1단계: 이메일로 인증번호를 받는다. 성공하면 인증번호·새 비밀번호 입력칸을 연다.
             passwordCodeSendBtn.addEventListener("click", async function () {
                 const email = findPasswordEmail.value.trim();
                 if (!email) { findPasswordResult.textContent = "이메일을 입력해주세요."; return; }
@@ -994,6 +1065,7 @@
                     passwordCodeSendBtn.textContent = "인증번호 받기";
                 }
             });
+            // 비밀번호 재설정 2단계: 인증번호와 새 비밀번호를 /api/password-reset/confirm으로 보낸다. 성공하면 1.5초 뒤 팝업을 닫는다.
             passwordResetSubmitBtn.addEventListener("click", async function () {
                 const email = findPasswordEmail.value.trim();
                 const code = passwordResetCode.value.trim();
@@ -1016,11 +1088,13 @@
             });
         });
 
+        // 초기 화면 상태 적용(서버가 정한 모드에 맞는 입력칸만 보이게 한다).
         applyMode();
 
 
     </script>
 
+<!-- 아이디 찾기 팝업(이메일 입력 → 안내 메일 발송). -->
 <div class="recovery-overlay" id="find-username-overlay">
     <div class="recovery-modal">
         <button type="button" class="recovery-close-btn" id="find-username-close-btn">
@@ -1048,6 +1122,7 @@
     </div>
 </div>
 
+<!-- 비밀번호 찾기 팝업(이메일 인증번호 → 새 비밀번호 설정). -->
 <div class="recovery-overlay" id="find-password-overlay">
     <div class="recovery-modal">
         <button type="button" class="recovery-close-btn" id="find-password-close-btn"><i class="fa-solid fa-xmark"></i></button>

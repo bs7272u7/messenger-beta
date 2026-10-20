@@ -1,7 +1,7 @@
-"""existing PostgreSQL schema baseline
+"""기존 PostgreSQL 스키마를 기준 버전으로 표시하는 baseline revision.
 
 Revision ID: 20260829_01
-Revises:
+Revises: (없음)
 Create Date: 2026-08-29
 """
 
@@ -12,8 +12,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """기존 init_db() 스키마를 기준으로 표시만 한다."""
+    """기존 init_db() 스키마를 기준으로 표시만 한다. 새로 만든 DB는 앱이 시작될 때 init_db()가 테이블을 만든다."""
+    pass
 
 
 def downgrade() -> None:
     """기준 버전은 데이터 변경을 수행하지 않는다."""
+    pass

@@ -21,8 +21,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 
   <style>
-    /* 색은 브랜드 파랑과 무채색으로만 제한한다.
-       삽화를 두지 않는 대신 타이포와 여백으로 화면을 지탱한다. */
+    /*
+     * 디자인 토큰. 색은 브랜드 파랑과 무채색으로만 제한한다.
+     * 삽화를 두지 않는 대신 타이포와 여백으로 화면을 지탱한다.
+     * --accent-cta는 흰 글자와의 명암비(대비)를 확보하려고 --accent보다 어두운 파랑이다.
+     */
     :root {
       --accent:      #4a90e2;
       --accent-cta:  #2f72c4;
@@ -41,7 +44,9 @@
       --header-h: 64px;
     }
 
+    /* padding·border를 폭에 포함시켜 레이아웃 계산을 단순하게 한다. */
     *, *::before, *::after { box-sizing: border-box; }
+    /* '기능' 링크(#features)를 누르면 부드럽게 스크롤한다. 동작 줄이기 설정에서는 아래에서 해제한다. */
     html { scroll-behavior: smooth; }
 
     body {
@@ -60,8 +65,10 @@
     p { margin: 0; }
     a { color: inherit; text-decoration: none; }
 
+    /* 콘텐츠 최대 폭을 제한하고 좌우 여백(--gutter)을 둔다. */
     .container { max-width: var(--container); margin: 0 auto; padding-inline: var(--gutter); }
 
+    /* 키보드·스크린리더 사용자를 위한 '본문으로 건너뛰기' 링크. 평소엔 화면 밖에 있다가 포커스를 받으면 나타난다. */
     .skip-link {
       position: absolute; left: -9999px; top: 12px; z-index: 100;
       padding: 8px 16px; border-radius: 999px; background: var(--surface);
@@ -69,11 +76,12 @@
     }
     .skip-link:focus { left: 24px; }
 
+    /* 키보드 포커스 표시(마우스 클릭에는 나타나지 않는다). */
     a:focus-visible, button:focus-visible {
       outline: 3px solid rgba(74,144,226,.45); outline-offset: 3px; border-radius: 999px;
     }
 
-    /* ---------------- 버튼 ---------------- */
+    /* 버튼 공통 모양(알약형). 종류별 색은 .btn-primary / .btn-outline가 정한다. */
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
       height: 48px; padding: 0 24px;
@@ -92,7 +100,7 @@
 
     .btn-sm { height: 40px; padding: 0 18px; font-size: 15px; }
 
-    /* ---------------- 헤더 ---------------- */
+    /* 헤더: 스크롤해도 위에 붙어 있고(sticky), 반투명 흰색 + 배경 흐림을 쓴다. */
     .site-header {
       position: sticky; top: 0; z-index: 40;
       height: var(--header-h); display: flex; align-items: center;
@@ -101,6 +109,7 @@
               backdrop-filter: saturate(180%) blur(12px);
       transition: box-shadow .24s var(--ease);
     }
+    /* 스크롤이 내려가면(is-stuck) 아래 경계선을 그려 본문과 구분한다. 클래스는 아래 스크립트가 붙인다. */
     .site-header.is-stuck { box-shadow: inset 0 -1px 0 var(--line); }
 
     .header-inner {
@@ -119,7 +128,7 @@
     }
     .nav-link:hover { color: var(--text); background: var(--band); }
 
-    /* ---------------- 히어로 ---------------- */
+    /* 히어로(첫 화면): 제목 + 한 줄 설명 + 시작 버튼. 이미지 없이 글자만으로 구성한다. */
     .hero { padding: 96px 0 104px; }
     .hero-grid { max-width: 640px; margin-inline: auto; text-align: center; }
     .hero h1 {
@@ -134,36 +143,37 @@
     .hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 36px; }
     .hero-note { margin-top: 20px; color: var(--text-muted); font-size: 14px; }
 
-    /* ---------------- 기능 ----------------
-       카드나 큰 패널 없이 줄글과 여백으로만 정리한다. */
+    /* 기능 소개 영역. 카드나 큰 패널 없이 줄글과 여백으로만 정리한다. */
     .features { padding: 96px 0; background: var(--band); border-block: 1px solid var(--line); }
     .features h2 { font-size: clamp(26px, 2.6vw, 34px); line-height: 1.25; }
     .features > .container > p { margin-top: 12px; max-width: 460px; color: var(--text-muted); font-size: 17px; }
 
+    /* 기능 3개를 가로 3열로 배치한다(좁은 화면에서는 1열). */
     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 56px; }
     .item svg { width: 19px; height: 19px; color: var(--accent-cta); }
     .item h3 { margin: 14px 0 6px; font-size: 17px; }
     .item p { color: var(--text-muted); font-size: 15px; line-height: 1.6; }
 
-    /* ---------------- 마무리 ---------------- */
+    /* 마무리 영역: 가입 유도 문구와 버튼. */
     .closing { padding: 104px 0; text-align: center; }
     .closing h2 { font-size: clamp(26px, 2.8vw, 36px); line-height: 1.25; }
     .closing p { margin: 14px auto 32px; max-width: 400px; color: var(--text-muted); font-size: 17px; }
 
-    /* ---------------- 푸터 ---------------- */
+    /* 푸터: 약관 링크와 저작권 표기. */
     .site-footer { border-top: 1px solid var(--line); padding: 36px 0; }
     .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
     .footer-links { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--text-muted); font-size: 14.5px; }
     .footer-links a:hover { color: var(--accent-cta); }
     .footer-copy { color: var(--text-muted); font-size: 14.5px; }
 
-    /* ---------------- 등장 ---------------- */
+    /* 스크롤하면 서서히 나타나는 효과. html에 js 클래스가 있을 때만 숨겨 두므로, 스크립트가 꺼진 환경에서는 내용이 그대로 보인다. */
     .js .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
     .js .reveal.shown { opacity: 1; transform: none; }
 
-    /* ---------------- 반응형 ---------------- */
+    /* 반응형 기준점: 900px(그리드 간격) → 768px(모바일 레이아웃) → 480px(아주 좁은 폰). */
     @media (max-width: 900px) { .grid { gap: 32px; } }
 
+    /* 모바일: 여백을 줄이고, 헤더의 '기능' 링크를 숨기며, 기능 그리드를 1열로 바꾼다. 글자는 작은 화면에서 읽기 쉽게 키운다. */
     @media (max-width: 768px) {
       :root { --gutter: 20px; }
       .nav-link { display: none; }
@@ -188,6 +198,7 @@
       .hero-actions .btn, .closing .btn { width: 100%; }
     }
 
+    /* 동작 줄이기 설정을 켠 사용자: 스크롤·전환 애니메이션을 사실상 끄고 등장 효과 없이 바로 보여 준다. */
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       *, *::before, *::after {
@@ -198,12 +209,15 @@
     }
   </style>
 
+  // 자바스크립트가 켜져 있음을 CSS에 알린다(.js .reveal 규칙이 이 클래스에 의존). 꺼져 있으면 등장 효과 없이 내용이 그대로 보인다.
   <script>document.documentElement.classList.add('js');</script>
 </head>
 
 <body>
+  <!-- 접근성: 키보드로 반복되는 헤더를 건너뛰고 본문으로 이동하는 링크. -->
   <a class="skip-link" href="#main">본문으로 건너뛰기</a>
 
+  <!-- 기능 아이콘 스프라이트. 화면에는 그리지 않고, 아래에서 <use href="#i-...">로 불러다 쓴다(외부 아이콘 라이브러리 없이 가볍게 유지). -->
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M13 2 4.1 13.1a1 1 0 0 0 .8 1.6H11l-1 7.3 8.9-11.1a1 1 0 0 0-.8-1.6H12z"/>
@@ -217,6 +231,7 @@
     </symbol>
   </svg>
 
+  <!-- 상단 고정 헤더: 브랜드 + 로그인/가입 버튼. -->
   <header class="site-header" id="header">
     <div class="header-inner">
       <a class="brand" href="/">
@@ -231,7 +246,9 @@
     </div>
   </header>
 
+  <!-- 본문. 스킵 링크의 도착 지점이다. -->
   <main id="main">
+    <!-- 히어로: 서비스 한 줄 소개와 시작 버튼. -->
     <section class="hero">
       <div class="container hero-grid">
         <div>
@@ -246,6 +263,7 @@
       </div>
     </section>
 
+    <!-- 기능 소개(실시간 전달 / 친구와 그룹 / 안전한 계정). -->
     <section class="features" id="features">
       <div class="container">
         <h2 class="reveal">대화에 필요한 것만</h2>
@@ -271,6 +289,7 @@
       </div>
     </section>
 
+    <!-- 마무리 가입 유도. -->
     <section class="closing">
       <div class="container">
         <h2 class="reveal">대화를 시작해보세요</h2>
@@ -292,25 +311,31 @@
         <a href="/login">로그인</a>
         <a href="/login?mode=register">회원가입</a>
       </nav>
+      {# current_year가 넘어오지 않으면 2026을 쓴다. #}
       <p class="footer-copy">&copy; {{ current_year or 2026 }} Cloud Chatting</p>
     </div>
   </footer>
 
   <script>
+    // 즉시 실행 함수로 감싸 전역 변수를 만들지 않는다.
     (function () {
       var header = document.getElementById('header');
       var ticking = false;
+      // 스크롤 위치에 따라 헤더 경계선 클래스를 켜고 끈다.
       function onScroll() { header.classList.toggle('is-stuck', scrollY > 4); ticking = false; }
+      // scroll 이벤트는 매우 자주 발생하므로 requestAnimationFrame으로 프레임당 한 번만 처리한다(ticking 플래그). passive라 스크롤 성능을 해치지 않는다.
       addEventListener('scroll', function () {
         if (!ticking) { ticking = true; requestAnimationFrame(onScroll); }
       }, { passive: true });
       onScroll();
 
+      // 화면에 들어올 때 서서히 나타나는 요소들. IntersectionObserver를 지원하지 않는 오래된 브라우저에서는 처음부터 모두 보이게 한다.
       var items = document.querySelectorAll('.reveal');
       if (!('IntersectionObserver' in window)) {
         items.forEach(function (el) { el.classList.add('shown'); });
         return;
       }
+      // 요소가 15% 이상 보이면 .shown을 붙이고, 한 번 나타난 요소는 관찰을 멈춘다.
       var io = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) {
           if (!e.isIntersecting) return;

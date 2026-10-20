@@ -1,10 +1,11 @@
-"""대화방·메시지 API의 URL과 기존 핸들러 이름을 한곳에서 연결합니다."""
+"""대화방·메시지 API의 URL과 기존 핸들러 이름을 한곳에서 연결한다."""
 
 from collections.abc import Callable
 from typing import Any
 
 from flask import Blueprint
 
+# (URL 규칙, 허용 HTTP 메서드, 핸들러 이름) 목록. 대화방 → 멤버 → 메시지 → 첨부 → 메시지 단위 작업 순서로 정리돼 있다.
 CHAT_ROUTES = (
     ("/api/conversations", ("GET",), "get_conversations"),
     ("/api/conversations", ("POST",), "create_group_conversation"),
@@ -45,9 +46,9 @@ CHAT_ROUTES = (
 
 
 def create_chat_blueprint(handlers: dict[str, Callable[..., Any]]) -> Blueprint:
-    """기존 URL·endpoint 이름을 보존한 채 채팅 API를 Blueprint에 등록합니다.
+    """기존 URL·엔드포인트 이름을 그대로 둔 채 채팅 API를 Blueprint에 등록한다.
 
-    실제 처리 함수는 app.py에서 주입하므로, 라우팅 이동 중에도 공개 API가 바뀌지 않습니다.
+    실제 처리 함수는 app.py에서 주입받는다. 그래서 라우팅을 옮기는 도중에도 공개 API가 바뀌지 않는다.
     """
     chat_bp = Blueprint("chat", __name__)
     for rule, methods, endpoint in CHAT_ROUTES:

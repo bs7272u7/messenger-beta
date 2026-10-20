@@ -1,13 +1,25 @@
 /*
- * Cloud Chatting의 화면 언어를 한곳에서 관리한다.
- * 사용자 메시지와 이름은 번역하지 않고, 서비스가 직접 만든 안내 문구만 바꾼다.
+ * 화면 언어(i18n)를 한곳에서 관리한다.
+ *
+ * - 한국어 원문 문구를 키로 삼아 각 언어의 번역을 사전에서 찾는다. 키가 없으면 번역하지 않고 원문을 그대로 둔다.
+ * - 사용자가 쓴 메시지와 이름은 번역하지 않고, 서비스가 직접 만든 안내 문구만 바꾼다.
+ * - 영어 사전(dictionaries.en)에 키가 있어야 번역 대상으로 인정한다. 새 문구를 추가할 때는 en에 먼저 넣고,
+ *   zh·ja·es는 개별 번역이 없으면 영어를 대신 보여 준다.
+ * - 동적으로 그려지는 UI는 MutationObserver가 감시해서 같은 사전으로 번역한다.
+ * - 전역 객체 window.CloudI18n 으로 t(), setLanguage(), getLanguage() 등을 제공한다.
  */
+
 (function () {
+    // 지원하는 언어 코드. 서버의 SUPPORTED_LANGUAGES(app.py)와 같아야 한다.
     const supportedLanguages = new Set(["ko", "en", "zh", "ja", "es"]);
+    // 현재 언어. 서버가 로그인 사용자의 저장 언어를 템플릿(window.CLOUD_LANGUAGE)으로 주면 그것을 우선하고, 로그인 전 화면은 브라우저에 저장해 둔 값을 쓴다.
     let language = supportedLanguages.has(window.CLOUD_LANGUAGE) ? window.CLOUD_LANGUAGE : (localStorage.getItem("cloudchattingLanguage") || "ko");
+    // 알 수 없는 값이 들어오면 한국어로 되돌린다.
     if (!supportedLanguages.has(language)) language = "ko";
 
+    // 언어별 번역 사전(한국어 원문 → 번역). 아래에서 기능별로 나눠 Object.assign으로 계속 덧붙인다. 한국어(ko)는 원문 자체가 기준이라 사전이 없다.
     const dictionaries = {
+        // 기본 화면의 문구. 영어는 다른 언어의 대체(fallback)이기도 하다.
         en: {
             "화면": "Display",
             "다크 모드": "Dark mode",
@@ -377,7 +389,7 @@
         }
     };
 
-    // 화면을 만들면서 추가된 짧은 안내·확인 문구도 이 목록에 모아, 언어를 바꾼 뒤 일부만 한국어로 남지 않게 한다.
+    // 화면을 만들면서 추가된 짧은 안내·확인 문구. 언어를 바꾼 뒤 일부만 한국어로 남지 않도록 여기에 모은다.
     Object.assign(dictionaries.en, {
         "계정이 없으신가요?": "Don't have an account?",
         "이미 계정이 있으신가요?": "Already have an account?",
@@ -401,6 +413,7 @@
         "알림 끄기": "Mute notifications",
         "그룹 관리": "Manage group"
     });
+    // 위와 같은 묶음의 중국어 번역.
     Object.assign(dictionaries.zh, {
         "채팅 테마": "聊天主题",
         "↩️ 답장": "↩️ 回复",
@@ -478,6 +491,7 @@
         "동영상을 보냈습니다.": "视频已发送。",
         "동영상 전송 중 문제가 발생했습니다.": "发送视频时出现问题。"
     });
+    // 위와 같은 묶음의 일본어 번역.
     Object.assign(dictionaries.ja, {
         "채팅 테마": "チャットテーマ",
         "↩️ 답장": "↩️ 返信",
@@ -558,6 +572,7 @@
         "동영상을 보냈습니다.": "動画を送信しました。",
         "동영상 전송 중 문제가 발생했습니다.": "動画の送信中に問題が発生しました。"
     });
+    // 위와 같은 묶음의 스페인어 번역.
     Object.assign(dictionaries.es, {
         "채팅 테마": "Tema del chat",
         "↩️ 답장": "↩️ Responder",
@@ -634,7 +649,7 @@
         "동영상을 보냈습니다.": "Vídeo enviado.",
         "동영상 전송 중 문제가 발생했습니다.": "Ocurrió un problema al enviar el vídeo."
     });
-    // 약관 원문도 별도 페이지에서 열리므로, 본문까지 같은 언어 규칙을 적용한다.
+    // 이용약관·개인정보처리방침 원문. 별도 페이지에서 열리므로 본문까지 같은 언어 규칙을 적용한다.
     Object.assign(dictionaries.en, {
         "시행일: 2026년 8월 14일": "Effective date: August 14, 2026",
         "1. 수집하는 정보": "1. Information we collect",
@@ -789,7 +804,7 @@
         "현재 오프라인입니다.": "Desconectado.",
         "{count}명이 참여 중인 그룹 채팅입니다.": "Chat grupal con {count} miembros."
     });
-    // 전수 점검에서 확인된 로그인·관리자·고정 안내 문구다.
+    // 로그인·관리자·고정 안내 문구.
     Object.assign(dictionaries.en, {
         "채팅 테마": "Chat theme",
         "↩️ 답장": "↩️ Reply",
@@ -868,8 +883,7 @@
         "동영상 전송 중 문제가 발생했습니다.": "A problem occurred while sending the video."
     });
 
-    // 도움말·알림·리뷰처럼 모달을 연 뒤에 보이는 세부 안내도 빠짐없이 같은 사전에서 찾는다.
-    // 다른 언어에 아직 개별 번역이 없는 새 문구는 영어를 안전한 공통 표현으로 사용한다.
+    // 도움말·알림·리뷰처럼 모달을 연 뒤에야 보이는 세부 안내. 다른 언어에 개별 번역이 없는 새 문구는 영어를 공통 표현으로 쓴다.
     Object.assign(dictionaries.en, {
         "현재 대화": "Current conversation",
         "친구를 추가하거나 채팅방을 선택해보세요.": "Add a friend or select a chat room.",
@@ -1054,7 +1068,7 @@
         "✓ 이메일 인증이 완료되었습니다.": "✓ Email verification completed."
     });
 
-    // 테마 이름과 설명은 버튼을 열었을 때 처음 보이는 문구라 별도 묶음으로 관리한다.
+    // 채팅 테마 이름과 설명. 테마 창을 열었을 때 처음 보이는 문구라 따로 묶었다.
     Object.assign(dictionaries.en, {
         "하트": "Heart",
         "감성 핑크": "Soft pink",
@@ -1108,7 +1122,7 @@
         "특별한 시즌에 어울리는 한정 분위기의 테마예요.": "Temas limitados para temporadas especiales."
     });
 
-    // 기본 화면 밖의 상세 메뉴와 모달에 쓰이는 문구다. 새 화면도 같은 키를 재사용한다.
+    // 기본 화면 밖의 상세 메뉴와 모달에 쓰이는 문구. 새 화면도 같은 키를 재사용한다.
     Object.assign(dictionaries.en, {
         "채팅방 목록으로 돌아가기": "Back to chat list",
         "채팅방 더보기": "More chat options",
@@ -1214,7 +1228,7 @@
         "편하게 보기 아코디언 메뉴 적용": "Added collapsible comfort view settings"
     });
 
-    // 영어 대체 문구로만 남지 않도록, 설명형 UI도 중국어·일본어·스페인어별 표현을 둔다.
+    // 영어 대체 문구로만 남지 않도록, 설명형 UI는 중국어·일본어·스페인어 각각의 표현을 둔다.
     Object.assign(dictionaries.zh, {
         "현재 대화": "当前对话",
         "친구를 추가하거나 채팅방을 선택해보세요.": "添加好友或选择一个聊天。",
@@ -1440,6 +1454,7 @@
         "인증번호가 변경되어 다시 인증이 필요합니다.": "El código cambió. Verifica de nuevo.",
         "이메일이 변경되어 인증번호를 다시 받아야 합니다.": "El correo cambió. Solicita un nuevo código."
     });
+    // 페이지 제목과 설정 메뉴의 화면 테마 항목.
     Object.assign(dictionaries.en, {
         "클라우드 채팅": "Cloud Chatting",
         "로그인 - cloudchatting 계정": "Log in - Cloud Chatting account",
@@ -1497,19 +1512,31 @@
         "클래식": "Clásico"
     });
 
+    /**
+     * 한국어 원문(key)을 현재 언어의 문구로 바꾼다.
+     *
+     * 한국어는 사전이 아니라 화면의 원문 자체가 기준이라 그대로 돌려준다. 그래서 다른 언어를 본 뒤 한국어로 돌아와도 원문이 정확히 복원된다.
+     * 번역이 없으면 영어, 영어도 없으면 원문을 돌려준다.
+     */
     function t(key) {
         const text = String(key || "").trim();
-        // 한국어는 번역 사전이 아니라 화면의 원문 자체가 기준이다.
-        // 영어 등 다른 언어를 본 뒤 한국어로 돌아와도 원문으로 정확히 복원한다.
         if (language === "ko") return text;
         return (dictionaries[language] && dictionaries[language][text]) || dictionaries.en[text] || text;
     }
 
+    /**
+     * 번역하면 안 되는 영역인지 판단한다. 사용자가 쓴 말풍선, 코드, data-no-i18n 표시가 있는 요소가 해당한다. 빈 대화 안내는 messages-wrap 안에 있어도 서비스 문구이므로 번역한다.
+     */
     function shouldSkip(node) {
-        // 실제 사용자가 작성한 말풍선만 제외한다. 빈 대화 안내는 messages-wrap 안에 있어도 UI 문구이므로 번역한다.
         return node.closest && node.closest("script, style, pre, code, .bubble, .message-left, .chat-audio, [data-no-i18n]");
     }
 
+    /**
+     * root 안의 텍스트를 번역한다.
+     *
+     * 번역 전 원문은 부모 요소의 data-i18n-text에 보관해 두었다가, 언어가 바뀔 때 그 원문을 기준으로 다시 번역한다.
+     * 영어 사전에 없는 문구는 건드리지 않는다.
+     */
     function translateTextNodes(root) {
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         const nodes = [];
@@ -1525,6 +1552,9 @@
         });
     }
 
+    /**
+     * placeholder, title, aria-label 속성 문구를 번역한다. 원문은 data-i18n-* 속성에 보관한다.
+     */
     function translateAttributes(root) {
         root.querySelectorAll("[placeholder], [title], [aria-label]").forEach(function (element) {
             if (shouldSkip(element)) return;
@@ -1538,6 +1568,9 @@
         });
     }
 
+    /**
+     * 페이지(또는 일부 영역)의 문구·속성·문서 제목·언어 선택 칸을 현재 언어로 맞춘다.
+     */
     function translatePage(root = document.body) {
         if (!root) return;
         document.documentElement.lang = language;
@@ -1551,6 +1584,11 @@
         translateAttributes(root);
     }
 
+    /**
+     * 언어를 바꾸고 화면을 다시 번역한다.
+     *
+     * persist가 true면 브라우저에 저장하고, 'cloud-language-change' 이벤트로 다른 스크립트(script.js)에 알려 계정 설정 저장과 동적 문구 갱신을 맡긴다.
+     */
     function setLanguage(nextLanguage, persist = true) {
         language = supportedLanguages.has(nextLanguage) ? nextLanguage : "ko";
         if (persist) localStorage.setItem("cloudchattingLanguage", language);
@@ -1559,7 +1597,7 @@
         window.dispatchEvent(new CustomEvent("cloud-language-change", { detail: { language } }));
     }
 
-    // 이후의 API 요청에도 현재 언어를 실어 보내 이메일·서버 안내 문구가 같은 언어를 따르게 한다.
+    // 이후의 모든 API 요청에 현재 언어(X-App-Language 헤더)를 실어 보내서, 이메일·서버 안내 문구도 같은 언어를 따르게 한다.
     const originalFetch = window.fetch;
     window.fetch = function (resource, options = {}) {
         const headers = new Headers(options.headers || (resource instanceof Request ? resource.headers : undefined));
@@ -1567,16 +1605,20 @@
         return originalFetch(resource, { ...options, headers });
     };
 
+    // 화면의 언어 선택 칸(data-language-select)이 바뀌면 언어를 바꾼다. 로그인 화면과 설정 메뉴가 같은 방식을 쓴다.
     document.addEventListener("change", function (event) {
         if (event.target.matches("[data-language-select]")) setLanguage(event.target.value);
     });
 
+    // 다른 스크립트가 쓰는 공개 인터페이스.
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
+    /**
+     * 처음 한 번 번역하고, 이후 JavaScript가 그리는 UI(채팅 목록·모달 등)도 같은 사전으로 번역하도록 DOM 변화를 감시한다.
+     *
+     * 새로 생긴 영역만 다음 화면 프레임에 모아서 번역한다. 메시지가 추가될 때마다 전체 페이지를 훑지 않아 채팅 중에도 화면이 무거워지지 않는다.
+     */
     function startTranslation() {
         translatePage();
-        // 채팅 목록·모달처럼 JavaScript가 나중에 그리는 UI도 같은 번역 사전을 통과시킨다.
-        // 새로 생긴 영역만 다음 화면 프레임에 번역한다. 메시지가 추가될 때마다 전체 페이지를
-        // 다시 훑지 않아 채팅 중 화면이 무거워지지 않도록 한다.
         let translationQueued = false;
         const pendingRoots = new Set();
         const observer = new MutationObserver((mutations) => {
