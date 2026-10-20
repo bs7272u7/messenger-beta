@@ -66,15 +66,10 @@
 
             .desktop-quick-actions {
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) minmax(74px, .7fr) 34px;
+                grid-template-columns: minmax(0, 1fr) 34px;
                 gap: 8px;
                 padding-bottom: 15px;
                 border-bottom: 1px solid var(--border-color);
-            }
-
-            /* 체스 UI가 숨겨진 정식 채팅 화면에서는 남는 열을 만들지 않는다. */
-            .desktop-quick-actions.chess-ui-hidden {
-                grid-template-columns: minmax(0, 1fr) 34px;
             }
 
             #friend-inbox-btn {
@@ -92,9 +87,7 @@
                 font-size: 12px;
                 font-weight: 650;
             }
-            #play-launch-btn { display:flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--border-color); border-radius:10px; background:var(--panel-bg); color:var(--text-color); font-size:12px; font-weight:650; text-decoration:none; }
             #friend-inbox-btn:hover,
-            #play-launch-btn:hover,
             .desktop-profile-card #edit-profile-btn:hover,
             .desktop-quick-actions .side-nav-settings:hover { background: var(--friend-hover); color: var(--brand-color); }
 
@@ -164,7 +157,7 @@
             #desktop-chat-info { display: none; }
             .desktop-profile-card { display: none; }
             .desktop-quick-actions { display: flex; justify-content: flex-end; padding-bottom: 10px; }
-            .desktop-quick-actions .side-nav-settings, #play-launch-btn { display: none; }
+            .desktop-quick-actions .side-nav-settings { display: none; }
             #friend-inbox-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--brand-color); font: inherit; font-size: 12px; font-weight: 700; }
             .friend-list-heading { display: flex; align-items: center; justify-content: space-between; }
             .friend-list-heading h2 { margin: 0; }
@@ -597,30 +590,6 @@
 
         .chat-header h2 {
             margin: 0;
-        }
-
-        /* 채팅 헤더의 체스 진입은 다른 보조 아이콘과 같은 크기·대비로 유지한다. */
-        #chat-chess-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px;
-            height: 28px;
-            border-radius: 8px;
-            color: var(--text-color);
-            opacity: .75;
-            font-size: 19px;
-            line-height: 1;
-            text-decoration: none;
-            transition: background-color .18s ease, color .18s ease, opacity .18s ease;
-        }
-
-        #chat-chess-btn:hover,
-        #chat-chess-btn:focus-visible {
-            background: color-mix(in srgb, var(--brand-color) 12%, transparent);
-            color: var(--brand-color);
-            opacity: 1;
-            outline: none;
         }
 
         .chat-header-avatar {
@@ -2599,29 +2568,6 @@
         .accept-request-icon { color: #2e7d32; cursor: pointer; }
         .decline-request-icon { color: #c62828; cursor: pointer; }
 
-        .friend-panel-item span.chess-invite-friend-icon {
-            display:inline-grid;
-            width:28px;
-            height:28px;
-            border-radius:8px;
-            place-items:center;
-            color:var(--brand-color);
-            cursor:pointer;
-            transition:background .16s ease, transform .16s ease, opacity .16s ease;
-        }
-
-        .friend-panel-item span.chess-invite-friend-icon:hover,
-        .friend-panel-item span.chess-invite-friend-icon:focus-visible {
-            background:color-mix(in srgb, var(--brand-color) 12%, transparent);
-            transform:translateY(-1px);
-            outline:none;
-        }
-
-        .friend-panel-item span.chess-invite-friend-icon.is-sending {
-            opacity:.55;
-            pointer-events:none;
-        }
-
         .friend-panel-item span.delete-friend-icon {
             cursor: pointer;
             color: #e05252;
@@ -3327,8 +3273,7 @@
             }
 
             #mobile-chat-actions-sheet.open { display: block; }
-            #mobile-chat-actions-sheet button,
-            #mobile-chat-actions-sheet .mobile-chat-chess-link {
+            #mobile-chat-actions-sheet button {
                 display: flex;
                 align-items: center;
                 width: 100%;
@@ -3344,8 +3289,7 @@
                 text-align: left;
                 text-decoration: none;
             }
-            #mobile-chat-actions-sheet button:active,
-            #mobile-chat-actions-sheet .mobile-chat-chess-link:active { background: var(--friend-hover); }
+            #mobile-chat-actions-sheet button:active { background: var(--friend-hover); }
             #mobile-chat-actions-sheet .group-only-action { display: none; }
             #mobile-chat-actions-sheet.group-chat .group-only-action { display: flex; }
 

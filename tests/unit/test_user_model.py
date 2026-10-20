@@ -15,10 +15,6 @@ class UserModelTest(unittest.TestCase):
             "is_suspended": False,
             "suspended_until": 0,
             "language": "ko",
-            "chess_rating": 400,
-            "chess_wins": 0,
-            "chess_draws": 0,
-            "chess_losses": 0,
             "created_at": "2026-08-26 12:00:00",
         }
         row.update(overrides)
@@ -36,14 +32,12 @@ class UserModelTest(unittest.TestCase):
                 display_name=None,
                 language=None,
                 profile_visibility=None,
-                chess_rating=None,
             )
         )
 
         self.assertEqual(user.name, "tester")
         self.assertEqual(user.language, "ko")
         self.assertEqual(user.profile_visibility, "friends")
-        self.assertEqual(user.chess_rating, 400)
 
 
 if __name__ == "__main__":
