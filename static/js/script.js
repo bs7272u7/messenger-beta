@@ -1,60 +1,84 @@
-        /*
-         * 재현님이 버튼 동작을 수정할 때 가장 먼저 보는 화면 제어 파일입니다.
-         * 서버 데이터는 API가 기준이고, 이 파일의 chats/friends는 화면을 빠르게 그리기 위한 임시 상태입니다.
-         * ====================================================== */
-        /* ======================================================
-         * 세션 만료 처리: API가 401을 주면 로그인 페이지로 보낸다.
-         * ====================================================== */
+/*
+ * 채팅 화면(index.html)의 동작을 모두 담은 클라이언트 스크립트.
+ *
+ * 서버 데이터가 기준(source of truth)이고, 이 파일의 chats / friends 는
+ * 화면을 빠르게 다시 그리기 위한 임시 캐시일 뿐이다. 값을 바꿀 때는
+ * "API 호출 → 서버 응답 → 캐시 갱신 → 화면 다시 그리기" 순서를 따른다.
+ *
+ * 구성: fetch 보정 → 상태 변수 → 표시용 헬퍼 → DOM 참조 → 화면 열고 닫기
+ *       → 설정 메뉴·테마 → 메시지 전송/렌더링 → 친구·그룹 관리 → 프로필 → 소켓 이벤트
+ */
+
+        // ============================================================
+        // fetch 보정: CSRF 토큰 첨부와 세션 만료 처리
+        // ============================================================
         const _originalFetch = window.fetch;
+        // 서버가 템플릿(meta 태그)에 넣어 준 CSRF 토큰. 상태를 바꾸는 요청에 헤더로 실어 보낸다.
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        // 모든 fetch 호출을 감싼다. 호출하는 쪽 코드는 토큰이나 세션 만료를 신경 쓰지 않아도 된다.
         window.fetch = async function (...args) {
             const requestOptions = args[1] || {};
             const method = (requestOptions.method || (args[0] instanceof Request && args[0].method) || "GET").toUpperCase();
+            // 읽기 전용(GET)이 아닌 요청에만 X-CSRF-Token 헤더를 붙인다.
             if (csrfToken && ["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
                 const headers = new Headers(requestOptions.headers || (args[0] instanceof Request ? args[0].headers : undefined));
                 headers.set("X-CSRF-Token", csrfToken);
                 args[1] = { ...requestOptions, headers };
             }
             const response = await _originalFetch(...args);
+            // 401은 로그인이 풀렸다는 뜻이다. 어느 화면에서든 로그인 페이지로 되돌린다.
             if (response.status === 401) {
                 window.location.href = "/login";
             }
             return response;
         };
 
-        /* ======================================================
-         * 상태 변수
-         * ====================================================== */
+        // ============================================================
+        // 상태 변수
+        // ============================================================
         let currentConversationID = null;
+        // 메시지 메뉴(우클릭)가 가리키는 메시지와 그 ID.
+        // 주의: selectedIndex와 editingIndex는 이름과 달리 배열 인덱스가 아니라 서버의 메시지 ID(chat.id)를 담는다.
         let selectedMessage = null;
         let selectedIndex = -1;
+        // 수정 중인 메시지의 ID. null이면 수정 모드가 아니다.
         let editingIndex = null;
+        // 답장 대상 메시지. null이면 답장 중이 아니다.
         let replyMessage = null;
+        // 대화 내 검색: 검색어, 일치한 메시지 요소 목록, 현재 가리키는 일치 항목 번호.
         let searchQuery = "";
         let searchMatches = [];
         let currentMatchIndex = 0;
 
-        /* ======================================================
-         * 데이터 로드 (서버 → 메모리)
-         * 친구/채팅 모두 서버(Flask)가 진짜 데이터를 갖고 있고,
-         * chats/friends는 화면을 그리기 위한 로컬 캐시일 뿐이다.
-         * ====================================================== */
-
+        // ============================================================
+        // 데이터 로드 (서버 → 메모리)
+        // ============================================================
+        // 대화방 ID → 메시지 배열. 서버에서 받은 메시지를 보관하는 캐시다.
         const chats = {};
+        // 대화방 목록(서버의 /api/conversations 응답). 이름은 friends지만 그룹 대화방도 들어 있다.
         let friends = [];
+        // 실제 친구 목록(/api/friends). 채팅방을 숨겼는지와 무관하게 친구 관계를 나타낸다.
         let friendDirectory = [];
+        // 메시지 새로고침이 겹쳐 실행되지 않게 하는 용도. 진행 중인 요청(Promise)과 마지막 새로고침 시각을 보관한다.
         let messageRefreshPromise = null;
         let lastMessageRefreshAt = 0;
+        // 프로필 편집창에서 고른 새 사진(저장 전)과 삭제 예약 여부, 되돌리기용 원래 HTML.
         let pendingProfileImageData = null;
         let pendingProfileImageRemoval = false;
         let savedProfileImageHTML = "";
 
+        /**
+         * 서버에서 대화방 목록을 가져와 왼쪽 목록을 다시 그린다.
+         */
         async function loadFriends() {
             const response  = await fetch("/api/conversations");
             friends = await response.json();
             readFriends();
         }
 
+        /**
+         * 서버에서 친구 목록을 가져와 friendDirectory에 저장한다(화면은 다시 그리지 않는다).
+         */
         async function loadFriendDirectory() {
             const response = await fetch("/api/friends");
             const result = await response.json();
@@ -62,32 +86,46 @@
         }
             
 
-        /* ======================================================
-         * 저장/시간/친구 조회 헬퍼
-         * ====================================================== */
-
+        // ============================================================
+        // 저장/시간/친구 조회 헬퍼
+        // ============================================================
+        /**
+         * 현재 화면 언어에 맞는 날짜·시간 표시 로케일(예: 'ko-KR')을 돌려준다.
+         */
         function getDisplayLocale() {
             const language = window.CloudI18n ? window.CloudI18n.getLanguage() : "ko";
             return { ko: "ko-KR", en: "en-US", zh: "zh-CN", ja: "ja-JP", es: "es-ES" }[language] || "ko-KR";
         }
 
-        // 서버는 UTC 시각만 보관하고, 재현님을 포함한 각 사용자의 기기 시간대에서 자연스럽게 다시 표시한다.
+        /**
+         * 메시지 시각을 사용자의 기기 시간대로 보여 준다.
+         *
+         * 서버는 UTC 밀리초(sentAt)만 정확한 값으로 보관한다. sentAt이 없는 옛 메시지는 저장된 시간 문자열을 그대로 쓴다.
+         */
         function formatMessageTime(chat) {
             if (!chat || !chat.sentAt) return (chat && chat.time) || "";
             return new Intl.DateTimeFormat(getDisplayLocale(), { hour: "numeric", minute: "2-digit" }).format(new Date(chat.sentAt));
         }
 
+        /**
+         * 메시지 날짜를 사용자의 기기 시간대로 보여 준다. sentAt이 없는 옛 메시지는 저장된 날짜 문자열을 쓴다.
+         */
         function formatMessageDate(chat) {
             if (!chat || !chat.sentAt) return (chat && chat.date) || "";
             return new Intl.DateTimeFormat(getDisplayLocale(), { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(chat.sentAt));
         }
 
-        // 시스템 메시지는 이름처럼 번역하면 안 되는 값과 안내 문구가 한 문장에 섞여 있다.
-        // 저장된 원문은 유지하고, 화면에 표시할 때만 현재 언어의 문장 형태로 바꾼다.
+        /**
+         * 시스템 메시지('OO님이 나갔습니다' 등)를 현재 언어의 문장으로 바꿔 보여 준다.
+         *
+         * 이름처럼 번역하면 안 되는 값과 안내 문구가 한 문장에 섞여 있어서, 서버가 저장한 한국어 원문은 그대로 두고
+         * 화면에 표시할 때만 패턴을 찾아 번역 문장으로 조립한다. 알려진 패턴이 아니면 일반 번역 사전을 거친다.
+         */
         function localizeSystemMessage(text) {
             const original = String(text || "");
             const i18n = window.CloudI18n;
             const language = i18n ? i18n.getLanguage() : "ko";
+            // 서버(create_system_message)가 만드는 문장 형식과 정확히 같아야 한다. 서버 문구를 바꾸면 이 정규식도 바꿔야 한다.
             const themeChanged = original.match(/^(.+?)님이 (.+) 테마로 변경했습니다\.$/);
             if (themeChanged) {
                 const [, name, theme] = themeChanged;
@@ -115,17 +153,24 @@
             return i18n ? i18n.t(original) : original;
         }
 
+        /**
+         * 지금 열려 있는 대화방 정보를 돌려준다. 열린 대화방이 없으면 undefined.
+         */
         function getCurrentFriend() {
             return friends.find(function (friend) { return friend.id === currentConversationID; });
         }
 
-        // 대화방 목록과 채팅 헤더가 같은 프로필 규칙을 쓰도록 한 곳에서 결정한다.
+        /**
+         * 대화방 목록과 채팅 헤더가 같은 규칙을 쓰도록, 대화방에 보여 줄 프로필 사진 주소를 한 곳에서 정한다.
+         */
         function getConversationAvatar(friend) {
             if (friend.isGroup) return friend.groupProfileImage || "/static/default_profile.png";
             return friend.peerProfileImage || "/static/default_profile.png";
         }
 
-        // 그룹은 한 명의 접속 상태를 나타낼 수 없으므로 온라인 점을 표시하지 않는다.
+        /**
+         * 접속 상태 점(온라인/오프라인)의 HTML을 만든다. 그룹은 한 사람의 접속 상태로 나타낼 수 없어 점을 표시하지 않는다.
+         */
         function getPresenceIndicatorHTML(friend) {
             if (friend.isGroup) return "";
             const state = friend.isOnline ? "online" : "offline";
@@ -133,6 +178,9 @@
             return `<span class="status-dot ${state}" title="${label}" aria-label="${label}"></span>`;
         }
 
+        /**
+         * 상대방 프로필 카드(배경·사진·소개글·접속 상태)를 연다. 그룹 대화방에서는 열지 않는다.
+         */
         function openProfileCard(friend) {
             if (!friend || friend.isGroup || !friend.peerId) return;
             profileCardAvatar.src = friend.peerProfileImage || "/static/default_profile.png";
@@ -149,6 +197,11 @@
             profileCardOverlay.style.display = "flex";
         }
 
+        /**
+         * 선택한 대화방에 맞춰 채팅 헤더와 오른쪽 '현재 대화' 패널을 갱신한다.
+         *
+         * friend가 없으면 '대화를 선택하세요' 상태로 되돌린다. 언어가 바뀔 때도 다시 호출해 문구를 새 언어로 맞춘다.
+         */
         function updateChatHeader(friend) {
             if (!friend) {
                 chatHeader.innerText = "";
@@ -176,14 +229,14 @@
             desktopConversationMute.innerHTML = `<i class="fa-solid fa-bell${friend.isMuted ? "" : "-slash"}"></i> ${friend.isMuted ? "알림 켜기" : "알림 끄기"}`;
 
             if (friend.isGroup) {
-                // 서버에서 전달받은 그룹 프로필 이미지 변수 (groupProfileImage 또는 profileImage)
+                // 그룹 사진. 서버 응답의 필드 이름이 groupProfileImage 또는 profileImage일 수 있어 둘 다 확인한다.
                 const groupImg = friend.groupProfileImage || friend.profileImage;
 
                 chatHeaderAvatar.innerHTML = groupImg
                     ? `<img src="${groupImg}">`
                     : `<i class="fa-solid fa-users"></i>`;
 
-                // 이미지 클릭 시 확대 모달 연결
+                // 그룹 사진을 누르면 큰 이미지로 보여 준다. 사진이 없으면 클릭 동작을 두지 않는다.
                 chatHeaderAvatar.onclick = groupImg
                     ? function () {
                         modalImage.src = groupImg;
@@ -197,28 +250,37 @@
                 chatHeaderAvatar.innerHTML = friend.peerProfileImage
                 ? `<img src="${friend.peerProfileImage}">`
                 : `<i class="fa-solid fa-circle-user"></i>`;
-                // 사진이 있을 때만 클릭 시 확대 (수정은 안 되고 보기만)
+                // 1:1 대화에서는 상대 사진을 누르면 프로필 카드가 열린다(보기 전용).
                 chatHeaderAvatar.onclick = function () { openProfileCard(friend); };
                 chatHeaderMemberCount.style.display = "none";
             }
         }
 
-        /* i18n은 각 요소의 최초 문구를 data-i18n-* 에 보관했다가 다시 적용한다.
-         * 그래서 문구를 바꿀 때 기준값도 같이 갱신하지 않으면,
-         * 다음 번역 시점에 원래 문구로 되돌아간다. */
+        /**
+         * 차단 안내 배너의 문구를 바꾼다.
+         *
+         * i18n은 요소의 최초 문구를 data-i18n-text에 보관했다가 언어가 바뀔 때 다시 적용한다.
+         * 그래서 문구를 바꿀 때 기준값(data 속성)도 함께 갱신하지 않으면 다음 번역 때 원래 문구로 되돌아간다.
+         */
         function setBannerMessage(koreanText) {
             const label = blockBanner.querySelector("span");
             label.dataset.i18nText = koreanText;
             label.textContent = window.CloudI18n ? window.CloudI18n.t(koreanText) : koreanText;
         }
 
+        /**
+         * 메시지 입력창의 안내 문구를 바꾼다. setBannerMessage와 같은 이유로 번역 기준값(data 속성)도 함께 갱신한다.
+         */
         function setInputPlaceholder(koreanText) {
             input.dataset.i18nPlaceholder = koreanText;
             input.placeholder = window.CloudI18n ? window.CloudI18n.t(koreanText) : koreanText;
         }
 
-        /* 현재 열려있는 대화방이 차단 상태(내가 차단했거나, 상대가 나를 차단)면
-         * 입력창/전송/첨부 버튼을 잠그고 안내 배너를 띄운다. */
+        /**
+         * 열려 있는 대화방이 '차단' 또는 '종료된 그룹' 상태면 입력창·전송·첨부 버튼을 잠그고 안내 배너를 띄운다.
+         *
+         * 차단은 내가 차단했거나 상대가 나를 차단한 경우 모두 해당한다.
+         */
         function updateBlockState() {
             const friend = getCurrentFriend();
             const disabledGroup = !!(friend && friend.isGroup && friend.isDisabled);
@@ -239,8 +301,11 @@
                 : (blocked ? "차단된 사용자입니다" : "메시지를 입력하세요"));
         }
 
-        // 메시지 전송 직후에는 서버 재조회 전에도 목록 미리보기를 즉시 갱신한다.
-        // 나중에 미리보기 문구를 바꾸고 싶다면 getPreviewText()만 수정하면 된다.
+        /**
+         * 메시지를 보낸 직후 서버를 다시 조회하기 전에도 대화방 목록의 미리보기를 바로 갱신한다.
+         *
+         * 미리보기 문구를 바꾸려면 getPreviewText()만 고치면 된다.
+         */
         function updateFriendPreviewFromServer() {
             const friend = getCurrentFriend();
             const chatList = chats[currentConversationID] || [];
@@ -252,6 +317,9 @@
             }
         }
 
+        /**
+         * 대화방 목록에 보여 줄 마지막 메시지 요약. 음성·파일·사진은 종류 이름으로 대신한다('__CAMERA__' 같은 표식은 목록에서 아이콘으로 바뀐다).
+         */
         function getPreviewText(chatList) {
             if (!chatList || chatList.length === 0) return "";
             const last = chatList[chatList.length - 1];
@@ -260,15 +328,26 @@
             return last.image ? "__CAMERA__사진" : last.text;
         }
 
+        /**
+         * 대화방 목록에 보여 줄 마지막 메시지의 시간 문자열.
+         */
         function getPreviewTime(chatList) {
             if (!chatList || chatList.length === 0) return "";
             return chatList[chatList.length - 1].time;
         }
 
+        /**
+         * 메시지를 모든 상대가 읽었는지(안 읽은 사람이 0명인지) 판단한다.
+         */
         function isMessageRead(chat) {
             return !chat.unreadCount || chat.unreadCount <= 0;
         }
 
+        /**
+         * 사용자 입력을 HTML에 넣기 전에 특수문자를 안전하게 바꾼다(XSS 방지).
+         *
+         * innerHTML로 값을 넣는 곳에서는 사용자 입력을 반드시 이 함수를 거쳐야 한다.
+         */
         function escapeHTML(text) {
             if (text == null) return"";
             const div = document.createElement("div");
@@ -276,18 +355,29 @@
             return div.innerHTML;
         }
 
+        /**
+         * 파일 크기를 사람이 읽기 쉬운 문자열(KB, MB)로 바꾼다. 1MB 미만은 최소 1KB로 표시한다.
+         */
         function formatFileSize(bytes) {
             const size = Number(bytes) || 0;
             if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))}KB`;
             return `${(size / (1024 * 1024)).toFixed(1)}MB`;
         }
 
+        /**
+         * 파일 메시지를 다운로드 카드(파일 이름, 크기) HTML로 만든다.
+         */
         function buildFileMessageHTML(chat) {
             return `<a class="chat-file-card" href="${escapeHTML(chat.filePath)}" target="_blank" rel="noopener" download>
                 <i class="fa-solid fa-file-arrow-down"></i><span><strong>${escapeHTML(chat.fileName || "첨부 파일")}</strong><small>${formatFileSize(chat.fileSize)}</small></span>
             </a>`;
         }
 
+        /**
+         * 메시지 본문을 안전한 HTML로 바꾸고, 검색어와 일치하는 부분을 강조(<mark>)한다.
+         *
+         * 검색어가 없으면 링크만 자동 연결한다. 검색어의 정규식 특수문자는 먼저 이스케이프한다.
+         */
         function highlightText(text, query) {
             const safeText = escapeHTML(text);
             if (!query) return linkifyText(safeText);
@@ -296,14 +386,22 @@
             return safeText.replace(regex, '<mark class="search-highlight">$1</mark>');
         }
 
+        // 링크 미리보기 결과 캐시(주소 → 결과 또는 null). 같은 링크를 여러 번 서버에 물어보지 않게 한다.
         const linkPreviewCache = new Map();
+        // http/https 주소를 찾는 정규식. 공백과 <, >, 따옴표 앞에서 끝난다.
         const urlPattern = /https?:\/\/[^\s<>"']+/gi;
 
+        /**
+         * 텍스트에서 첫 번째 링크를 찾는다. 문장 끝에 붙은 문장부호(.,!?;:))는 링크에서 뺀다.
+         */
         function getFirstUrl(text) {
             const match = (text || "").match(urlPattern);
             return match ? match[0].replace(/[.,!?;:)]*$/, "") : null;
         }
 
+        /**
+         * 이미 이스케이프된 텍스트의 링크를 클릭 가능한 <a>로 바꾼다. 문장부호는 링크 밖에 남긴다.
+         */
         function linkifyText(safeText) {
             return safeText.replace(urlPattern, function (url) {
                 const cleanUrl = url.replace(/[.,!?;:)]*$/, "");
@@ -312,6 +410,9 @@
             });
         }
 
+        /**
+         * 서버에서 받은 링크 정보(제목·설명·이미지)로 미리보기 카드를 만든다. 이미지가 깨지면 이미지만 제거한다.
+         */
         function createLinkPreview(preview) {
             const card = document.createElement("a");
             card.className = "link-preview";
@@ -323,6 +424,11 @@
             return card;
         }
 
+        /**
+         * 메시지 위에 링크 미리보기 카드를 붙인다.
+         *
+         * 미리보기는 서버가 대신 가져온다(내부망 접근 방지를 위해 서버에서 검사). 응답을 기다리는 사이 메시지가 화면에서 사라졌다면 아무것도 하지 않는다.
+         */
         async function appendLinkPreview(messageEl, chat) {
             const url = getFirstUrl(chat.text);
             if (!url) return;
@@ -357,6 +463,9 @@
             }
         }
 
+        /**
+         * 답장한 메시지 위에 보여 줄 원본 인용(이미지 또는 텍스트) HTML을 만든다.
+         */
         function buildReplyQuoteHTML(reply) {
             if (reply.image) {
                 return `<img src="${reply.image}" class="reply-quote-image">`;
@@ -364,8 +473,11 @@
             return `<div class="reply-quote">${escapeHTML(reply.text)}</div>`;
         }
 
-        /* # 기준 요소(rect) 옆에 메뉴를 띄우고, 화면 밖으로 나가지 않게 좌표를 보정한다.
-         * 파일 카드와 음성 컨트롤도 같은 화면 좌표계에서 계산해야 메뉴가 입력창 쪽으로 밀리지 않는다. */
+        /**
+         * 기준 요소(rect) 옆에 메뉴를 놓고, 화면 밖으로 나가지 않게 좌표를 보정한다.
+         *
+         * 파일 카드와 음성 컨트롤도 같은 화면 좌표계로 계산해야 메뉴가 입력창 쪽으로 밀리지 않는다.
+         */
         function positionMenuNear(menuEl, rect, preferLeft) {
             const menuWidth = menuEl.offsetWidth;
             const menuHeight = menuEl.offsetHeight;
@@ -386,10 +498,10 @@
             menuEl.style.top = top + "px";
         }
 
-        /* ======================================================
-         * DOM 요소 참조
-         * ====================================================== */
-
+        // ============================================================
+        // DOM 요소 참조
+        // ============================================================
+        // 자주 쓰는 화면 요소를 처음 한 번만 찾아 변수에 담아 둔다. 요소 id는 templates/index.html과 맞아야 한다.
         const input = document.querySelector("#message");
         const button = document.querySelector("#send-btn");
         const messages = document.querySelector("#messages");
@@ -414,7 +526,9 @@
         const modalImage = document.querySelector("#modal-image");
         const closeImage = document.querySelector("#close-image");
         const downloadImage = document.querySelector("#download-image");
+        // 메시지 반응(이모지) 선택창.
         const reactionPicker = document.querySelector("#reaction-picker");
+        // 대화 내 검색 바.
         const searchToggleBtn = document.querySelector("#search-toggle-btn");
         const searchBar = document.querySelector("#search-bar");
         const searchInput = document.querySelector("#search-input");
@@ -428,6 +542,7 @@
         const replyImage = document.querySelector("#reply-image");
         const pinMessageButton = document.querySelector("#pin-message");
         const pinLabel = document.querySelector("#pin-label");
+        // 메시지 전달·신고 창.
         const forwardMessageButton = document.querySelector("#forward-message");
         const reportMessageButton = document.querySelector("#report-message");
         const forwardMessageOverlay = document.querySelector("#forward-message-overlay");
@@ -440,6 +555,7 @@
         const reportDetail = document.querySelector("#report-detail");
         const reportModalTitle = document.querySelector("#report-modal-title");
         const reportMessageSubmit = document.querySelector("#report-message-submit");
+        // 친구 관리 패널(친구 추가·검색, 요청, 새 그룹 만들기).
         const friendPanelTab = document.querySelector("#friend-panel-tab");
         const friendPanel = document.querySelector("#friend-panel");
         const closeFriendPanelBtn = document.querySelector("#close-friend-panel");
@@ -449,6 +565,7 @@
         const friendSearchBtn = document.querySelector("#friend-search-btn");
         const friendSearchResult = document.querySelector("#friend-search-result");
         const friendRequestList = document.querySelector("#friend-request-list");
+        // 메시지함(받은 요청·보낸 요청).
         const friendInboxBtn = document.querySelector("#friend-inbox-btn");
         const friendInboxOverlay = document.querySelector("#friend-inbox-overlay");
         const friendInboxCloseBtn = document.querySelector("#friend-inbox-close-btn");
@@ -463,6 +580,7 @@
         const newGroupMemberList = document.querySelector("#new-group-member-list");
         const newGroupCancelBtn = document.querySelector("#new-group-cancel-btn");
         const newGroupCreateBtn = document.querySelector("#new-group-create-btn");
+        // 설정 메뉴와 프로필 편집창.
         const sideNavSettings = document.querySelector(".side-nav-settings");
         const settingsMenu = document.querySelector("#settings-menu");
         const mobileSheetBackdrop = document.querySelector("#mobile-sheet-backdrop");
@@ -472,6 +590,7 @@
         const myProfileCloseBtn = document.querySelector("#my-profile-close-btn");
         const accountSettingsItem = document.querySelector("#account-settings-item");
         const notificationSettingsItem = document.querySelector("#notification-settings-item");
+        // 알림 설정과 업데이트 내역.
         const updateNoticeBadge = document.querySelector("#update-notice-badge");
         const updateHistoryList = document.querySelector("#update-history-list");
         const previousUpdatesBtn = document.querySelector("#previous-updates-btn");
@@ -481,6 +600,7 @@
         const notificationSettingsOverlay = document.querySelector("#notification-settings-overlay");
         const notificationSettingsCloseBtn = document.querySelector("#notification-settings-close-btn");
         const browserNotificationToggle = document.querySelector("#browser-notification-toggle");
+        // 공지사항·도움말(아이디 찾기, 비밀번호 재설정, 문의)과 사용자 리뷰, 운영 경고 창.
         const helpItem = document.querySelector("#help-item");
         const helpOverlay = document.querySelector("#help-overlay");
         const helpCloseBtn = document.querySelector("#help-close-btn");
@@ -519,6 +639,7 @@
         const reviewDeleteBtn = document.querySelector("#review-delete-btn");
         const reviewComposeHint = document.querySelector("#review-compose-hint");
         const reviewList = document.querySelector("#review-list");
+        // 계정 설정(아이디·비밀번호 변경).
         const accountSettingsOverlay = document.querySelector("#account-settings-overlay");
         const accountSettingsCloseBtn = document.querySelector("#account-settings-close-btn");
         const newUsernameInput = document.querySelector("#new-username-input");
@@ -530,10 +651,12 @@
         const savePasswordBtn = document.querySelector("#save-password-btn");
         const myProfileCancelBtn = document.querySelector("#my-profile-cancel-btn");
         const myProfileSaveBtn = document.querySelector("#my-profile-save-btn");
+        // 사진 모아보기.
         const galleryToggleBtn = document.querySelector("#gallery-toggle-btn");
         const galleryOverlay = document.querySelector("#gallery-overlay");
         const closeGallery = document.querySelector("#close-gallery");
         const galleryGrid = document.querySelector("#gallery-grid");
+        // 그룹 관리(멤버 목록, 초대, 이름·사진 변경, 나가기·종료).
         const groupMembersBtn = document.querySelector("#group-members-btn");
         const groupMembersOverlay = document.querySelector("#group-members-overlay");
         const groupMembersList = document.querySelector("#group-members-list");
@@ -551,9 +674,11 @@
         const inviteMemberList = document.querySelector("#invite-member-list");
         const inviteMemberCancelBtn = document.querySelector("#invite-member-cancel-btn");
         const inviteMemberConfirmBtn = document.querySelector("#invite-member-confirm-btn");
+        // 지금 열어 본 그룹의 멤버 목록과 방장 ID.
         let currentGroupMembers = [];
         let currentGroupOwnerId = null;
 
+        // 채팅 화면 본체와 모바일 하단 메뉴, 채팅 테마 창, 오른쪽 '현재 대화' 패널.
         const chatPanel = document.querySelector(".chat");
         const chatHeader = document.querySelector(".chat-header h2");
         const mobileBackBtn = document.querySelector("#mobile-back-btn");
@@ -578,6 +703,7 @@
         const desktopConversationActions = document.querySelector("#desktop-conversation-actions");
         const desktopConversationPin = document.querySelector("#desktop-conversation-pin");
         const desktopConversationMute = document.querySelector("#desktop-conversation-mute");
+        // 상대방 프로필 카드와 신고·차단 메뉴.
         const profileCardOverlay = document.querySelector("#profile-card-overlay");
         const profileCardClose = document.querySelector("#profile-card-close");
         const profileCardCover = document.querySelector("#profile-card-cover");
@@ -589,27 +715,41 @@
         const profileCardMenu = document.querySelector("#profile-card-menu");
         const profileCardReportItem = document.querySelector("#profile-card-report");
         const profileCardBlockItem = document.querySelector("#profile-card-block");
+        // 프로필 카드가 가리키는 사용자와, 신고 창이 가리키는 대상.
         let profileCardTarget = null;
         let reportTarget = null;
+        // 내 프로필 편집창(소개글, 공개 범위, 배경 사진).
         const myProfileBio = document.querySelector("#my-profile-bio");
         const myProfileVisibility = document.querySelector("#my-profile-visibility");
         const coverImageInput = document.querySelector("#cover-image-input");
         const removeCoverImageBtn = document.querySelector("#remove-cover-image-btn");
         const profileCoverPreview = document.querySelector("#profile-cover-preview");
 
-        // 모바일은 한 화면에 목록과 대화창을 함께 두지 않는다.
-        // PC에서는 이 클래스가 CSS에 영향을 주지 않아 기존 레이아웃을 그대로 유지한다.
+        // ============================================================
+        // 화면 열고 닫기 (모바일 레이아웃, 패널, 메뉴)
+        // ============================================================
+        /**
+         * 모바일에서 대화창을 연다.
+         *
+         * 모바일은 한 화면에 목록과 대화창을 함께 두지 않는다. PC에서는 이 클래스가 CSS에 영향을 주지 않아 기존 레이아웃이 유지된다.
+         */
         function openMobileChat() {
             if (window.matchMedia("(max-width: 767px)").matches) {
                 document.body.classList.add("mobile-chat-open");
             }
         }
 
+        /**
+         * 모바일에서 대화창을 닫고 목록으로 돌아간다. 열려 있던 '더보기' 시트도 닫는다.
+         */
         function closeMobileChat() {
             document.body.classList.remove("mobile-chat-open");
             mobileChatActionsSheet.classList.remove("open");
         }
 
+        /**
+         * 대화방의 채팅 테마(배경·말풍선 색)를 채팅 화면에 적용하고, 테마 선택창에서 현재 테마를 표시한다. 대화방이 없으면 기본 테마.
+         */
         function applyChatTheme(friend) {
             chatPanel.classList.remove("chat-theme-heart", "chat-theme-teddy", "chat-theme-glass", "chat-theme-aurora", "chat-theme-mono", "chat-theme-spring", "chat-theme-summer", "chat-theme-autumn", "chat-theme-winter", "chat-theme-christmas", "chat-theme-halloween");
             const theme = friend && friend.chatTheme ? friend.chatTheme : "default";
@@ -619,12 +759,18 @@
             });
         }
 
+        /**
+         * 테마가 속한 분류(기본/계절/시즌)를 돌려준다. 테마 선택창의 탭을 고를 때 쓴다.
+         */
         function getThemeCategory(theme) {
             if (["spring", "summer", "autumn", "winter"].includes(theme)) return "season";
             if (["christmas", "halloween"].includes(theme)) return "event";
             return "basic";
         }
 
+        /**
+         * 테마 선택창에서 선택한 분류의 탭과 목록만 보이게 한다.
+         */
         function showThemeCategory(category) {
             chatThemeCategories.forEach(function (button) {
                 const isActive = button.dataset.themeCategory === category;
@@ -638,12 +784,17 @@
             });
         }
 
+        /**
+         * 오늘 날짜에 어울리는 테마(현재 계절, 12월~1월 초는 크리스마스, 10월 중순 이후는 할로윈)에 '추천' 표시를 붙인다.
+         */
         function updateSeasonalThemeRecommendations() {
             const today = new Date();
             const month = today.getMonth() + 1;
             const day = today.getDate();
+            // 크리스마스 추천: 12월 전체와 1월 6일까지. 할로윈 추천: 10월 15일~31일.
             const christmasSeason = month === 12 || (month === 1 && day <= 6);
             const halloweenSeason = month === 10 && day >= 15 && day <= 31;
+            // 북반구 기준 계절: 3~5월 봄, 6~8월 여름, 9~11월 가을, 그 외 겨울.
             const currentSeasonTheme = month >= 3 && month <= 5 ? "spring"
                 : month >= 6 && month <= 8 ? "summer"
                 : month >= 9 && month <= 11 ? "autumn" : "winter";
@@ -655,17 +806,27 @@
             });
         }
 
+        // 페이지를 열 때 한 번 계산한다.
         updateSeasonalThemeRecommendations();
 
+        /**
+         * 모바일 채팅의 '더보기' 시트를 닫는다.
+         */
         function closeMobileChatActions() {
             mobileChatActionsSheet.classList.remove("open");
             mobileChatActionsSheet.setAttribute("aria-hidden", "true");
         }
 
+        /**
+         * 현재 화면이 모바일 폭(767px 이하)인지 확인한다. CSS의 모바일 기준과 같아야 한다.
+         */
         function isMobileViewport() {
             return window.matchMedia("(max-width: 767px)").matches;
         }
 
+        /**
+         * 모바일 하단 메뉴에서 현재 선택된 버튼만 강조한다.
+         */
         function setMobileNavActive(activeButton) {
             [mobileChatNavBtn, mobileFriendsNavBtn, mobileProfileNavBtn, mobileSettingsNavBtn]
                 .forEach(function (button) {
@@ -673,6 +834,9 @@
                 });
         }
 
+        /**
+         * 친구 관리 패널을 열고 친구 목록과 받은 요청을 최신 상태로 불러온다.
+         */
         function openFriendPanel() {
             friendPanel.classList.add("open");
             if (isMobileViewport()) document.body.classList.add("mobile-friends-open");
@@ -680,31 +844,47 @@
             loadFriendRequests();
         }
 
+        /**
+         * 친구 관리 패널을 닫는다.
+         */
         function closeFriendPanel() {
             friendPanel.classList.remove("open");
             document.body.classList.remove("mobile-friends-open");
         }
 
+        /**
+         * 메시지함을 연다. 열기 전에 요청 목록을 새로 불러와 오래된 정보가 보이지 않게 한다.
+         */
         async function openFriendInbox() {
             closeFriendPanel();
             await loadFriendRequests();
             friendInboxOverlay.style.display = "flex";
         }
 
+        /**
+         * 메시지함을 닫는다.
+         */
         function closeFriendInbox() {
             friendInboxOverlay.style.display = "none";
         }
 
+        /**
+         * 설정 메뉴를 닫는다. 펼쳐 둔 '편하게 보기' 항목도 함께 접는다.
+         */
         function closeSettingsMenu() {
             settingsMenu.style.display = "none";
             settingsMenu.style.pointerEvents = "none";
             document.body.classList.remove("mobile-settings-open");
             if (officeComfortItem) {
-                // 설정 메뉴를 닫으면 펼쳐 둔 편하게 보기 항목도 함께 접는다.
                 officeComfortItem.open = false;
             }
         }
 
+        /**
+         * 설정 메뉴를 연다.
+         *
+         * 모바일에서는 하단 시트로 열고, PC에서는 누른 버튼(anchor) 오른쪽에 놓되 화면 밖으로 나가지 않게 위치를 보정한다.
+         */
         function openSettingsMenu(anchor) {
             settingsMenu.style.display = "block";
             settingsMenu.style.pointerEvents = "auto";
@@ -720,11 +900,13 @@
             settingsMenu.style.top = (rect.top + window.scrollY) + "px";
         }
 
+        // 공용 확인/알림 창.
         const modalOverlay = document.querySelector("#modal-overlay");
         const modalMessage = document.querySelector("#modal-message");
         const modalCancelBtn = document.querySelector("#modal-cancel-btn");
         const modalConfirmBtn = document.querySelector("#modal-confirm-btn");
 
+        // 설정 메뉴의 화면 설정: 다크 모드, 오피스 모드, 편하게 보기, 화면 테마, 언어.
         const themeToggleItem = document.querySelector("#theme-toggle-item");
         const themeToggleIcon = document.querySelector("#theme-toggle-icon");
         const themeToggleLabel = document.querySelector("#theme-toggle-label");
@@ -739,6 +921,7 @@
         const appThemeSelect = document.querySelector("#app-theme-select");
         const languageSelect = document.querySelector("#language-select");
         const languageSettingCurrent = document.querySelector("#language-setting-current");
+        // 계정 삭제, 프로필 사진 변경·자르기(crop), 동영상 첨부, 이메일 변경에 쓰는 요소.
         const deleteAccountPassword = document.querySelector("#delete-account-password");
         const deleteAccountBtn = document.querySelector("#delete-account-btn");
         const profileImageInput = document.querySelector("#profile-image-input");
@@ -767,15 +950,16 @@
         const outgoingFriendRequestList = document.querySelector(
             "#outgoing-friend-request-list"
         );
+        // 이메일 인증 진행 상태: 인증번호를 보냈는지, 인증을 마쳤는지(계정 설정용과 비밀번호 재설정용 각각).
         let accountEmailCodeSent = false;
         let accountEmailVerified = false;
         let helpResetCodeSent = false;
         let helpResetVerified = false;
 
-        /* ======================================================
-         * 다크모드
-         * ====================================================== */
-
+        // ============================================================
+        // 다크모드
+        // ============================================================
+        // 다크 모드 선택은 브라우저(localStorage)에 저장해 두었다가 접속할 때 복원한다.
         const savedTheme = localStorage.getItem("theme");
         if (savedTheme === "dark") {
             document.body.classList.add("dark-mode");
@@ -783,8 +967,10 @@
             themeToggleLabel.innerText = window.CloudI18n ? window.CloudI18n.t("라이트 모드") : "라이트 모드";
         }
 
+        // 다크/라이트 전환. 선택은 localStorage에 저장하고 아이콘·문구를 바꾼다. 오피스 모드에서는 바꿀 수 없다.
         themeToggleItem.addEventListener("click", function (event) {
             event.stopPropagation();
+            // 오피스 모드에서는 화면 모드(다크/라이트)가 고정되어 있어 바꿀 수 없다.
             if (document.body.classList.contains("office-mode")) {
                 showToast("오피스 모드에서는 다크/라이트 모드를 변경할 수 없습니다.");
                 return;
@@ -803,7 +989,12 @@
             }
         });
 
-        // 오피스 모드는 기능을 바꾸지 않고, 오래 보는 업무용 시각 밀도만 차분하게 조절한다.
+        /**
+         * '편하게 보기' 설정값(대비, 글자 크기, 간격, 움직임 줄이기)을 읽는다.
+         *
+         * 오피스 모드는 기능을 바꾸지 않고, 오래 보는 업무용 화면의 시각 밀도만 차분하게 조절한다.
+         * 움직임 줄이기는 저장된 선택이 없으면 운영체제의 '동작 줄이기' 설정을 따른다.
+         */
         function getOfficeComfortSettings() {
             return {
                 contrast: localStorage.getItem("officeContrast") || "comfort",
@@ -814,6 +1005,9 @@
             };
         }
 
+        /**
+         * 저장된 '편하게 보기' 설정을 body의 클래스와 설정 메뉴의 선택값에 반영한다.
+         */
         function applyOfficeComfortSettings() {
             const settings = getOfficeComfortSettings();
             ["comfort", "standard", "high"].forEach(value => document.body.classList.toggle(`office-contrast-${value}`, settings.contrast === value));
@@ -826,53 +1020,59 @@
             officeReduceMotion.checked = settings.reduceMotion;
         }
 
+        /**
+         * '편하게 보기' 항목을 항상 보이게 한다. 오피스 모드를 켰는지와 상관없이 언제든 열 수 있다.
+         */
         function syncOfficeComfortVisibility() {
-            // 편하게 보기는 오피스 모드와 독립적으로 언제든 열 수 있다.
             officeComfortItem.hidden = false;
         }
 
-        /* ======================================================
-           Liquid Glass 테마
-           굴절은 요소 뒤(backdrop)에만 걸리고 요소 안의 내용은 건드리지 않는다.
-           그래서 패널에 강한 굴절을 줘도 안쪽 글자는 그대로 읽힌다.
-           반대로 말풍선은 수가 많고 대화할 때마다 새로 생성되므로 대상에서 뺀다.
-           ====================================================== */
-        // 맵 생성은 1회성이지만 backdrop-filter 합성은 뒤 내용이 바뀔 때마다 다시 돈다.
-        // 큰 면적에 SVG 굴절을 걸면 그 비용이 프레임을 잡아먹으므로,
-        // 굴절은 중간 크기 이하 표면에만 걸고 큰 패널은 CSS 유리(blur+saturate)만 쓴다.
+        // ============================================================
+        // Liquid Glass 테마(굴절 효과) 제어
+        // ============================================================
+        // 굴절 효과는 요소 '뒤'(backdrop)에만 걸리고 요소 안의 내용은 건드리지 않는다.
+        // 그래서 패널에 강한 굴절을 줘도 안쪽 글자는 그대로 읽힌다. 말풍선은 수가 많고 대화할 때마다
+        // 새로 생기므로 대상에서 뺀다.
+        //
+        // SVG 굴절 맵은 한 번 만들면 끝이지만, backdrop-filter 합성은 뒤 내용이 바뀔 때마다 다시 계산된다.
+        // 큰 면적에 걸면 그 비용이 프레임을 잡아먹으므로, 아래 상수로 굴절을 거는 요소의 크기와 개수를 제한한다.
+        // 큰 패널은 CSS 유리(blur + saturate)만 쓴다.
         const LG_MAX_AREA = 320000;
         const LG_MAX_SIDE = 1600;
         const LG_MAX_INSTANCES = 10;
+        // 굴절 강도 프리셋(패널·바·팝오버). scale은 굴절 세기, chroma는 색 번짐, blur는 흐림 정도다. 현재는 LG_POPOVER만 대상에 쓰인다.
         const LG_PANEL = { scale: -180, chroma: 8, blur: 2, saturate: 1.6 };
         const LG_BAR = { scale: -140, chroma: 6, blur: 2, saturate: 1.6 };
         const LG_POPOVER = { scale: -112, chroma: 6, blur: 3, saturate: 1.5 };
-        // SVG 굴절은 잠깐 나타났다 사라지는 표면에만 건다.
-        // 항상 떠 있는 헤더·입력창·패널에 걸면 화면이 바뀔 때마다 다시 계산되어
-        // 상시 프레임 비용이 된다. 그쪽은 CSS 흐림만으로도 유리처럼 보인다.
+        // 굴절을 거는 대상 목록. 잠깐 나타났다 사라지는 표면(팝오버·메뉴·모달)에만 건다.
+        // 항상 떠 있는 헤더·입력창·패널에 걸면 화면이 바뀔 때마다 다시 계산되어 상시 프레임 비용이 되므로,
+        // 그쪽은 CSS 흐림만으로 유리처럼 보이게 한다.
         const LG_TARGETS = [
             { selector: "#friend-panel", options: LG_POPOVER },
             { selector: "#settings-menu", options: LG_POPOVER },
             { selector: "#attach-menu", options: LG_POPOVER },
             { selector: "#message-menu", options: LG_POPOVER },
             { selector: "#mobile-chat-actions-sheet", options: LG_POPOVER },
-            // 모달은 오버레이의 display가 바뀌므로 유리는 안쪽 상자에 건다.
+            // 모달은 바깥 오버레이의 display가 바뀌므로, 유리는 안쪽 상자에 건다.
             { selector: ".modal-overlay .modal", options: LG_POPOVER },
             { selector: ".modal-overlay .settings-modal", options: LG_POPOVER },
             { selector: ".modal-overlay .chat-theme-modal", options: LG_POPOVER },
             { selector: ".modal-overlay .friend-inbox-modal", options: LG_POPOVER },
         ];
-        // 표시 상태가 바뀌는 요소들. 이들의 변화를 보고 대상 목록을 다시 계산한다.
+        // 표시 상태(style/class/hidden)가 바뀌는 요소들. 이들의 변화를 지켜보다가 굴절 대상을 다시 계산한다.
         const LG_WATCH_SELECTORS = [
             ".modal-overlay", "#settings-menu", "#attach-menu",
             "#message-menu", "#friend-panel", "#mobile-chat-actions-sheet",
         ];
-        // backdrop-filter는 position:fixed 자손의 컨테이닝 블록을 만든다.
-        // 유리 패널 안에 있는 고정 팝오버는 뷰포트가 아니라 패널 기준으로 배치돼
-        // 화면 밖으로 밀리거나 패널의 overflow에 잘린다. body 직속으로 옮겨 좌표를 되찾는다.
-        // position:absolute 요소는 여기 넣으면 안 된다. 기준점이 원래 부모라서
-        // 옮기는 순간 엉뚱한 곳으로 날아간다(#attach-menu가 그런 경우다).
+        // backdrop-filter는 position:fixed 자손의 기준(containing block)을 바꿔 버린다.
+        // 유리 패널 안의 고정 팝오버는 뷰포트가 아니라 패널 기준으로 배치되어 화면 밖으로 밀리거나 잘린다.
+        // 그래서 이 요소들은 body 직속으로 옮겨 좌표를 되찾는다.
+        // position:absolute 요소는 여기 넣으면 안 된다. 기준점이 원래 부모라서 옮기는 순간 엉뚱한 곳으로 날아간다(#attach-menu가 그 경우다).
         const LG_REPARENT = ["#message-menu", "#friend-panel", "#mobile-chat-actions-sheet"];
 
+        /**
+         * LG_REPARENT 목록의 요소를 body 바로 아래로 옮긴다(이미 옮겼으면 건너뛴다).
+         */
         function lgReparentFixedPopovers() {
             LG_REPARENT.forEach(selector => {
                 const element = document.querySelector(selector);
@@ -882,15 +1082,20 @@
             });
         }
 
+        // 굴절 효과가 걸린 요소 → liquidGlass 인스턴스. 타이머와 관찰자는 동기화 예약용이다.
         const lgInstances = new Map();
         let lgObserver = null;
         let lgTimer = null;
 
+        /**
+         * 굴절 효과를 써도 되는 환경인지 판단한다.
+         *
+         * 라이브러리를 못 불러와도 앱은 그대로 동작해야 하고, 오피스 모드·고대비·'투명도 줄이기' 설정에서는 가독성이 우선이다.
+         * CPU 코어가 4개 이하인 저사양 기기에서도 꺼서 성능을 지킨다.
+         */
         function lgEnabled() {
-            // 스크립트를 불러오지 못해도 앱은 그대로 동작해야 한다.
             if (typeof window.liquidGlass !== "function") return false;
             if (!document.body.classList.contains("theme-liquid-glass")) return false;
-            // 오피스 모드와 고대비 설정에서는 가독성이 우선이므로 굴절을 끈다.
             if (document.body.classList.contains("office-mode")) return false;
             if (document.body.classList.contains("office-contrast-high")) return false;
             if (window.matchMedia("(prefers-reduced-transparency: reduce)").matches) return false;
@@ -898,6 +1103,9 @@
             return true;
         }
 
+        /**
+         * 요소에 굴절 효과를 건다. 이미 걸려 있거나, 개수·크기 제한을 넘거나, 화면에 보이지 않으면 건너뛴다.
+         */
         function lgAttach(element, options) {
             if (!element || lgInstances.has(element)) return;
             if (lgInstances.size >= LG_MAX_INSTANCES) return;
@@ -913,6 +1121,9 @@
             }
         }
 
+        /**
+         * 요소의 굴절 효과를 걷어낸다.
+         */
         function lgDetach(element) {
             const instance = lgInstances.get(element);
             if (!instance) return;
@@ -920,11 +1131,17 @@
             lgInstances.delete(element);
         }
 
+        /**
+         * 걸려 있는 굴절 효과를 모두 걷어낸다.
+         */
         function lgDetachAll() {
             lgInstances.forEach(instance => instance.destroy());
             lgInstances.clear();
         }
 
+        /**
+         * 현재 화면 상태에 맞게 굴절 효과를 다시 맞춘다. 보이는 대상에는 걸고, 숨겨진 대상에서는 걷는다. 효과를 쓸 수 없는 환경이면 전부 걷는다.
+         */
         function lgSync() {
             if (!lgEnabled()) {
                 lgDetachAll();
@@ -939,14 +1156,19 @@
             });
         }
 
+        /**
+         * lgSync를 잠시 뒤로 미룬다. 짧은 시간에 변화가 여러 번 생겨도 한 번만 실행되도록 이전 예약을 취소한다(디바운스).
+         */
         function lgScheduleSync(delay) {
             clearTimeout(lgTimer);
             lgTimer = setTimeout(lgSync, delay);
         }
 
+        /**
+         * 메뉴와 모달은 열릴 때 비로소 크기가 생기므로, 표시 상태 변화와 창 크기 변경을 지켜보다가 굴절 대상을 다시 맞춘다.
+         */
         function lgWatch() {
             if (lgObserver) return;
-            // 메뉴와 모달은 열릴 때 비로소 크기가 생기므로 표시 상태 변화를 지켜본다.
             lgObserver = new MutationObserver(() => lgScheduleSync(60));
             LG_WATCH_SELECTORS.forEach(selector => {
                 document.querySelectorAll(selector).forEach(element => {
@@ -959,25 +1181,33 @@
             window.addEventListener("resize", () => lgScheduleSync(200), { passive: true });
         }
 
+        /**
+         * 저장된 화면 테마(liquid-glass 또는 classic)를 읽는다. 기본값은 liquid-glass(클라우드).
+         */
         function getAppTheme() {
             return localStorage.getItem("appTheme") || "liquid-glass";
         }
 
+        /**
+         * 화면 테마를 적용한다. 클라우드(liquid-glass)면 굴절 효과를 켜고, 클래식이면 즉시 걷어낸다.
+         */
         function applyAppTheme() {
             const theme = getAppTheme();
             const useGlass = theme === "liquid-glass";
             document.body.classList.toggle("theme-liquid-glass", useGlass);
             if (appThemeSelect) appThemeSelect.value = theme;
-            // 끌 때는 즉시 걷어내고, 켤 때는 맵 생성이 수십 ms 걸리므로
-            // 첫 페인트를 막지 않도록 한가할 때로 미룬다.
             if (!useGlass) {
                 lgDetachAll();
                 return;
             }
+            // 켤 때는 굴절 맵 생성에 수십 ms가 걸리므로, 첫 화면 그리기를 막지 않도록 브라우저가 한가할 때로 미룬다.
             if (window.requestIdleCallback) window.requestIdleCallback(() => lgSync(), { timeout: 800 });
             else lgScheduleSync(150);
         }
 
+        /**
+         * 설정 메뉴의 언어 선택과 현재 언어 표시를 지금 적용된 언어에 맞춘다.
+         */
         function syncLanguageSetting() {
             if (!window.CloudI18n || !languageSelect || !languageSettingCurrent) return;
             const language = window.CloudI18n.getLanguage();
@@ -986,6 +1216,9 @@
             languageSettingCurrent.textContent = labels[language];
         }
 
+        /**
+         * 다크/라이트 전환 버튼의 문구·아이콘을 현재 상태에 맞춘다. 오피스 모드에서는 화면 모드가 고정되므로 버튼을 잠금 표시로 바꾼다.
+         */
         function syncThemeToggleAvailability() {
             const officeEnabled = document.body.classList.contains("office-mode");
             themeToggleItem.classList.toggle("disabled", officeEnabled);
@@ -1003,6 +1236,9 @@
             themeToggleItem.removeAttribute("title");
         }
 
+        /**
+         * 오피스 모드 버튼의 문구를 현재 상태(켜기/끄기)와 언어에 맞춰 다시 쓴다. 이어서 다크/라이트 버튼과 '편하게 보기' 표시도 맞춘다.
+         */
         function syncOfficeModeLabel() {
             const enabled = document.body.classList.contains("office-mode");
             const i18n = window.CloudI18n;
@@ -1014,6 +1250,7 @@
             syncOfficeComfortVisibility();
         }
 
+        // 페이지를 열 때 화면 설정을 복원하는 초기화 구간. 오피스 모드 → 편하게 보기 → 테마 → 언어 순으로 적용한다.
         if (localStorage.getItem("officeMode") === "enabled") {
             document.body.classList.add("office-mode");
             document.body.classList.remove("dark-mode");
@@ -1024,15 +1261,13 @@
         applyAppTheme();
         lgWatch();
         syncLanguageSetting();
-        // 대화를 고르기 전의 안내 문구도 현재 언어로 맞춘다.
         if (!getCurrentFriend()) updateChatHeader(null);
 
+        // 언어가 바뀔 때(i18n.js가 알려 준다): 자동 번역에서 빠진 문구를 다시 쓰고, 서버에 선택 언어를 저장한다.
         window.addEventListener("cloud-language-change", async function (event) {
             syncLanguageSetting();
-            // 모드 버튼·현재 대화 패널 문구는 data-no-i18n이라 자동 번역되지 않으므로 직접 다시 쓴다.
             syncOfficeModeLabel();
             updateChatHeader(getCurrentFriend() || null);
-            // 이미 화면에 있던 시스템 메시지도 새 언어의 문장 형태로 다시 그린다.
             await readMessages();
             try {
                 const response = await fetch("/api/account/language", {
@@ -1047,6 +1282,7 @@
             }
         });
 
+        // '편하게 보기'의 대비·글자 크기·간격 선택: 고른 값을 저장하고 바로 화면에 적용한다.
         [[officeContrastSelect, "officeContrast"], [officeTextSizeSelect, "officeTextSize"], [officeDensitySelect, "officeDensity"]].forEach(([control, key]) => {
             control.addEventListener("change", function () {
                 localStorage.setItem(key, control.value);
@@ -1055,11 +1291,13 @@
                 lgSync();
             });
         });
+        // '움직임 줄이기' 스위치: 선택을 저장하고 바로 적용한다.
         officeReduceMotion.addEventListener("change", function () {
             localStorage.setItem("officeReduceMotion", String(officeReduceMotion.checked));
             applyOfficeComfortSettings();
         });
 
+        // 화면 테마(클라우드/클래식) 선택: 저장하고 바로 적용한다.
         if (appThemeSelect) {
             appThemeSelect.addEventListener("change", function () {
                 localStorage.setItem("appTheme", appThemeSelect.value);
@@ -1067,42 +1305,48 @@
             });
         }
 
+        // 오피스 모드 켜기/끄기. 켜는 동안에는 다크 모드를 잠시 해제하고(저장값은 유지), 끄면 저장해 둔 다크/라이트 선택을 복원한다.
         officeModeItem.addEventListener("click", function (event) {
             event.stopPropagation();
             closeSettingsMenu();
             const enabled = document.body.classList.toggle("office-mode");
             if (enabled) {
-                // 사용자가 선택해 둔 화면 모드는 보존하고, 오피스 모드 동안만 적용을 멈춘다.
+                // 사용자가 고른 화면 모드(다크/라이트)는 저장값으로 보존하고, 오피스 모드인 동안만 적용을 멈춘다.
                 document.body.classList.remove("dark-mode");
             } else if (localStorage.getItem("theme") === "dark") {
                 document.body.classList.add("dark-mode");
             }
             localStorage.setItem("officeMode", enabled ? "enabled" : "disabled");
             syncOfficeModeLabel();
-            // 오피스 모드에서는 굴절을 끄고, 해제하면 다시 적용한다.
             lgSync();
             showToast(enabled ? "오피스 모드를 적용했습니다." : "오피스 모드를 해제했습니다.");
         });
 
-        /* ======================================================
-         * 커스텀 확인/알림 모달
-         * ====================================================== */
-
-        // 하나의 확인 모달에는 항상 하나의 작업만 연결한다. 이전 취소 처리기가 남아
-        // 친구 차단/삭제 때 과거 채팅방 삭제 모달을 다시 열던 상태 충돌을 막는다.
+        // ============================================================
+        // 커스텀 확인/알림 모달
+        // ============================================================
+        // 하나의 확인 모달에는 항상 하나의 작업만 연결한다.
+        // 이전 취소 처리기가 남아 있으면, 친구 차단/삭제 때 과거 채팅방 삭제 모달을 다시 여는 상태 충돌이 생긴다.
         let activeModalAction = null;
+        /**
+         * 확인 모달을 닫고, 연결해 둔 작업이 있으면 사용자의 선택(확인=true, 취소=false)을 넘겨 실행한다.
+         */
         function closeAppModal(confirmed) {
             const action = activeModalAction;
             activeModalAction = null;
             modalOverlay.style.display = "none";
             if (action) action(confirmed);
         }
+        // 확인·취소 버튼과 바깥(어두운 영역) 클릭을 모두 closeAppModal로 모아 처리한다. 바깥 클릭은 취소와 같다.
         modalConfirmBtn.addEventListener("click", function () { closeAppModal(true); });
         modalCancelBtn.addEventListener("click", function () { closeAppModal(false); });
         modalOverlay.addEventListener("click", function (event) {
             if (event.target === modalOverlay) closeAppModal(false);
         });
 
+        /**
+         * 확인/취소 모달을 띄운다. 확인과 취소 모두 onConfirm(true|false)로 결과를 전달한다.
+         */
         function showConfirm(message, onConfirm) {
             activeModalAction = onConfirm;
             modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
@@ -1110,6 +1354,9 @@
             modalOverlay.style.display = "flex";
         }
 
+        /**
+         * 확인 버튼만 있는 알림 모달을 띄운다. 확인을 누르면 onClose를 실행한다.
+         */
         function showAlert(message, onClose) {
             activeModalAction = function (confirmed) { if (confirmed && onClose) onClose(); };
             modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
@@ -1117,7 +1364,11 @@
             modalOverlay.style.display = "flex";
         }
 
-        // 저장·복사처럼 즉시 끝나는 작업은 화면을 막는 모달 대신 짧은 토스트로 알려준다.
+        /**
+         * 화면 구석에 잠깐 떴다 사라지는 알림을 띄운다. type은 success, error, info.
+         *
+         * 저장·복사처럼 즉시 끝나는 작업은 화면을 막는 모달 대신 이 토스트로 알린다.
+         */
         function showToast(message, type = "success") {
             const toast = document.createElement("div");
             const icon = type === "success" ? "fa-circle-check" : type === "error" ? "fa-circle-exclamation" : "fa-circle-info";
@@ -1131,9 +1382,12 @@
             }, 2600);
         }
 
+        // 전송 중인 작업 수. 0보다 크면 입력창과 전송 버튼을 잠근다(여러 작업이 겹쳐도 마지막이 끝날 때 풀리도록 카운터로 관리한다).
         let composerBusyCount = 0;
 
-        // 전송 중 입력값이 지워지거나 같은 파일이 중복 전송되는 일을 막는다.
+        /**
+         * 메시지 전송 중 입력창·전송·첨부 버튼을 잠그거나 푼다. 전송 중에 입력값이 지워지거나 같은 파일이 중복 전송되는 일을 막는다.
+         */
         function setComposerBusy(isBusy) {
             composerBusyCount = Math.max(0, composerBusyCount + (isBusy ? 1 : -1));
             const busy = composerBusyCount > 0;
@@ -1144,14 +1398,19 @@
             button.setAttribute("aria-busy", String(busy));
         }
 
+        /**
+         * 입력창에 포커스를 돌려준다. 메뉴·모달이 닫히는 동안 포커스가 빼앗기지 않도록 잠깐 기다렸다가 실행한다.
+         */
         function focusInputSafely() {
             setTimeout(function () { input.focus(); }, 50);
         }
 
-        /* ======================================================
-         * 검색
-         * ====================================================== */
-
+        // ============================================================
+        // 대화 내 검색
+        // ============================================================
+        /**
+         * 현재 대화방의 텍스트 메시지에서 검색어(대소문자 구분 없음)가 들어간 메시지를 찾고, 화면을 다시 그린 뒤 첫 결과로 이동한다.
+         */
         function performSearch(query) {
             searchQuery = query;
             const chatList = chats[currentConversationID] || [];
@@ -1169,12 +1428,18 @@
             scrollToMatch();
         }
 
+        /**
+         * 검색 결과 개수 표시('현재/전체')를 갱신한다.
+         */
         function updateSearchCount() {
             searchCount.innerText = searchMatches.length === 0
                 ? "0/0"
                 : (currentMatchIndex + 1) + "/" + searchMatches.length;
         }
 
+        /**
+         * 현재 가리키는 검색 결과 메시지가 화면 가운데 오도록 스크롤한다.
+         */
         function scrollToMatch() {
             if (searchMatches.length === 0) return;
             const targetIndex = searchMatches[currentMatchIndex];
@@ -1183,16 +1448,21 @@
         }
 
         
-        /* ======================================================
-         * 메시지 전송 / 수정
-         * ====================================================== */
-
+        // ============================================================
+        // 메시지 전송 / 수정
+        // ============================================================
+        /**
+         * 입력창의 텍스트를 보낸다. 수정 모드(editingIndex가 있음)면 새 메시지가 아니라 기존 메시지를 수정한다.
+         *
+         * 전송 중에는 입력창을 잠그고, 성공하면 메시지 목록과 대화방 미리보기를 새로 불러온다.
+         */
         async function sendMessage() {
             if (composerBusyCount > 0) return;
             const planeIcon = document.querySelector(".input-area button i.fa-paper-plane");
             if (planeIcon) {
                 planeIcon.classList.remove("launch");
-                void planeIcon.offsetWidth;      // 같은 애니메이션을 연속으로 눌러도 재생되게 강제 리플로우
+                // 강제 리플로우. 클래스를 뺐다 다시 붙여도 브라우저가 변화를 모르고 지나치기 때문에, 레이아웃을 한 번 읽어 같은 애니메이션을 연속으로 눌러도 다시 재생되게 한다.
+                void planeIcon.offsetWidth;
                 planeIcon.classList.add("launch");
             }
 
@@ -1206,6 +1476,7 @@
 
             setComposerBusy(true);
             try {
+                // 수정 모드: 새 메시지를 만들지 않고 기존 메시지(editingIndex)의 본문만 바꾼다.
                 if (editingIndex !== null) {
                     const response = await fetch(`/api/messages/${editingIndex}`, {
                         method: "PATCH",
@@ -1256,11 +1527,16 @@
             setTimeout(function () { input.focus(); }, 10);
         }
 
-        /* ======================================================
-         * 메시지 렌더링
-         * ====================================================== */
-        
             
+        // ============================================================
+        // 메시지 렌더링
+        // ============================================================
+        /**
+         * 현재 대화방의 메시지를 서버에서 가져와 화면에 그린다.
+         *
+         * 이미 진행 중인 새로고침이 있으면 새 요청을 만들지 않고 그 결과를 함께 기다린다.
+         * (소켓 알림과 직접 호출이 겹쳐도 요청이 한 번만 나가게 한다.)
+         */
         async function readMessages() {
             if (messageRefreshPromise) return messageRefreshPromise;
 
@@ -1273,6 +1549,13 @@
             }
         }
 
+        /**
+         * 서버에서 메시지를 받아 DOM으로 만들어 목록을 통째로 교체한다.
+         *
+         * 처리 순서: 빈 상태 처리 → 고정 메시지 표시 → 메시지마다(날짜 구분선, 시스템 메시지, 우클릭·더블클릭 메뉴,
+         * 내 메시지/상대 메시지별 HTML, 스와이프 답장, 이미지 확대, 링크 미리보기) → 맨 아래로 스크롤.
+         * 화면 조각(DocumentFragment)에 먼저 만든 뒤 한 번에 붙여 깜빡임과 재계산을 줄인다.
+         */
         async function renderMessages() {
 
             if (currentConversationID === null) {
@@ -1297,6 +1580,7 @@
             const isGroupChat = !!(currentConversationID && currentConversationsInfo.isGroup);
             groupMembersBtn.style.display = isGroupChat ? "inline-block" : "none";
 
+            // DOM에 바로 붙이지 않고 조각에 모았다가 마지막에 한 번만 교체한다.
             const renderTarget = document.createDocumentFragment();
 
             if (chatList.length === 0) {
@@ -1313,12 +1597,14 @@
                 return;
             }
 
+            // 고정된 메시지가 있으면 목록 위쪽 고정 바에 보여 주고, 누르면 고정을 푼다.
             const pinnedChat = chatList.find(function (chat) { return chat.pinned; }) || null;
             if (pinnedChat) {
                 pinnedBox.style.display = "flex";
                 pinnedBox.style.cursor = "pointer";
 
                 const pinnedPreview = pinnedChat.image
+                    // 주의: 고정 메시지 본문(pinnedChat.text)은 escapeHTML을 거치지 않고 HTML에 들어간다. 메시지에 HTML이 있으면 그대로 해석되므로 XSS 위험이 있어, escapeHTML로 감싸는 수정이 필요하다.
                     ? `<img src="${pinnedChat.image}" style="width:32px; height:32px; border-radius:8px; object-fit:cover;"><span style="flex:1;">사진</span>`
                     : `<span style="flex:1;">${pinnedChat.text}</span>`;
 
@@ -1339,6 +1625,7 @@
                 pinnedBox.onclick = null;
             }
 
+            // 날짜가 바뀌는 지점마다 날짜 구분선을 넣기 위해 직전 메시지의 날짜를 기억한다.
             let lastDate = "";
             chatList.forEach(function (chat, index) {
                 const displayDate = formatMessageDate(chat);
@@ -1355,6 +1642,7 @@
                 const message = document.createElement("div");
                 message.dataset.msgIndex = index;
 
+                // 시스템 메시지(입장·퇴장·테마 변경 등)는 말풍선이 아니라 가운데 안내 문구로 보여 주고, 메뉴나 답장 같은 상호작용은 붙이지 않는다.
                 if (chat.messageType === "system") {
                     message.className = "message-system";
                     message.textContent = localizeSystemMessage(chat.text || "채팅방 안내");
@@ -1362,6 +1650,7 @@
                     return;
                 }
 
+                // 우클릭: 메시지 메뉴를 연다. 메시지 종류와 작성자에 따라 보일 항목을 다르게 한다(첨부는 복사·수정 불가, 수정·삭제는 내 메시지만, 신고는 남의 메시지만).
                 message.addEventListener("contextmenu", function (event) {
                     event.preventDefault();
 
@@ -1393,6 +1682,7 @@
                     positionMenuNear(messageMenu, target.getBoundingClientRect(), chat.mine);
                 });
 
+                // 더블클릭: 메시지 위에 반응(이모지) 선택창을 띄운다.
                 message.addEventListener("dblclick", function (event) {
                     event.preventDefault();
 
@@ -1414,13 +1704,16 @@
                     reactionPicker.style.top = top + "px";
                 });
 
+                // 주의: 반응 이모지(e)는 이스케이프 없이 HTML에 들어간다. 서버가 길이만 제한하므로 이스케이프를 거치는 편이 안전하다.
                 const reactionsHTML = (chat.reactions && chat.reactions.length > 0)
                     ? `<div class="reactions-row">${chat.reactions.map(function (e) { return `<span class="reactions-badge">${e}</span>`; }).join("")}</div>`
                     : "";
 
                 const editedHTML = chat.edited ? `<div class="edited-label">수정 됨</div>` : "";
+                // 내 메시지 옆에, 아직 읽지 않은 사람 수를 숫자로 표시한다(모두 읽으면 사라진다).
                 const readStatusHTML = (chat.mine && !isMessageRead(chat)) ? `<span class="read-status">${chat.unreadCount}</span>` : "";
 
+                // 내 메시지(오른쪽 정렬)와 상대 메시지(왼쪽 정렬)는 같은 종류별 분기(음성·파일·동영상·사진·답장·일반 텍스트)를 따로 만든다.
                 if (chat.mine) {
                     message.className = "message-right";
 
@@ -1475,6 +1768,7 @@
                     }
 
               } else {
+                    // 상대 메시지. 그룹 채팅에서는 보낸 사람의 사진과 이름을 함께 보여 주기 위해 한 칸 더 감싼다.
                     message.className = isGroupChat ? "message-left-container group-message" : "message-left-container";
 
                     const avatarHTML = isGroupChat
@@ -1539,6 +1833,7 @@
                         : innerContent;
                 }
 
+                // 모바일에서 메시지를 옆으로 밀어 답장하는 동작(스와이프)을 위한 아이콘과 이벤트.
                 const swipeIcon = document.createElement("i");
                 swipeIcon.className = "fa-solid fa-reply swipe-reply-icon";
                 message.appendChild(swipeIcon);
@@ -1556,18 +1851,19 @@
 
                 renderTarget.appendChild(message);
 
-                // 캐시된 미리보기는 동기적으로 처리되므로, DOM에 붙은 뒤에 호출해야 연결 여부 검사를 통과한다.
+                // 링크 미리보기는 DOM에 붙인 뒤에 요청한다. 캐시된 결과는 동기적으로 처리되므로 붙기 전에 부르면 '연결됨' 검사에서 걸러진다.
                 if (chat.text && !chat.image && !chat.video) appendLinkPreview(message, chat);
             });
 
             messages.replaceChildren(renderTarget);
+            // 새로 그린 뒤에는 가장 최근 메시지가 보이도록 맨 아래로 이동한다.
             messages.scrollTop = messages.scrollHeight;
         }
 
-        /* ======================================================
-         * 메시지 컨텍스트 메뉴 동작 (복사/답장/취소/삭제/수정/고정)
-         * ====================================================== */
-
+        // ============================================================
+        // 메시지 컨텍스트 메뉴 동작 (복사 / 답장 / 수정 / 삭제 / 고정 / 전달 / 신고)
+        // ============================================================
+        // 복사: 선택한 메시지의 텍스트를 클립보드에 넣는다.
         copyMessage.addEventListener("click", function (event) {
             event.stopPropagation();
             if (selectedMessage == null) return;
@@ -1581,6 +1877,7 @@
             }, 10);
         });
 
+        // 답장: 선택한 메시지를 답장 대상으로 두고 입력창 위에 미리보기를 띄운다.
         replyButton.addEventListener("click", function (event) {
             event.stopPropagation();
             replyMessage = selectedMessage;
@@ -1600,6 +1897,7 @@
             input.focus();
         });
 
+        // 답장 취소: 답장 대상과 미리보기를 지운다.
         cancelReply.addEventListener("click", function () {
             replyMessage = null;
             replyPreview.style.display = "none";
@@ -1608,6 +1906,7 @@
             input.focus();
         });
 
+        // 수정 취소: 수정 모드를 끝내고 입력창과 전송 버튼을 원래대로 돌린다.
         cancelEdit.addEventListener("click", function () {
             editingIndex = null;
             editPreview.style.display = "none";
@@ -1616,6 +1915,7 @@
             input.focus();
         });
 
+        // 삭제: 확인을 받은 뒤 메시지를 지우고 목록을 새로 불러온다. 메뉴가 닫히는 동안 모달이 겹치지 않도록 잠깐 뒤에 연다.
         deleteMessage.addEventListener("click", function (event) {
             event.stopPropagation();
             closeMessageMenu();
@@ -1635,6 +1935,7 @@
             }, 10);
         });
 
+        // 수정: 메시지 내용을 입력창에 채우고 수정 모드로 전환한다(전송 버튼이 체크 아이콘으로 바뀐다).
         editMessage.addEventListener("click", function (event) {
             event.stopPropagation();
             if (selectedMessage == null) return;
@@ -1651,6 +1952,7 @@
             input.focus();
         });
 
+        // 고정: 서버가 고정 상태를 반전한다(이미 고정이면 해제). 대화방에는 고정 메시지가 하나만 있다.
         pinMessageButton.addEventListener("click", async function () {
             if (selectedIndex === -1) return;
             
@@ -1662,6 +1964,7 @@
         messageMenu.style.display = "none";
     });
 
+        // 전달: 현재 대화방을 뺀 내 채팅방 목록을 고르게 한 뒤 선택한 방으로 메시지를 보낸다.
         forwardMessageButton.addEventListener("click", function () {
             if (!selectedIndex) return;
             forwardConversationSelect.innerHTML = friends
@@ -1675,6 +1978,7 @@
             }
             forwardMessageOverlay.style.display = "flex";
         });
+        // 전달 창의 닫기 버튼과 '전달' 버튼. 전달할 대화방은 선택 목록에서 고른다.
         forwardMessageClose.addEventListener("click", function () { forwardMessageOverlay.style.display = "none"; });
         forwardMessageSubmit.addEventListener("click", async function () {
             const response = await fetch(`/api/messages/${selectedIndex}/forward`, {
@@ -1687,6 +1991,7 @@
             showToast("메시지를 전달했습니다.");
         });
 
+        // 신고: 메시지 신고 창을 연다. 사용자 신고와 같은 창을 쓰므로 reportTarget에 대상 종류(message/user)를 기록한다.
         reportMessageButton.addEventListener("click", function () {
             if (!selectedIndex) return;
             reportTarget = { type: "message", id: selectedIndex };
@@ -1700,6 +2005,7 @@
         reportMessageSubmit.addEventListener("click", async function () {
             if (!reportTarget) return;
             if (!reportReasonSelect.value) return showToast("신고 사유를 선택해주세요.", "error");
+            // 신고 대상이 사용자면 사용자 신고 API, 메시지면 메시지 신고 API로 보낸다.
             const url = reportTarget.type === "user" ? `/api/users/${reportTarget.id}/report` : `/api/messages/${reportTarget.id}/report`;
             const response = await fetch(url, {
                 method: "POST", headers: { "Content-Type": "application/json" },
@@ -1711,21 +2017,24 @@
             showToast("신고가 접수되었습니다.");
         });
 
-        /* ======================================================
-         * 사진 첨부 / 전송
-         * ====================================================== */
-
+        // ============================================================
+        // 첨부: 사진 / 파일 / 음성
+        // ============================================================
         imageBtn.addEventListener("click", function () {
             imageInput.click();
             attachMenu.style.display = "none";
         });
 
+        // 사진은 여러 장을 한꺼번에 고를 수 있고, 순서대로 하나씩 보낸다.
         imageInput.addEventListener("change", async function () {
             const files = imageInput.files;
             if (!files || files.length === 0) return;
             for (const file of files) await sendImage(file);
         });
 
+        /**
+         * 사진 파일 하나를 data URL(base64)로 읽어 서버에 보낸다. 성공하면 목록을 새로 불러온다. 전송 중에는 입력창을 잠근다.
+         */
         async function sendImage(file) {
             if (!currentConversationID) {
                 showAlert("먼저 채팅방을 선택해주세요.");
@@ -1761,11 +2070,13 @@
             }
         }
 
+        // 파일 첨부 버튼: 숨겨 둔 파일 선택창을 열고 첨부 메뉴는 닫는다.
         fileBtn.addEventListener("click", function () {
             fileInput.click();
             attachMenu.style.display = "none";
         });
 
+        // 파일은 하나씩 보낸다. 사진과 달리 base64가 아니라 FormData(멀티파트)로 올린다.
         fileInput.addEventListener("change", async function () {
             const file = fileInput.files[0];
             if (!file || !currentConversationID) return;
@@ -1787,10 +2098,13 @@
             }
         });
 
+        // 음성 녹음 상태: 녹음기, 녹음 조각, 자동 종료 타이머, 시작 시각.
         let audioRecorder = null;
         let audioChunks = [];
         let audioTimer = null;
         let audioStartedAt = 0;
+        // 음성 메시지: 첫 번째 누름은 녹음 시작, 녹음 중에 다시 누르면 멈추고 전송한다. 30초가 지나면 자동으로 멈춘다.
+        // 마이크 권한이 없으면 안내를 띄운다. 길이는 서버가 검사할 수 있도록 duration으로 함께 보낸다.
         audioBtn.addEventListener("click", async function () {
             if (!currentConversationID) return showToast("먼저 채팅방을 선택해주세요.", "error");
             if (!navigator.mediaDevices || !window.MediaRecorder) return showToast("이 브라우저에서는 음성 메시지를 지원하지 않습니다.", "error");
@@ -1814,17 +2128,20 @@
             } catch (error) { showToast("마이크 권한을 허용해주세요.", "error"); }
         });
 
+        // + 버튼: 첨부 메뉴(사진·파일·동영상·음성)를 열고 닫는다.
         plusBtn.addEventListener("click", function (event) {
             event.stopPropagation();
             attachMenu.style.display = (attachMenu.style.display === "block") ? "none" : "block";
         });
 
+        // 이미지 확대창: 닫기 버튼이나 바깥 영역을 누르면 닫는다.
         closeImage.addEventListener("click", function () { imageModal.style.display = "none"; });
 
         imageModal.addEventListener("click", function (e) {
             if (e.target === imageModal) imageModal.style.display = "none";
         });
 
+        // 이미지 확대창의 다운로드 버튼: 보이는 이미지를 photo.png로 내려받는다.
         downloadImage.addEventListener("click", function () {
             const a = document.createElement("a");
             a.href = modalImage.src;
@@ -1832,13 +2149,19 @@
             a.click();
         });
 
-        /* ======================================================
-         * 친구 목록 렌더링
-         * ====================================================== */
-
+        // ============================================================
+        // 대화방 목록 렌더링
+        // ============================================================
+        /**
+         * 대화방 목록(왼쪽)을 friends 배열로 다시 그린다.
+         *
+         * 항목마다 사진·접속 상태·이름(고정/알림끔 표시)·마지막 메시지 미리보기·시간·안 읽은 개수를 보여 준다.
+         * 클릭하면 대화방을 열고 읽음 처리, 우클릭하면 목록에서 숨긴다.
+         */
         function readFriends() {
             friendList.innerHTML = "";
             friendList.classList.toggle("is-empty", friends.length === 0);
+            // 목록 위쪽의 '채팅방 N개' 요약 문구.
             conversationSummary.innerText = friends.length > 0
                 ? `${friends.length}개의 채팅방`
                 : "대화를 선택해 시작하세요";
@@ -1857,6 +2180,7 @@
                 const newFriend = document.createElement("div");
                 newFriend.className = friend.id === currentConversationID ? "friend active" : "friend";
 
+                // 대화방 선택: 헤더와 입력 잠금 상태를 먼저 바꾸고, 서버에 읽음 처리를 알린 뒤 메시지를 불러온다.
                 newFriend.addEventListener("click", async function () {
                     currentConversationID = friend.id;
                     openMobileChat();
@@ -1871,6 +2195,7 @@
                     setTimeout(function () { input.focus(); }, 10);
                 });
 
+                    // 우클릭: 채팅방을 내 목록에서만 숨긴다(친구 관계와 대화 기록은 그대로). 숨긴 방이 열려 있었다면 대화창도 비운다.
                     newFriend.addEventListener("contextmenu", function (event) {
                         event.preventDefault();
 
@@ -1890,6 +2215,7 @@
                     });
                 
 
+                // 미리보기는 먼저 이스케이프한 뒤, 서버가 붙인 '__종류__' 표식만 아이콘으로 바꾼다.
                 const previewHTML = escapeHTML(friend.message || "아직 대화가 없습니다.")
                 .replace("__CAMERA__", '<i class="fa-regular fa-image"></i>')
                 .replace("__VIDEO__", '<i class="fa-solid fa-circle-play"></i>')
@@ -1899,7 +2225,7 @@
                     ? `<span class="friend-time">${formatMessageTime({ sentAt: friend.lastSentAt, time: friend.lastTime })}</span>`
                     : "";
 
-                // 안 읽은 개수는 서버가 이미 계산해서 주는 unreadCount를 그대로 사용한다.
+                // 안 읽은 개수는 서버가 계산해 준 unreadCount를 그대로 쓴다. 지금 열어 둔 방은 읽는 중이므로 표시하지 않는다.
                 const unreadHTML = (friend.unreadCount > 0 && friend.id !== currentConversationID)
                     ? `<span class="unread-badge">${friend.unreadCount}</span>`
                     : "";
@@ -1921,6 +2247,7 @@
                     </div>
                     ${unreadHTML}
                 `;
+                // 1:1 대화방은 프로필 사진을 눌러 상대 프로필 카드를 열 수 있다(키보드 Enter/Space 지원). 그룹은 해당 없음.
                 if (!friend.isGroup) {
                     const profileTrigger = newFriend.querySelector(".friend-profile-trigger");
                     const openFriendProfile = function (event) {
@@ -1939,10 +2266,14 @@
             });
         }
 
-        /* ======================================================
-         * 친구 추가/삭제 (우측 패널)
-         * ====================================================== */
-
+        // ============================================================
+        // 친구 추가/삭제 (오른쪽 패널)
+        // ============================================================
+        /**
+         * 아이디로 친구 요청을 보낸다.
+         *
+         * 상대가 이미 나에게 요청을 보내 둔 경우 서버가 자동으로 수락하므로(autoAccepted), 그때는 목록을 새로 불러온다.
+         */
         async function sendFriendRequest(username) {
             const trimmed = username.trim();
             if (trimmed === "") return;
@@ -1961,7 +2292,6 @@
             }
 
             if (result.autoAccepted) {
-                // 상대가 이미 나에게 요청을 보내둔 상태라 바로 친구가 된 경우
                 await loadFriends();
                 await loadFriendDirectory();
                 renderFriendPanelList();
@@ -1970,6 +2300,11 @@
             }
         }
 
+        /**
+         * 받은 요청·보낸 요청을 서버에서 가져와 메시지함과 숫자 배지를 갱신한다.
+         *
+         * 보낸 요청 목록은 여기서 그리고(요청 취소 버튼 포함), 받은 요청 목록은 renderFriendRequestList가 그린다.
+         */
         async function loadFriendRequests() {
             const response = await fetch("/api/friend-requests");
             const result = await response.json();
@@ -2022,6 +2357,9 @@
             renderFriendRequestList(incoming);
         }
 
+        /**
+         * 받은 친구 요청 목록을 그린다. 수락하면 대화방과 친구 목록을 새로 불러오고, 거절하면 요청 목록만 갱신한다.
+         */
         function renderFriendRequestList(incoming) {
             friendRequestList.innerHTML = "";
 
@@ -2064,6 +2402,12 @@
             });
         }
 
+        /**
+         * 그룹 멤버 목록을 서버에서 가져와 그룹 관리 창을 채운다.
+         *
+         * 방장이고 종료되지 않은 그룹이면 이름 변경·사진 변경·종료·초대·멤버 내보내기 버튼을 보여 준다.
+         * MY_USER_ID(서버가 템플릿에 넣어 준 내 ID)와 비교해 '나' 표시와 방장 권한을 판단한다.
+         */
         async function loadGroupMembers() {
             groupMembersList.innerHTML = "";
 
@@ -2080,6 +2424,7 @@
                 currentGroupOwnerId = result.ownerId;
 
                 const currentGroup = getCurrentFriend();
+                // 방장이면서 아직 종료되지 않은 그룹일 때만 그룹 정보를 수정할 수 있다. 서버도 같은 규칙으로 다시 검사한다.
                 const groupEditable = currentGroupOwnerId === MY_USER_ID && currentGroup && !currentGroup.isDisabled;
                 groupNameText.innerText = currentGroup ? currentGroup.name : "";
                 renameGroupBtn.style.display = groupEditable ? "inline-block" : "none";
@@ -2105,7 +2450,6 @@
                     if (member.id === MY_USER_ID) {
                         actionHTML = `<span style="margin-left:auto; font-size:12px; color:gray;">나</span>`;
                     } else if (groupEditable) {
-                        // 나(로그인한 사람)가 방장일 때만 다른 사람 추방 버튼을 보여준다.
                         actionHTML = `<span class="remove-member-icon" style="margin-left:auto; cursor:pointer; color:#e05252;"><i class="fa-solid fa-user-xmark"></i></span>`;
                     } else {
                         actionHTML = "";
@@ -2143,15 +2487,17 @@
             }
         }
 
+        // 그룹 관리 창을 열 때마다 최신 멤버 목록을 불러온다.
         groupMembersBtn.addEventListener("click", async function () {
             await loadGroupMembers();
             groupMembersOverlay.style.display = "flex";
         });
 
+        // 그룹 이름 변경: 브라우저 기본 입력창(prompt)으로 새 이름을 받는다. 취소(null)나 빈 값이면 아무것도 하지 않는다.
         renameGroupBtn.addEventListener("click", async function () {
             const currentGroup = getCurrentFriend();
             const newName = prompt("새 그룹 이름을 입력하세요.", currentGroup ? currentGroup.name : "");
-            if (newName === null) return;              // 취소 누른 경우
+            if (newName === null) return;
             const trimmed = newName.trim();
             if (trimmed === "") return;
 
@@ -2176,6 +2522,7 @@
             }
         });
 
+        // 그룹 관리 창 닫기(닫기 버튼, 바깥 클릭).
         closeGroupMembersBtn.addEventListener("click", function () {
             groupMembersOverlay.style.display = "none";
         });
@@ -2184,6 +2531,7 @@
             if (event.target === groupMembersOverlay) groupMembersOverlay.style.display = "none";
         });
 
+        // 그룹 나가기: 나간 뒤에는 남은 대화방 중 첫 번째를 열고, 하나도 없으면 빈 화면으로 돌아간다.
         leaveGroupBtn.addEventListener("click", function () {
             showConfirm("정말 이 그룹에서 나가시겠습니까? 다시 들어오려면 초대를 받아야 합니다.", async function (confirmLeave) {
                 if (!confirmLeave) return;
@@ -2204,6 +2552,7 @@
             });
         });
 
+        // 그룹 종료(방장 전용): 이전 대화는 볼 수 있지만 새 메시지는 보낼 수 없게 된다.
         disableGroupBtn.addEventListener("click", function () {
             showConfirm("그룹 채팅을 종료할까요? 이전 대화는 남지만 새 메시지는 보낼 수 없습니다.", async function (ok) {
                 if (!ok) return;
@@ -2214,9 +2563,13 @@
             });
         });
 
+        /**
+         * 그룹에 초대할 수 있는 친구(아직 멤버가 아닌 사람) 목록을 체크박스로 그린다.
+         */
         function renderInviteMemberList() {
             inviteMemberList.innerHTML = "";
 
+            // 이미 그룹에 있는 사람은 후보에서 뺀다. 서버가 이미 멤버인 사용자는 조용히 건너뛰긴 하지만, 화면에서도 보이지 않게 한다.
             const memberUsernames = new Set(currentGroupMembers.map(function (m) { return m.username; }));
             const invitableFriends = friendDirectory.filter(function (friend) {
                 return !memberUsernames.has(friend.peerUsername);
@@ -2238,11 +2591,13 @@
             });
         }
 
+        // 그룹 초대 창: 열 때마다 초대 가능한 친구 목록을 새로 그린다.
         openInviteMemberBtn.addEventListener("click", function () {
             renderInviteMemberList();
             inviteMemberOverlay.style.display = "flex";
         });
 
+        // 그룹 초대 창 닫기(취소 버튼, 바깥 클릭).
         inviteMemberCancelBtn.addEventListener("click", function () {
             inviteMemberOverlay.style.display = "none";
         });
@@ -2251,6 +2606,7 @@
             if (event.target === inviteMemberOverlay) inviteMemberOverlay.style.display = "none";
         });
 
+        // 초대: 체크한 친구의 아이디를 서버로 보낸다. 한 명도 고르지 않으면 안내만 띄운다.
         inviteMemberConfirmBtn.addEventListener("click", async function () {
             const checkedUsernames = Array.from(inviteMemberList.querySelectorAll("input[type=checkbox]:checked"))
                 .map(function (box) { return box.value; });
@@ -2280,6 +2636,12 @@
             }
         });
 
+        /**
+         * 친구 관리 패널의 친구 목록(friendDirectory)을 그린다.
+         *
+         * 친구마다 프로필 보기, 채팅방 열기, 차단/차단 해제, 친구 삭제 동작을 붙인다.
+         * 차단·삭제처럼 되돌리기 어려운 동작은 확인 창을 거친다.
+         */
         function renderFriendPanelList() {
             friendPanelList.innerHTML = "";
 
@@ -2287,7 +2649,7 @@
                 const item = document.createElement("div");
                 item.className = "friend-panel-item";
 
-                // 그룹 채팅은 상대가 여럿이라 차단 개념이 적용되지 않으므로 버튼을 두지 않는다.
+                // 친구 항목에는 그룹이 없지만, 그룹에는 차단 개념이 적용되지 않는다는 규칙을 코드에 남겨 둔 것이다. 이미 차단했다면 '차단 해제' 아이콘을, 아니면 '차단' 아이콘을 보여 준다.
                 const blockIconHTML = friend.isGroup
                     ? ""
                     : (friend.blockedByMe
@@ -2310,6 +2672,7 @@
                     openProfileCard(friend);
                 });
 
+                // 채팅방 열기: 숨겨 둔 1:1 방을 목록에 되살린 뒤(서버), 그 방을 열고 읽음 처리한다.
                 item.querySelector(".open-friend-chat-icon").addEventListener("click", async function () {
                     const response = await fetch(`/api/friends/${friend.peerId}/conversation`, { method: "POST" });
                     const result = await response.json();
@@ -2338,6 +2701,7 @@
                     setTimeout(function () { input.focus(); }, 10);
                 });
 
+                // 친구 삭제: 친구 관계만 끊는다. 대화 기록은 남는다.
                 item.querySelector(".delete-friend-icon").addEventListener("click", function () {
                     showConfirm(`"${friend.name}"님을 삭제하시겠습니까?`, async function (confirmDelete) {
                         if (!confirmDelete) return;
@@ -2400,6 +2764,9 @@
             });
         }
 
+        /**
+         * 새 그룹에 넣을 친구를 고르는 체크박스 목록을 그린다.
+         */
         function renderNewGroupMemberList() {
             newGroupMemberList.innerHTML = "";
 
@@ -2421,12 +2788,14 @@
             });
         }
 
+        // 새 그룹 만들기 창: 열 때 이름 입력을 비우고 친구 목록을 새로 그린다.
         openNewGroupBtn.addEventListener("click", function () {
             newGroupNameInput.value = "";
             renderNewGroupMemberList();
             newGroupOverlay.style.display = "flex";
         });
 
+        // 새 그룹 창 닫기(취소 버튼, 바깥 클릭).
         newGroupCancelBtn.addEventListener("click", function () {
             newGroupOverlay.style.display = "none";
         });
@@ -2435,6 +2804,7 @@
             if (event.target === newGroupOverlay) newGroupOverlay.style.display = "none";
         });
 
+        // 새 그룹 만들기: 이름과 친구 선택을 확인한 뒤 서버에 만들고, 성공하면 그 대화방을 바로 연다.
         newGroupCreateBtn.addEventListener("click", async function () {
             const name = newGroupNameInput.value.trim();
             if (!name) {
@@ -2445,6 +2815,7 @@
             const checkedUsernames = Array.from(newGroupMemberList.querySelectorAll("input[type=checkbox]:checked"))
                 .map(function (box) { return box.value; });
 
+            // 그룹은 나를 포함해 3명 이상이어야 하므로 친구를 2명 이상 골라야 한다(서버도 같은 규칙을 검사한다).
             if(checkedUsernames.length < 2) {
                 showAlert("친구를 2명 이상 선택해주세요.");
                 return;
@@ -2477,6 +2848,7 @@
             }
         });
 
+        // 친구 추가: 버튼을 누르거나 입력창에서 Enter를 치면 아이디로 요청을 보낸다.
         addFriendConfirmBtn.addEventListener("click", function () {
             sendFriendRequest(newFriendInput.value);
             newFriendInput.value = "";
@@ -2489,6 +2861,9 @@
             }
         });
 
+        /**
+         * 아이디로 사용자를 찾아 프로필 카드와 '친구 추가' 버튼(이미 친구면 '친구' 표시)을 보여 준다. 아이디를 정확히 입력해야 한다.
+         */
         async function searchFriendProfile() {
             const username = friendSearchInput.value.trim();
             if (!username) return;
@@ -2518,20 +2893,24 @@
         friendSearchBtn.addEventListener("click", searchFriendProfile);
         friendSearchInput.addEventListener("keydown", function (event) { if (event.key === "Enter") { event.preventDefault(); searchFriendProfile(); } });
 
+        // 친구 관리 패널 열기/닫기 토글.
         friendPanelTab.addEventListener("click", function () {
             if (friendPanel.classList.contains("open")) closeFriendPanel();
             else openFriendPanel();
         });
 
+        // 친구 패널 닫기 버튼.
         closeFriendPanelBtn.addEventListener("click", function () {
             closeFriendPanel();
         });
 
+        // 메시지함 열기와 닫기(닫기 버튼, 바깥 클릭).
         friendInboxBtn.addEventListener("click", openFriendInbox);
         friendInboxCloseBtn.addEventListener("click", closeFriendInbox);
         friendInboxOverlay.addEventListener("click", function (event) {
             if (event.target === friendInboxOverlay) closeFriendInbox();
         });
+        // 메시지함 탭: '받은 요청'과 '보낸 요청' 중 선택한 목록만 보여 준다.
         friendInboxTabs.forEach(function (tab) {
             tab.addEventListener("click", function () {
                 const incomingTab = tab.dataset.inboxTab === "incoming";
@@ -2541,12 +2920,13 @@
             });
         });
 
+        // 모바일 뒤로가기: 대화를 닫지 않고 목록만 보여 준다. 같은 방을 다시 눌러도 메시지가 유지된다.
         mobileBackBtn.addEventListener("click", function () {
-            // 대화는 닫지 않고 목록만 보여준다. 다시 같은 방을 눌러도 메시지가 유지된다.
             closeMobileChat();
             setMobileNavActive(mobileChatNavBtn);
         });
 
+        // 모바일 채팅 '더보기' 시트 열기/닫기. 그룹 대화일 때만 그룹 전용 항목이 보이도록 클래스를 붙인다.
         mobileChatMoreBtn.addEventListener("click", function (event) {
             event.stopPropagation();
             const isOpen = mobileChatActionsSheet.classList.toggle("open");
@@ -2554,6 +2934,8 @@
             mobileChatActionsSheet.setAttribute("aria-hidden", String(!isOpen));
         });
 
+        // '더보기' 시트의 항목 처리. 고정·알림 끄기는 여기서 직접 서버에 저장하고,
+        // 테마·사진 모아보기·그룹 관리는 같은 기능의 PC용 버튼을 대신 눌러 동작을 재사용한다.
         mobileChatActionsSheet.addEventListener("click", async function (event) {
             const actionButton = event.target.closest("[data-chat-action]");
             if (!actionButton) return;
@@ -2582,6 +2964,9 @@
             if (sourceButton) sourceButton.click();
         });
 
+        /**
+         * 현재 대화방의 개인 설정(is_pinned, is_muted) 하나를 서버에 저장하고 목록과 헤더를 갱신한다. 실패하면 오류를 던진다.
+         */
         async function updateConversationPreference(field, value) {
             const friend = getCurrentFriend();
             if (!friend) return;
@@ -2595,6 +2980,7 @@
             readFriends();
         }
 
+        // 오른쪽 '현재 대화' 패널의 고정·알림 끄기 버튼. 누를 때마다 현재 값을 반대로 저장한다.
         desktopConversationPin.addEventListener("click", async function () {
             const friend = getCurrentFriend();
             if (!friend) return;
@@ -2606,14 +2992,15 @@
             try { await updateConversationPreference("is_muted", !friend.isMuted); showToast(!friend.isMuted ? "이 채팅방 알림을 껐습니다." : "이 채팅방 알림을 켰습니다."); } catch (error) { showToast(error.message, "error"); }
         });
 
+        // 바깥을 누르면 모바일 '더보기' 시트를 닫는다.
         document.addEventListener("click", function (event) {
             if (!mobileChatActionsSheet.contains(event.target) && !mobileChatMoreBtn.contains(event.target)) {
                 closeMobileChatActions();
             }
         });
 
+        // 휴대폰을 가로로 돌리거나 PC 폭으로 넓히면 모바일 전용 상태를 모두 닫아 데스크톱 2단 레이아웃으로 되돌린다.
         window.addEventListener("resize", function () {
-            // 휴대폰을 가로로 돌리거나 PC 폭으로 넓히면 데스크톱 2단 레이아웃으로 복귀한다.
             if (!isMobileViewport()) {
                 closeMobileChat();
                 closeMobileChatActions();
@@ -2621,16 +3008,16 @@
             }
         });
 
-        /* ======================================================
-         * 설정 메뉴 / 프로필 편집 (UI만 준비된 기능)
-         * ====================================================== */
-
+        // ============================================================
+        // 설정 메뉴 / 하단 메뉴 / 채팅 테마 / 프로필 편집
+        // ============================================================
+        // 톱니바퀴 버튼: 설정 메뉴를 연다. 바깥 클릭 처리(document 클릭)와 겹치지 않도록 이벤트 전파를 막는다.
         sideNavSettings.addEventListener("click", function (event) {
             event.stopPropagation();
             openSettingsMenu(sideNavSettings);
         });
 
-        // 모바일 하단 메뉴: 채팅 목록·친구 관리·프로필·설정을 각각 한 번에 연다.
+        // 모바일 하단 메뉴: 채팅 목록 · 친구 관리 · 프로필 · 설정을 각각 한 번에 열고, 서로 겹쳐 열려 있던 패널은 닫는다.
         mobileChatNavBtn.addEventListener("click", function () {
             closeMobileChat();
             closeFriendPanel();
@@ -2659,17 +3046,20 @@
             setMobileNavActive(mobileSettingsNavBtn);
         });
 
+        // 설정 메뉴 바깥을 누르면 메뉴를 닫는다.
         document.addEventListener("click", function (event) {
             if (!settingsMenu.contains(event.target) && !sideNavSettings.contains(event.target) && !mobileSettingsNavBtn.contains(event.target)) {
                 closeSettingsMenu();
             }
         });
 
+        // 모바일 시트 뒤의 어두운 배경을 누르면 설정 메뉴와 친구 패널을 닫는다.
         mobileSheetBackdrop.addEventListener("click", function () {
             closeSettingsMenu();
             closeFriendPanel();
         });
 
+        // 채팅 테마 창 열기: 현재 대화방의 테마가 속한 분류 탭을 먼저 보여 준다. 대화방이 선택되지 않았으면 안내만 띄운다.
         chatThemeBtn.addEventListener("click", function () {
             if (!currentConversationID) {
                 showAlert("먼저 채팅방을 선택해주세요.");
@@ -2681,6 +3071,7 @@
             chatThemeOverlay.style.display = "flex";
         });
 
+        // 채팅 테마 창 닫기(닫기 버튼, 바깥 클릭).
         chatThemeCloseBtn.addEventListener("click", function () {
             chatThemeOverlay.style.display = "none";
         });
@@ -2695,6 +3086,7 @@
             });
         });
 
+        // 테마 선택: 서버에 저장하면 대화방 멤버 모두의 화면에 적용되고, 바꾼 사실이 시스템 메시지로 남는다.
         chatThemeOptions.forEach(function (option) {
             option.addEventListener("click", async function () {
                 const friend = getCurrentFriend();
@@ -2717,6 +3109,7 @@
             });
         });
 
+        // 로그아웃: 확인을 받은 뒤 서버 세션을 끝내고 로그인 화면으로 이동한다.
         logoutBtn.addEventListener("click", function () {
             closeSettingsMenu();
 
@@ -2727,6 +3120,9 @@
             });
         });
 
+        /**
+         * 내 프로필 편집창을 연다. 저장 전 상태(사진·이름)를 기억해 두었다가 취소하면 되돌리고, 소개글·공개 범위·배경 사진은 서버에서 불러온다.
+         */
         async function openProfileEditor() {
             pendingProfileImageData = null;
             pendingProfileImageRemoval = false;
@@ -2738,12 +3134,14 @@
                 myProfileBio.value = profile.bio || "";
                 myProfileVisibility.value = profile.profile_visibility || "friends";
                 updateProfileCoverPreview(profile.cover_image);
-            } catch (error) { /* 기본 편집은 계속 가능 */ }
+            } catch (error) { }
             myProfileOverlay.style.display = "flex";
         }
 
+        // 프로필 편집 버튼과 닫기(닫기 버튼, 바깥 클릭은 취소와 같다).
         editProfileBtn.addEventListener("click", openProfileEditor);
 
+        // 취소: 저장하지 않은 사진 변경 내용을 버리고 편집 전 모습으로 되돌린다.
         myProfileCancelBtn.addEventListener("click", function () {
             profileModalPic.innerHTML = savedProfileImageHTML;
             pendingProfileImageData = null;
@@ -2755,6 +3153,8 @@
             if (event.target === myProfileOverlay) myProfileCancelBtn.click();
         });
 
+        // 저장: 사진(변경 또는 삭제) → 표시 이름 → 소개글·공개 범위 순서로 서버에 저장한다.
+        // 중간 단계가 실패하면 그 자리에서 멈추고 오류를 보여 준다.
         myProfileSaveBtn.addEventListener("click", async function () {
             const newName = document.querySelector("#my-profile-name").value.trim();
             if (newName === "") {
@@ -2814,6 +3214,7 @@
             }
         });
 
+        // 배경 사진은 고르는 즉시 서버에 올린다(프로필 저장 버튼과 별개로 바로 반영).
         coverImageInput.addEventListener("change", function () {
             const file = coverImageInput.files[0]; if (!file) return;
             const reader = new FileReader();
@@ -2824,30 +3225,37 @@
                 showToast(result.success ? "배경사진을 변경했습니다." : result.error, result.success ? undefined : "error");
             }; reader.readAsDataURL(file);
         });
+        /**
+         * 프로필 편집창의 배경 사진 미리보기를 갱신한다. 사진이 없으면 '배경사진 없음' 문구를 보여 준다.
+         */
         function updateProfileCoverPreview(imageUrl) {
             profileCoverPreview.style.backgroundImage = imageUrl ? `url("${imageUrl}")` : "";
             profileCoverPreview.classList.toggle("has-image", Boolean(imageUrl));
             profileCoverPreview.innerHTML = imageUrl ? "" : '<span><i class="fa-regular fa-image"></i> 배경사진 없음</span>';
         }
+        // 배경 사진 삭제: 서버에서 지우고 미리보기를 비운다.
         removeCoverImageBtn.addEventListener("click", async function () { const response = await fetch("/api/account/cover-image", {method:"DELETE"}); const result=await response.json(); if (result.success) updateProfileCoverPreview(null); showToast(result.success ? "배경사진을 제거했습니다." : result.error, result.success ? undefined : "error"); });
+        // 프로필 카드 닫기(닫기 버튼, 바깥 클릭).
         profileCardClose.addEventListener("click", function () { profileCardOverlay.style.display="none"; });
         profileCardOverlay.addEventListener("click", function(event){ if(event.target===profileCardOverlay) profileCardOverlay.style.display="none"; });
 
-        /* ======================================================
-         * 프로필 카드 ⋮ 메뉴 — 신고하기 / 차단하기
-         * ====================================================== */
+        // ============================================================
+        // 프로필 카드 ⋮ 메뉴 (신고하기 / 차단하기)
+        // ============================================================
         profileCardMenuBtn.addEventListener("click", function (event) {
             event.stopPropagation();
             const willOpen = profileCardMenu.hidden;
             profileCardMenu.hidden = !willOpen;
             profileCardMenuBtn.setAttribute("aria-expanded", String(willOpen));
         });
+        // 프로필 카드의 ⋮ 메뉴 바깥을 누르면 메뉴를 닫는다.
         document.addEventListener("click", function (event) {
             if (profileCardMenu.hidden) return;
             if (profileCardMenu.contains(event.target) || event.target === profileCardMenuBtn) return;
             profileCardMenu.hidden = true;
             profileCardMenuBtn.setAttribute("aria-expanded", "false");
         });
+        // 차단: 확인을 받은 뒤 차단하고, 목록과 입력 잠금 상태를 갱신한다.
         profileCardBlockItem.addEventListener("click", function () {
             profileCardMenu.hidden = true;
             const target = profileCardTarget;
@@ -2868,6 +3276,7 @@
                 showToast(`"${target.name}"님을 차단했습니다.`);
             });
         });
+        // 신고: 메시지 신고와 같은 신고 창을 쓰되, 대상 종류를 '사용자'로 기록한다.
         profileCardReportItem.addEventListener("click", function () {
             profileCardMenu.hidden = true;
             const target = profileCardTarget;
@@ -2879,24 +3288,29 @@
             reportMessageOverlay.style.display = "flex";
         });
 
-        /* ======================================================
-         * 전송 버튼 / 엔터 입력
-         * ====================================================== */
-
+        // ============================================================
+        // 전송 버튼 / 엔터 입력
+        // ============================================================
         button.addEventListener("click", function () { sendMessage(); });
 
         input.addEventListener("keydown", function (event) {
+            // Enter는 전송, Shift+Enter는 줄바꿈이다.
             if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 sendMessage();
             }
         });
 
+        // 메시지 메뉴와 첨부 메뉴 바깥을 누르면 닫는다.
         document.addEventListener("click", function (event) {
+            // 메시지 메뉴·첨부 메뉴 바깥을 누르면 둘 다 닫는다.
             if (!messageMenu.contains(event.target)) closeMessageMenu();
             if (!attachMenu.contains(event.target)) attachMenu.style.display = "none";
         });
 
+        /**
+         * 메시지 메뉴를 닫는다. 화면 밖으로 치워 두어 다음에 열 때 위치 계산이 이전 값에 영향받지 않게 한다.
+         */
         function closeMessageMenu() {
             messageMenu.style.display = "none";
             messageMenu.style.pointerEvents = "none";
@@ -2904,10 +3318,10 @@
             messageMenu.style.top = "-9999px";
         }
 
-        /* ======================================================
-         * 반응(이모지) 선택 팝업
-         * ====================================================== */
-
+        // ============================================================
+        // 반응(이모지) 선택 팝업
+        // ============================================================
+        // 이모지를 누르면 서버가 반응을 추가(이미 있으면 취소)하고, 목록을 다시 그린 뒤 선택창을 닫는다.
         reactionPicker.addEventListener("click", async function (event) {
             const emojiSpan = event.target.closest("span[data-emoji]");
             if (!emojiSpan) return;
@@ -2923,16 +3337,17 @@
             reactionPicker.style.display = "none";
         });
 
+        // 반응 선택창 바깥을 누르면 닫는다(SPAN은 이모지 선택이므로 제외).
         document.addEventListener("click", function (event) {
             if (!reactionPicker.contains(event.target) && event.target.tagName !== "SPAN") {
                 reactionPicker.style.display = "none";
             }
         });
 
-        /* ======================================================
-         * 메시지 검색 UI
-         * ====================================================== */
-
+        // ============================================================
+        // 메시지 검색 UI
+        // ============================================================
+        // 검색 바 열기/닫기. 닫으면 검색어를 비워 강조 표시도 함께 없앤다.
         searchToggleBtn.addEventListener("click", function () {
             if (searchBar.style.display === "flex") {
                 searchBar.style.display = "none";
@@ -2944,6 +3359,7 @@
             }
         });
 
+        // 검색어를 입력할 때마다 바로 검색한다.
         searchInput.addEventListener("input", function () { performSearch(this.value.trim()); });
 
         searchClose.addEventListener("click", function () {
@@ -2952,6 +3368,7 @@
             performSearch("");
         });
 
+        // 다음/이전 검색 결과로 이동한다. 끝에서 처음으로, 처음에서 끝으로 이어지도록 나머지 연산을 쓴다.
         searchNext.addEventListener("click", function () {
             if (searchMatches.length === 0) return;
             currentMatchIndex = (currentMatchIndex + 1) % searchMatches.length;
@@ -2966,12 +3383,13 @@
             scrollToMatch();
         });
 
-        /* ======================================================
-         * 드래그 앤 드롭 사진 첨부
-         * ====================================================== */
-
+        // ============================================================
+        // 드래그 앤 드롭 사진 첨부
+        // ============================================================
+        // dragover를 막아 두어야 drop 이벤트를 받을 수 있다(브라우저 기본 동작은 파일을 새 탭에서 열어 버린다).
         messages.addEventListener("dragover", function (e) { e.preventDefault(); });
 
+        // 끌어다 놓은 파일이 이미지일 때만 보낸다.
         messages.addEventListener("drop", function (e) {
             e.preventDefault();
             const file = e.dataTransfer.files[0];
@@ -2982,10 +3400,12 @@
             sendImage(file);
         });
 
-        /* ======================================================
-         * 사진 갤러리 모아보기
-         * ====================================================== */
-
+        // ============================================================
+        // 사진 갤러리 모아보기
+        // ============================================================
+        /**
+         * 현재 대화방에서 주고받은 사진만 모아 격자로 보여 준다. 사진이 없으면 안내 문구를 보여 준다.
+         */
         function renderGallery() {
             const chatList = chats[currentConversationID] || [];
             const images = chatList.filter(function (chat) { return chat.image; });
@@ -3000,6 +3420,7 @@
             }).join("");
         }
 
+        // 사진 모아보기: 열 때마다 최신 사진 목록을 새로 그린다.
         galleryToggleBtn.addEventListener("click", function () {
             renderGallery();
             galleryOverlay.style.display = "flex";
@@ -3011,6 +3432,7 @@
             if (event.target === galleryOverlay) galleryOverlay.style.display = "none";
         });
 
+        // 갤러리에서 사진을 누르면 갤러리를 닫고 큰 이미지로 연다(이벤트 위임: 격자 하나에만 리스너를 둔다).
         galleryGrid.addEventListener("click", function (event) {
             const img = event.target.closest("img[data-image]");
             if (!img) return;
@@ -3019,13 +3441,20 @@
             imageModal.style.display = "flex";
         });
 
+        // ============================================================
+        // 계정 설정 · 업데이트 알림 · 브라우저 알림
+        // ============================================================
         accountSettingsItem.addEventListener("click", function () {
     closeSettingsMenu();
     accountSettingsOverlay.style.display = "flex";
 });
 
+// 서버가 알려 준 가장 최근 업데이트 버전(커밋 해시 앞 7자리). 사용자가 마지막으로 확인한 버전과 비교해 NEW 배지를 보여 준다.
 let currentUpdateVersion = "";
 
+/**
+ * 새 업데이트가 있으면 설정 메뉴의 NEW 배지를 보여 준다. 사용자가 알림 설정을 연 적 있는 버전이면 숨긴다.
+ */
 function updateUpdateNoticeBadge() {
     if (!currentUpdateVersion) return;
     const seenVersion = localStorage.getItem("seenUpdateVersion");
@@ -3033,6 +3462,9 @@ function updateUpdateNoticeBadge() {
         seenVersion === currentUpdateVersion ? "none" : "inline-block";
 }
 
+/**
+ * 업데이트 목록을 지정한 영역에 그린다. 텍스트는 textContent로만 넣어 외부(GitHub) 문구가 HTML로 해석되지 않게 한다.
+ */
 function renderUpdateHistory(updates, target = updateHistoryList) {
     target.replaceChildren();
     updates.forEach(function (update) {
@@ -3056,6 +3488,9 @@ function renderUpdateHistory(updates, target = updateHistoryList) {
     });
 }
 
+/**
+ * 최근 업데이트 내역을 서버에서 가져와 알림 설정 창에 보여 주고 NEW 배지 상태를 갱신한다.
+ */
 async function loadUpdateHistory() {
     try {
         const response = await fetch("/api/updates");
@@ -3077,6 +3512,9 @@ async function loadUpdateHistory() {
     }
 }
 
+/**
+ * '이전 업데이트' 창을 열고 전체 내역을 불러온다.
+ */
 async function openPreviousUpdates() {
     previousUpdatesOverlay.style.display = "flex";
     previousUpdatesList.textContent = "이전 업데이트 내역을 불러오는 중입니다.";
@@ -3096,6 +3534,7 @@ async function openPreviousUpdates() {
     }
 }
 
+// 알림 설정을 열면 최신 업데이트를 확인한 것으로 보고 그 버전을 기록한 뒤 NEW 배지를 끈다.
 notificationSettingsItem.addEventListener("click", function () {
     closeSettingsMenu();
     notificationSettingsOverlay.style.display = "flex";
@@ -3106,12 +3545,17 @@ notificationSettingsItem.addEventListener("click", function () {
     updateUpdateNoticeBadge();
 });
 
+// 알림 설정 창 닫기.
 notificationSettingsCloseBtn.addEventListener("click", function () {
     notificationSettingsOverlay.style.display = "none";
 });
 
+// 브라우저 알림 스위치의 초기 상태. 사용자가 켜 두었고(localStorage) 브라우저 권한도 실제로 허용된 경우에만 켜진 것으로 본다.
 browserNotificationToggle.checked = localStorage.getItem("browserNotifications") === "enabled" && "Notification" in window && Notification.permission === "granted";
 
+/**
+ * VAPID 공개키(URL-safe base64)를 푸시 구독에 필요한 바이트 배열로 바꾼다. 길이를 4의 배수로 채우고 - _ 를 표준 문자로 되돌린다.
+ */
 function urlBase64ToUint8Array(value) {
     const padding = "=".repeat((4 - value.length % 4) % 4);
     const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -3119,6 +3563,12 @@ function urlBase64ToUint8Array(value) {
     return Uint8Array.from(rawData, character => character.charCodeAt(0));
 }
 
+/**
+ * 웹 푸시 구독을 만들어 서버에 등록한다.
+ *
+ * 서버에 푸시 설정(VAPID 키)이 없으면 아무것도 하지 않는다. 서비스 워커는 /static/push-sw.js를 쓰며,
+ * 이미 구독이 있으면 새로 만들지 않고 그 정보를 서버에 다시 보낸다.
+ */
 async function registerPushSubscription() {
     if (!("serviceWorker" in navigator)) return;
     const config = await fetch("/api/push-config").then(response => response.json());
@@ -3131,6 +3581,7 @@ async function registerPushSubscription() {
     await fetch("/api/push-subscriptions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(subscription) });
 }
 
+// 알림 스위치: 켤 때 브라우저 권한을 요청하고, 허용되면 푸시 구독까지 등록한다. 거부되면 스위치를 되돌린다.
 browserNotificationToggle.addEventListener("change", async function () {
     if (!("Notification" in window)) {
         showToast("이 브라우저는 알림을 지원하지 않습니다.", "error");
@@ -3153,6 +3604,11 @@ browserNotificationToggle.addEventListener("change", async function () {
     }
 });
 
+/**
+ * 새 메시지가 왔을 때 브라우저 알림을 띄운다.
+ *
+ * 화면을 보고 있는 중이거나, 알림을 꺼 둔 경우, 알림을 끈 대화방이면 띄우지 않는다.
+ */
 function showBrowserNotification(conversationId) {
     if (document.visibilityState === "visible" || localStorage.getItem("browserNotifications") !== "enabled") return;
     if (!("Notification" in window) || Notification.permission !== "granted") return;
@@ -3161,10 +3617,12 @@ function showBrowserNotification(conversationId) {
     new Notification(friend.name, { body: friend.message || "새 메시지가 도착했습니다.", icon: "/static/favicon-180x180.png" });
 }
 
+// 알림을 켜 둔 상태로 다시 접속하면 푸시 구독을 최신 상태로 유지한다(실패해도 화면 사용에는 영향 없다).
 if (browserNotificationToggle.checked) {
     registerPushSubscription().catch(function () {});
 }
 
+// 이전 업데이트 창 열기와 닫기(닫기 버튼, 바깥 클릭).
 previousUpdatesBtn.addEventListener("click", openPreviousUpdates);
 previousUpdatesCloseBtn.addEventListener("click", function () {
     previousUpdatesOverlay.style.display = "none";
@@ -3173,12 +3631,16 @@ previousUpdatesOverlay.addEventListener("click", function (event) {
     if (event.target === previousUpdatesOverlay) previousUpdatesOverlay.style.display = "none";
 });
 
+// ============================================================
+// 고객 문의 · 운영 경고
+// ============================================================
 supportAttachment.addEventListener("change", function () {
     const file = supportAttachment.files[0];
     if (!file) {
         supportAttachmentName.textContent = "첨부 파일 없음";
         return;
     }
+    // 첨부 용량(10MB)은 서버 제한(SUPPORT_ATTACHMENT_MAX_BYTES)과 같다. 업로드 전에 미리 알려 불필요한 전송을 막는다.
     if (file.size > 10 * 1024 * 1024) {
         supportAttachment.value = "";
         supportAttachmentName.textContent = "첨부 파일 없음";
@@ -3191,6 +3653,7 @@ supportAttachment.addEventListener("change", function () {
     supportInquiryResult.className = "support-inquiry-result";
 });
 
+// 문의 전송: 10자 이상인지 확인하고, 전송하는 동안 버튼을 잠근다. 성공하면 양식을 비우고 내역을 다시 불러온다.
 supportInquiryForm.addEventListener("submit", async function (event) {
     event.preventDefault();
     const message = supportMessage.value.trim();
@@ -3229,6 +3692,9 @@ supportInquiryForm.addEventListener("submit", async function (event) {
     }
 });
 
+/**
+ * 내가 보낸 문의 내역(상태, 내용, 관리자 답변)을 불러와 그린다. 답변 대기 중인 문의만 수정할 수 있다.
+ */
 async function loadSupportInquiryHistory() {
     try {
         const response = await fetch("/api/support-inquiries/history");
@@ -3250,8 +3716,12 @@ async function loadSupportInquiryHistory() {
     }
 }
 
+// 아직 확인하지 않은 운영 경고 목록. 하나씩 차례로 보여 주고 확인하면 다음 경고로 넘어간다.
 let unreadModerationWarnings = [];
 
+/**
+ * 확인하지 않은 경고 중 가장 오래된 것을 팝업으로 보여 준다. 남은 경고가 없으면 팝업을 닫는다.
+ */
 function showNextModerationWarning() {
     const warning = unreadModerationWarnings[0];
     if (!warning) {
@@ -3266,6 +3736,9 @@ function showNextModerationWarning() {
     moderationWarningOverlay.style.display = "flex";
 }
 
+/**
+ * 접속할 때 읽지 않은 운영 경고를 가져와 보여 준다.
+ */
 async function loadUnreadModerationWarnings() {
     try {
         const response = await fetch("/api/moderation/warnings");
@@ -3273,10 +3746,12 @@ async function loadUnreadModerationWarnings() {
         unreadModerationWarnings = await response.json();
         showNextModerationWarning();
     } catch (error) {
-        // 경고 안내 조회 실패가 채팅 화면 사용을 막으면 안 된다.
     }
 }
 
+/**
+ * 내가 받은 운영 경고 기록 전체를 도움말 창에 보여 준다.
+ */
 async function loadModerationWarningHistory() {
     try {
         const response = await fetch("/api/moderation/warnings/history");
@@ -3290,6 +3765,7 @@ async function loadModerationWarningHistory() {
     }
 }
 
+// '확인했습니다': 서버에 읽음을 기록한 뒤 다음 경고를 보여 준다. 처리 중에는 버튼을 잠근다.
 moderationWarningAcknowledge.addEventListener("click", async function () {
     const warning = unreadModerationWarnings[0];
     if (!warning) return;
@@ -3307,6 +3783,7 @@ moderationWarningAcknowledge.addEventListener("click", async function () {
     }
 });
 
+// 문의 내역의 수정·삭제 버튼 처리(이벤트 위임). 버튼의 data-edit-inquiry / data-delete-inquiry 값이 문의 ID다.
 supportInquiryHistory.addEventListener("click", async function (event) {
     const editId = event.target.dataset.editInquiry;
     const deleteId = event.target.dataset.deleteInquiry;
@@ -3329,7 +3806,9 @@ supportInquiryHistory.addEventListener("click", async function (event) {
     loadSupportInquiryHistory();
 });
 
-/* 인증 성공·재발송·만료 때 동일하게 사용할 3분 카운트다운 처리다. */
+/**
+ * 인증번호 카운트다운을 멈춘다. hide가 true면 타이머 표시도 숨긴다. 인증 성공·재발송·만료 때 같은 방식으로 쓴다.
+ */
 function stopInlineVerificationTimer(timerElement, hide = false) {
     if (timerElement._interval) clearInterval(timerElement._interval);
     timerElement._interval = null;
@@ -3339,11 +3818,17 @@ function stopInlineVerificationTimer(timerElement, hide = false) {
     }
 }
 
+/**
+ * 인증번호 유효시간(3분 = 180초) 카운트다운을 시작하고, 0이 되면 '만료됨'으로 바꾼 뒤 onExpire를 호출한다. 서버의 인증번호 유효시간과 같아야 한다.
+ */
 function startInlineVerificationTimer(timerElement, onExpire) {
     stopInlineVerificationTimer(timerElement);
     let remaining = 180;
     timerElement.hidden = false;
 
+    /**
+     * 남은 시간을 mm:ss로 표시하고 1초 줄인다. 0이 되면 타이머를 멈추고 만료 처리를 호출한다.
+     */
     function tick() {
         const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
         const seconds = String(remaining % 60).padStart(2, "0");
@@ -3361,10 +3846,10 @@ function startInlineVerificationTimer(timerElement, onExpire) {
     timerElement._interval = setInterval(tick, 1000);
 }
 
-/* ==============================================================
- * 계정 복구: 로그인 화면과 같은 Flask API를 재사용한다.
- * 화면만 다를 뿐, 인증번호 발송·검증 규칙은 서버 한 곳에서 관리한다.
- * ============================================================ */
+// ============================================================
+// 계정 복구 (아이디 찾기 / 비밀번호 재설정)
+// ============================================================
+// 로그인 화면과 같은 서버 API를 재사용한다. 화면만 다를 뿐 인증번호 발송·검증 규칙은 서버 한 곳에서 관리한다.
 helpFindUsernameBtn.addEventListener("click", async function () {
     const email = helpFindUsernameEmail.value.trim();
     if (!email) {
@@ -3393,6 +3878,8 @@ helpFindUsernameBtn.addEventListener("click", async function () {
     }
 });
 
+// 비밀번호 재설정 1단계 - 인증번호 받기. 서버는 가입 여부와 상관없이 같은 안내 문구를 돌려준다.
+// 성공하면 인증번호 입력칸을 열고 3분 카운트다운을 시작하며, 이전 인증 상태는 모두 초기화한다.
 helpResetCodeBtn.addEventListener("click", async function () {
     const email = helpResetEmail.value.trim();
     if (!email) {
@@ -3437,6 +3924,7 @@ helpResetCodeBtn.addEventListener("click", async function () {
     }
 });
 
+// 2단계 - 인증번호 확인. 맞으면 입력칸을 잠그고(readOnly) 타이머를 멈춘 뒤 '인증 완료'로 표시한다.
 helpResetVerifyBtn.addEventListener("click", async function () {
     const email = helpResetEmail.value.trim();
     const code = helpResetCode.value.trim();
@@ -3474,6 +3962,7 @@ helpResetVerifyBtn.addEventListener("click", async function () {
     }
 });
 
+// 이메일을 고치면 이미 받은 인증번호는 다른 주소용이므로 인증 상태와 입력칸을 모두 접는다.
 helpResetEmail.addEventListener("input", function () {
     if (!helpResetCodeSent) return;
     helpResetCodeSent = false;
@@ -3482,6 +3971,7 @@ helpResetEmail.addEventListener("input", function () {
     helpResetFields.hidden = true;
 });
 
+// 3단계 - 새 비밀번호로 변경. 인증을 마치지 않았다면 요청하지 않는다(서버도 인증번호를 다시 검증한다).
 helpResetSubmitBtn.addEventListener("click", async function () {
     const email = helpResetEmail.value.trim();
     const code = helpResetCode.value.trim();
@@ -3522,6 +4012,9 @@ helpResetSubmitBtn.addEventListener("click", async function () {
     }
 });
 
+/**
+ * 공개된 공지사항을 가져와 도움말 창에 보여 준다. 제목과 날짜는 이스케이프해서 넣는다.
+ */
 async function loadPublicNotices() {
     try {
         const response = await fetch("/api/notices");
@@ -3534,7 +4027,11 @@ async function loadPublicNotices() {
     }
 }
 
+// 내가 쓴 리뷰의 ID. 있으면 작성 양식이 '수정 모드'가 되고(리뷰 수정·삭제 버튼), 없으면 '등록 모드'다. 리뷰는 한 계정당 하나다.
 let myReviewId = null;
+/**
+ * 내 리뷰가 있으면 수정 모드(내용 채움, 삭제 버튼 표시)로, 없으면 등록 모드로 양식을 바꾼다.
+ */
 function setReviewComposeMode(myReview) {
     myReviewId = myReview ? myReview.id : null;
     reviewComposeHint.hidden = !myReview;
@@ -3545,6 +4042,9 @@ function setReviewComposeMode(myReview) {
         reviewContent.value = myReview.content;
     }
 }
+/**
+ * 전체 리뷰 목록을 그리고, 그중 내 리뷰를 찾아 작성 양식 모드를 맞춘다.
+ */
 async function loadReviews() {
     try {
         const reviews = await fetch("/api/reviews").then(response => response.json());
@@ -3552,6 +4052,7 @@ async function loadReviews() {
         setReviewComposeMode(reviews.find(review => review.isMine) || null);
     } catch (error) { reviewList.innerHTML=""; }
 }
+// 내 리뷰가 있으면 수정(PATCH), 없으면 새로 등록(POST)한다. 별점·글자 수 검증은 서버가 한다.
 reviewSubmitBtn.addEventListener("click", async function () {
     const rating = Number(reviewRating.value);
     const content = reviewContent.value.trim();
@@ -3562,6 +4063,7 @@ reviewSubmitBtn.addEventListener("click", async function () {
     if (!response.ok || !result.success) return showToast(result.error || "리뷰 저장에 실패했습니다.", "error");
     loadReviews(); showToast(myReviewId ? "리뷰를 수정했습니다." : "리뷰를 등록했습니다.");
 });
+// 내 리뷰 삭제: 확인을 받은 뒤 지우고 양식을 비운다.
 reviewDeleteBtn.addEventListener("click", async function () {
     if (!myReviewId || !confirm("작성한 리뷰를 삭제할까요?")) return;
     const response = await fetch(`/api/reviews/${myReviewId}`, {method:"DELETE"});
@@ -3570,6 +4072,7 @@ reviewDeleteBtn.addEventListener("click", async function () {
     reviewRating.value=""; reviewContent.value=""; loadReviews(); showToast("리뷰를 삭제했습니다.");
 });
 
+        // '공지사항·도움말' 창을 열 때 공지, 내 문의 내역, 받은 운영 경고를 한꺼번에 최신으로 불러온다.
         helpItem.addEventListener("click", function () {
             closeSettingsMenu();
             loadPublicNotices();
@@ -3577,15 +4080,18 @@ reviewDeleteBtn.addEventListener("click", async function () {
             loadModerationWarningHistory();
             helpOverlay.style.display = "flex";
         });
+        // 도움말 창 닫기.
         helpCloseBtn.addEventListener("click", function () {
             helpOverlay.style.display = "none";
         });
 
+        // '사용자 리뷰' 창을 열 때 리뷰 목록을 새로 불러온다.
         reviewsItem.addEventListener("click", function () {
             closeSettingsMenu();
             loadReviews();
             reviewsOverlay.style.display = "flex";
         });
+        // 리뷰 창 닫기(닫기 버튼, 바깥 클릭).
         reviewsCloseBtn.addEventListener("click", function () { reviewsOverlay.style.display = "none"; });
         reviewsOverlay.addEventListener("click", function (event) { if (event.target === reviewsOverlay) reviewsOverlay.style.display = "none"; });
 
@@ -3593,6 +4099,7 @@ accountSettingsCloseBtn.addEventListener("click", function () {
     accountSettingsOverlay.style.display = "none";
 });
 
+// 아이디 변경: 새 아이디와 현재 비밀번호를 서버로 보낸다. 규칙(영문 소문자·숫자 5자 이상) 검사는 서버가 한다.
 saveUsernameBtn.addEventListener("click", async function () {
     try {
         const response = await fetch("/api/account/username", {
@@ -3618,6 +4125,8 @@ saveUsernameBtn.addEventListener("click", async function () {
     }
 });
 
+// 이메일 변경 1단계 - 새 이메일로 인증번호 보내기. 성공하면 3분 카운트다운을 시작한다.
+// 만료되면 인증번호 입력을 막고 다시 요청하도록 안내한다.
 sendEmailCodeBtn.addEventListener("click", async function () {
     const email = newEmailInput.value.trim();
     if (!email) {
@@ -3664,6 +4173,7 @@ sendEmailCodeBtn.addEventListener("click", async function () {
     }
 });
 
+// 2단계 - 인증번호 확인. 맞으면 입력칸을 잠그고 '인증 완료'로 표시한다.
 verifyEmailCodeBtn.addEventListener("click", async function () {
     const email = newEmailInput.value.trim();
     const code = emailCodeInput.value.trim();
@@ -3701,6 +4211,7 @@ verifyEmailCodeBtn.addEventListener("click", async function () {
     }
 });
 
+// 이메일 주소를 다시 고치면 이전 인증은 무효이므로 인증 상태를 초기화하고 인증번호를 다시 받도록 안내한다.
 newEmailInput.addEventListener("input", function () {
     if (!accountEmailCodeSent) return;
     accountEmailCodeSent = false;
@@ -3715,6 +4226,7 @@ newEmailInput.addEventListener("input", function () {
     verifyEmailCodeBtn.disabled = false;
 });
 
+// 3단계 - 이메일 변경 저장. 인증을 마쳤고 현재 비밀번호가 맞아야 서버가 변경해 준다.
 saveEmailBtn.addEventListener("click", async function () {
     if (!accountEmailVerified) {
         showAlert("인증번호 인증을 먼저 완료해주세요.");
@@ -3753,6 +4265,7 @@ saveEmailBtn.addEventListener("click", async function () {
     }
 });
 
+// 비밀번호 변경: 새 비밀번호와 확인 입력이 같은지 먼저 확인한 뒤 서버로 보낸다(규칙 검사는 서버가 한다).
 savePasswordBtn.addEventListener("click", async function () {
     if (newPasswordInput.value !== newPasswordConfirmationInput.value) {
         showAlert("새 비밀번호 확인이 일치하지 않습니다.");
@@ -3786,6 +4299,7 @@ savePasswordBtn.addEventListener("click", async function () {
     }
 });
 
+// 계정 삭제: 비밀번호를 입력받아 확인 창을 띄운 뒤 삭제를 요청한다. 되돌릴 수 없으므로 서버도 비밀번호를 다시 검사한다. 성공하면 로그인 화면으로 이동한다.
 deleteAccountBtn.addEventListener("click", function () {
     const password = deleteAccountPassword.value;
 
@@ -3812,11 +4326,13 @@ deleteAccountBtn.addEventListener("click", function () {
     });
 });
 
-/* ==============================================================
- * 원형 프로필/그룹 사진 편집기
- * 원본을 임의로 축소하지 않고, 사용자가 고른 영역만 512px 정사각형으로 저장한다.
- * ============================================================ */
+// ============================================================
+// 원형 프로필/그룹 사진 편집기
+// ============================================================
+// 원본을 임의로 줄이지 않고, 사용자가 고른 영역만 512px 정사각형으로 저장한다.
+// 화면의 편집 영역은 320px 정사각형이고, 저장할 때 512/320 비율로 확대해서 그린다.
 const CROP_VIEWPORT_SIZE = 320;
+// 편집 중인 사진의 상태: 대상(profile/group), 이미지, 현재 배율과 기본 배율, 이미지 왼쪽 위 좌표(x, y), 드래그 상태.
 const cropState = {
     target: null,
     image: null,
@@ -3829,6 +4345,9 @@ const cropState = {
     pointerY: 0,
 };
 
+/**
+ * 사진이 편집 영역을 벗어나 빈 공간이 생기지 않도록 이동 범위를 제한한다. 사진은 항상 영역을 꽉 채워야 한다.
+ */
 function constrainCropPosition() {
     const renderedWidth = cropState.image.naturalWidth * cropState.scale;
     const renderedHeight = cropState.image.naturalHeight * cropState.scale;
@@ -3836,6 +4355,9 @@ function constrainCropPosition() {
     cropState.y = Math.min(0, Math.max(CROP_VIEWPORT_SIZE - renderedHeight, cropState.y));
 }
 
+/**
+ * 현재 배율과 위치로 사진을 편집 캔버스에 그린다. 사진이 투명한 부분은 연한 회색으로 채운다.
+ */
 function renderCropPreview() {
     if (!cropState.image) return;
     const context = imageCropCanvas.getContext("2d");
@@ -3853,6 +4375,9 @@ function renderCropPreview() {
     );
 }
 
+/**
+ * 사진 편집창을 닫고 편집 상태를 비운다.
+ */
 function closeImageCropper() {
     cropState.target = null;
     cropState.image = null;
@@ -3860,6 +4385,12 @@ function closeImageCropper() {
     imageCropOverlay.style.display = "none";
 }
 
+/**
+ * 선택한 이미지 파일로 편집창을 연다.
+ *
+ * 처음에는 영역을 꽉 채우는 최소 배율로 가운데에 놓는다. target은 'profile'(내 프로필) 또는 'group'(그룹 사진).
+ * 브라우저가 MIME 형식을 알려 주지 않는 경우를 위해 확장자도 함께 확인한다.
+ */
 function openImageCropper(file, target) {
     const supportedExtension = /\.(jpe?g|jfif|png|webp|gif)$/i.test(file.name || "");
     if (!file.type.startsWith("image/") && !supportedExtension) {
@@ -3873,6 +4404,7 @@ function openImageCropper(file, target) {
         URL.revokeObjectURL(objectUrl);
         cropState.target = target;
         cropState.image = image;
+        // 짧은 변이 영역을 꽉 채우는 배율이 기본(100%)이다. 이보다 작게 줄일 수는 없다.
         cropState.baseScale = Math.max(CROP_VIEWPORT_SIZE / image.naturalWidth, CROP_VIEWPORT_SIZE / image.naturalHeight);
         cropState.scale = cropState.baseScale;
         cropState.x = (CROP_VIEWPORT_SIZE - image.naturalWidth * cropState.scale) / 2;
@@ -3889,6 +4421,9 @@ function openImageCropper(file, target) {
     image.src = objectUrl;
 }
 
+/**
+ * 자른 그룹 사진을 서버에 저장하고 화면의 그룹 사진을 바꾼다. 실패하면 오류를 던진다.
+ */
 async function uploadCroppedGroupPhoto(imageData) {
     const response = await fetch(`/api/conversations/${currentConversationID}/photo`, {
         method: "PATCH",
@@ -3900,6 +4435,7 @@ async function uploadCroppedGroupPhoto(imageData) {
     groupPhotoImg.src = result.profile_image;
 }
 
+// 확대/축소: 영역의 중심에 보이던 지점이 그대로 중심에 남도록 위치를 다시 계산한다.
 imageCropZoom.addEventListener("input", function () {
     if (!cropState.image) return;
     const oldScale = cropState.scale;
@@ -3912,6 +4448,7 @@ imageCropZoom.addEventListener("input", function () {
     renderCropPreview();
 });
 
+// 사진 이동(드래그): 포인터를 캔버스에 붙잡아(pointer capture) 영역 밖으로 나가도 드래그가 이어지게 한다. 마우스·터치를 함께 지원한다.
 imageCropCanvas.addEventListener("pointerdown", function (event) {
     if (!cropState.image) return;
     cropState.dragging = true;
@@ -3923,6 +4460,7 @@ imageCropCanvas.addEventListener("pointerdown", function (event) {
 imageCropCanvas.addEventListener("pointermove", function (event) {
     if (!cropState.dragging || !cropState.image) return;
     const bounds = imageCropCanvas.getBoundingClientRect();
+    // 화면에 보이는 캔버스 크기가 CSS로 달라질 수 있어, 포인터 이동량을 캔버스 좌표로 환산한다.
     const displayScale = CROP_VIEWPORT_SIZE / bounds.width;
     cropState.x += (event.clientX - cropState.pointerX) * displayScale;
     cropState.y += (event.clientY - cropState.pointerY) * displayScale;
@@ -3932,6 +4470,9 @@ imageCropCanvas.addEventListener("pointermove", function (event) {
     renderCropPreview();
 });
 
+/**
+ * 드래그를 끝내고 붙잡아 둔 포인터를 놓는다.
+ */
 function finishCropDrag(event) {
     cropState.dragging = false;
     if (imageCropCanvas.hasPointerCapture(event.pointerId)) imageCropCanvas.releasePointerCapture(event.pointerId);
@@ -3939,6 +4480,8 @@ function finishCropDrag(event) {
 imageCropCanvas.addEventListener("pointerup", finishCropDrag);
 imageCropCanvas.addEventListener("pointercancel", finishCropDrag);
 
+// 적용: 편집 영역을 512px 정사각형 JPEG(품질 0.94)로 만든다.
+// 내 프로필 사진은 '저장' 버튼을 눌러야 서버에 올라가도록 미리 보관만 하고(pendingProfileImageData), 그룹 사진은 바로 업로드한다.
 imageCropApplyBtn.addEventListener("click", async function () {
     if (!cropState.image || !cropState.target) return;
     const outputSize = 512;
@@ -3982,6 +4525,7 @@ imageCropOverlay.addEventListener("click", function (event) {
     if (event.target === imageCropOverlay) closeImageCropper();
 });
 
+// 그룹 사진 변경: 파일을 고르면 편집창이 열린다. 같은 파일을 다시 골라도 change가 일어나도록 선택값은 비운다.
 changeGroupPhotoBtn.addEventListener("click", function () {
     groupPhotoInput.click();
 });
@@ -3993,6 +4537,7 @@ groupPhotoInput.addEventListener("change", function () {
     groupPhotoInput.value = "";
 });
 
+// 그룹 사진 삭제: 확인을 받은 뒤 서버에서 지우고 기본 이미지로 되돌린다.
 removeGroupPhotoBtn.addEventListener("click", function () {
     showConfirm("그룹 사진을 삭제하시겠습니까?", async function (confirmRemove) {
         if (!confirmRemove) return;
@@ -4012,6 +4557,7 @@ removeGroupPhotoBtn.addEventListener("click", function () {
     });
 });
 
+// 내 프로필 사진 변경: 버튼이나 사진 자체(키보드 Enter/Space 포함)를 누르면 파일 선택창이 열린다.
 changeProfilePicBtn.addEventListener("click", function () {
     profileImageInput.click();
 });
@@ -4034,6 +4580,7 @@ profileImageInput.addEventListener("change", function () {
     profileImageInput.value = "";
 });
 
+// 프로필 사진 삭제는 바로 지우지 않고 '삭제 예약' 상태로 두었다가, 프로필 저장 버튼을 눌러야 서버에 반영된다.
 removeProfilePicBtn.addEventListener("click", function () {
     showConfirm("프로필 사진을 삭제하시겠습니까?", async function (confirmRemove) {
         if (!confirmRemove) return;
@@ -4043,6 +4590,7 @@ removeProfilePicBtn.addEventListener("click", function () {
     });
 });
 
+// 동영상 첨부: 파일을 고르면 바로 전송한다(형식·크기 검사는 서버가 한다).
 videoBtn.addEventListener("click", function () {
     videoInput.click();
     attachMenu.style.display = "none";
@@ -4055,6 +4603,9 @@ videoInput.addEventListener("change", function () {
     videoInput.value = "";
 });
 
+/**
+ * 동영상 파일 하나를 FormData로 서버에 보낸다. 전송 중에는 입력창을 잠그고, 성공하면 목록을 새로 불러온다.
+ */
 async function sendVideo(file) {
     if (!currentConversationID) {
         showAlert("먼저 채팅방을 선택해주세요.");
@@ -4084,10 +4635,10 @@ async function sendVideo(file) {
     }
 }
 
-        /* ======================================================
-         * 메시지 좌우 스와이프로 답장
-         * ====================================================== */
-
+        // ============================================================
+        // 메시지 좌우 스와이프로 답장
+        // ============================================================
+        // 스와이프 상태: 시작 위치, 이동량, 대상 메시지 요소와 데이터. 60px 이상 밀면 답장으로 인식하고, 시각적으로는 최대 90px까지만 움직인다.
         let swipeStartX = 0;
         let swipeDeltaX = 0;
         let swipeTarget = null;
@@ -4095,10 +4646,16 @@ async function sendVideo(file) {
         const SWIPE_THRESHOLD = 60;
         const SWIPE_MAX = 90;
 
+        /**
+         * 마우스와 터치 이벤트 모두에서 가로 좌표를 꺼낸다.
+         */
         function getClientX(event) {
             return event.touches ? event.touches[0].clientX : event.clientX;
         }
 
+        /**
+         * 스와이프를 시작한다. 마우스는 왼쪽 버튼만 인정한다. 이동·종료 이벤트는 시작할 때만 문서에 붙이고 끝나면 뗀다.
+         */
         function startSwipe(event, messageEl, chat) {
             if (event.type === "mousedown" && event.button !== 0) return;
 
@@ -4114,6 +4671,9 @@ async function sendVideo(file) {
             document.addEventListener("touchend", endSwipe);
         }
 
+        /**
+         * 손가락/마우스를 따라 메시지를 옆으로 움직이고, 밀린 정도에 따라 답장 아이콘을 서서히 보여 준다. 세로 스크롤과 충돌하지 않게 가로로 10px 넘게 움직이면 기본 스크롤을 막는다.
+         */
         function onSwipeMove(event) {
             if (!swipeTarget) return;
 
@@ -4141,6 +4701,9 @@ async function sendVideo(file) {
             }
         }
 
+        /**
+         * 스와이프를 끝낸다. 메시지를 원래 자리로 되돌리고, 기준(60px) 이상 밀었다면 그 메시지를 답장 대상으로 정한다.
+         */
         function endSwipe() {
             if (!swipeTarget) return;
 
@@ -4177,16 +4740,19 @@ async function sendVideo(file) {
             document.removeEventListener("touchend", endSwipe);
         }
 
+        // ============================================================
+        // 실시간 이벤트 (Socket.IO)
+        // ============================================================
+        // 서버와 웹소켓 연결을 만든다. 서버는 이벤트에 데이터를 거의 싣지 않고 '무엇이 바뀌었는지'만 알려 주며, 화면은 API로 최신 상태를 다시 가져온다.
         const socket = io();
 
-        // 메시지 전송/수정/삭제/고정/반응 — 대화방 내용이 바뀔 때마다 여기로 신호가 옴
+        // 대화방 내용이 바뀌었다는 신호(전송·수정·삭제·고정·반응·그룹 변경).
+        // 지금 보고 있는 방이면 읽음 처리 후 메시지를 다시 불러오고(250ms 안에 방금 새로고침했다면 생략), 아니어도 목록의 미리보기와 안 읽은 배지는 항상 갱신한다.
         socket.on("conversation_updated", async function (data) {
             if (data.conversationId === currentConversationID) {
-                // 지금 내가 보고 있는 방이면: 읽음 처리하고 대화 내용을 새로 불러온다
                 await fetch(`/api/conversations/${currentConversationID}/read`, { method: "POST" });
                 if (Date.now() - lastMessageRefreshAt > 250) await readMessages();
             }
-            // 열려있지 않은 방이어도 미리보기/안읽음 배지는 갱신해야 하니 항상 실행
             await loadFriends();
             showBrowserNotification(data.conversationId);
             updateChatHeader(getCurrentFriend()); 
@@ -4194,7 +4760,7 @@ async function sendVideo(file) {
             updateBlockState();
         });
 
-        // 친구 요청 도착/수락/거절, 차단/차단해제 — 친구 관계가 바뀔 때마다 여기로 신호가 옴
+        // 친구 관계가 바뀌었다는 신호(요청 도착·수락·거절, 차단·해제, 프로필 변경, 그룹 초대). 친구·대화방·요청 목록을 모두 새로 불러온다.
         socket.on("friend_updated", async function () {
             await loadFriendDirectory();
             await loadFriends();
@@ -4206,27 +4772,29 @@ async function sendVideo(file) {
             }
         });
 
-        // 상대방의 접속 상태가 바뀌면 목록의 온라인 표시를 바로 갱신한다.
+        // 누군가의 접속 상태가 바뀌면 목록의 온라인 표시를 갱신한다. 주의: 서버가 모든 접속자에게 보내므로, 접속·종료가 있을 때마다 모든 사용자가 목록을 다시 불러온다(사용자가 많아지면 부하가 커진다).
         socket.on("presence_updated", async function () {
             await loadFriends();
         });
 
+        // 관리자가 내 계정을 정지한 경우: 사유를 보여 주고 로그인 화면으로 보낸다.
         socket.on("account_suspended", function (data) {
             showAlert(`이용이 정지되었습니다. 사유: ${data.reason || "운영 정책 위반"}`, function () {
                 window.location.href = "/login";
             });
         });
 
+        // 관리자가 내 계정을 삭제한 경우: 안내 후 로그인 화면으로 보낸다.
         socket.on("account_deleted", function () {
             showAlert("계정이 삭제되었습니다.", function () {
                 window.location.href = "/login";
             });
         });
 
-        /* ======================================================
-         * 초기 렌더링
-         * ====================================================== */
-
+        // ============================================================
+        // 초기 렌더링
+        // ============================================================
+        // 페이지를 열면 현재 상태를 한꺼번에 불러온다: 메시지(열린 방이 있다면), 대화방·친구 목록, 받은 요청, 업데이트 내역, 읽지 않은 운영 경고.
         readMessages();
         Promise.all([loadFriends(), loadFriendDirectory()]).then(updateBlockState);
         loadFriendRequests();
