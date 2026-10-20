@@ -732,7 +732,10 @@
         "사진 모아보기": "媒体库",
         "채팅방 고정": "置顶聊天",
         "알림 끄기": "关闭通知",
-        "그룹 관리": "管理群组"
+        "그룹 관리": "管理群组",
+        "현재 온라인입니다.": "当前在线。",
+        "현재 오프라인입니다.": "当前离线。",
+        "{count}명이 참여 중인 그룹 채팅입니다.": "{count} 人参与的群聊。"
     });
     Object.assign(dictionaries.ja, {
         "계정이 없으신가요?": "アカウントをお持ちでないですか？",
@@ -755,7 +758,10 @@
         "사진 모아보기": "メディア一覧",
         "채팅방 고정": "チャットを固定",
         "알림 끄기": "通知をオフ",
-        "그룹 관리": "グループ管理"
+        "그룹 관리": "グループ管理",
+        "현재 온라인입니다.": "現在オンラインです。",
+        "현재 오프라인입니다.": "現在オフラインです。",
+        "{count}명이 참여 중인 그룹 채팅입니다.": "{count}人が参加しているグループチャットです。"
     });
     Object.assign(dictionaries.es, {
         "계정이 없으신가요?": "¿No tienes cuenta?",
@@ -778,7 +784,10 @@
         "사진 모아보기": "Galería multimedia",
         "채팅방 고정": "Fijar chat",
         "알림 끄기": "Silenciar notificaciones",
-        "그룹 관리": "Administrar grupo"
+        "그룹 관리": "Administrar grupo",
+        "현재 온라인입니다.": "En línea ahora.",
+        "현재 오프라인입니다.": "Desconectado.",
+        "{count}명이 참여 중인 그룹 채팅입니다.": "Chat grupal con {count} miembros."
     });
     // 전수 점검에서 확인된 로그인·관리자·고정 안내 문구다.
     Object.assign(dictionaries.en, {
@@ -949,6 +958,7 @@
         "알림 끄기": "Mute notifications",
         "현재 온라인입니다.": "Currently online.",
         "현재 오프라인입니다.": "Currently offline.",
+        "{count}명이 참여 중인 그룹 채팅입니다.": "Group chat with {count} members.",
         "소개글이 없습니다.": "No bio provided.",
         "온라인": "Online",
         "오프라인": "Offline",

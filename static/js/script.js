@@ -158,7 +158,7 @@
                 if (chatPanel) chatPanel.classList.add("no-conversation");
                 applyChatTheme(null);
                 desktopInfoName.innerText = window.CloudI18n ? window.CloudI18n.t("대화를 선택하세요") : "대화를 선택하세요";
-                desktopInfoStatus.innerText = "";
+                desktopInfoStatus.innerText = window.CloudI18n ? window.CloudI18n.t("친구를 추가하거나 채팅방을 선택해보세요.") : "친구를 추가하거나 채팅방을 선택해보세요.";
                 desktopConversationActions.style.display = "none";
                 return;
             }
@@ -169,7 +169,7 @@
             desktopInfoName.innerText = friend.name;
             const i18n = window.CloudI18n;
             desktopInfoStatus.innerText = friend.isGroup
-                ? `${friend.memberCount || 0}명이 참여 중인 그룹 채팅입니다.`
+                ? (i18n ? i18n.t("{count}명이 참여 중인 그룹 채팅입니다.") : "{count}명이 참여 중인 그룹 채팅입니다.").replace("{count}", friend.memberCount || 0)
                 : (friend.isOnline ? (i18n ? i18n.t("현재 온라인입니다.") : "현재 온라인입니다.") : (i18n ? i18n.t("현재 오프라인입니다.") : "현재 오프라인입니다."));
             desktopConversationActions.style.display = "grid";
             desktopConversationPin.innerHTML = `<i class="fa-solid fa-thumbtack"></i> ${friend.isPinned ? "고정 해제" : "고정"}`;
@@ -1024,11 +1024,14 @@
         applyAppTheme();
         lgWatch();
         syncLanguageSetting();
+        // 대화를 고르기 전의 안내 문구도 현재 언어로 맞춘다.
+        if (!getCurrentFriend()) updateChatHeader(null);
 
         window.addEventListener("cloud-language-change", async function (event) {
             syncLanguageSetting();
-            // 모드 버튼 문구는 data-no-i18n이라 자동 번역되지 않으므로 직접 다시 쓴다.
+            // 모드 버튼·현재 대화 패널 문구는 data-no-i18n이라 자동 번역되지 않으므로 직접 다시 쓴다.
             syncOfficeModeLabel();
+            updateChatHeader(getCurrentFriend() || null);
             // 이미 화면에 있던 시스템 메시지도 새 언어의 문장 형태로 다시 그린다.
             await readMessages();
             try {
