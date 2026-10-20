@@ -257,6 +257,38 @@ def protect_from_csrf():
     return None
 
 
+def session_token_matches(user_id) -> bool:
+    """세션의 계정 토큰이 DB에 저장된 현재 토큰과 같은지 확인한다.
+
+    세션 쿠키에는 user_id만 들어 있어서, DB를 새로 만들어 ID가 다시 1부터 매겨지면
+    예전 쿠키가 새로 가입한 다른 사람의 계정으로 인식될 수 있다. 계정마다 발급해 두는
+    무작위 토큰을 함께 비교해, 그 계정으로 실제 로그인한 세션만 통과시킨다.
+    세션이나 DB에 토큰이 없으면(이 기능 이전의 세션, 비밀번호 재설정 직후) 일치하지 않는 것으로 본다.
+    """
+    supplied = session.get("session_token")
+    if not supplied:
+        return False
+    with get_db() as conn:
+        row = conn.execute("SELECT session_token FROM users WHERE id = %s", (user_id,)).fetchone()
+    stored = row["session_token"] if row else None
+    return bool(stored) and hmac.compare_digest(supplied, stored)
+
+
+@app.before_request
+def drop_stale_sessions():
+    """계정 토큰이 맞지 않는 로그인 세션은 요청을 처리하기 전에 비운다.
+
+    세션을 비운 뒤에는 각 라우트의 로그인 검사가 평소처럼 로그인 화면(또는 401)으로 보낸다.
+    정적 파일 요청은 로그인과 무관하므로 DB 조회를 건너뛴다.
+    """
+    if request.endpoint == "static" or "user_id" not in session:
+        return None
+    if not session_token_matches(session["user_id"]):
+        logout_user()
+        session.clear()
+    return None
+
+
 @app.after_request
 def add_security_headers(response):
     """모든 응답에 기본 보안 헤더를 붙인다.
@@ -963,6 +995,9 @@ def handle_socket_connect():
     if "user_id" not in session:
         return False
     user_id = session["user_id"]
+    # 소켓 연결에는 before_request가 실행되지 않으므로 계정 토큰을 여기서 따로 확인한다.
+    if not session_token_matches(user_id):
+        return False
     # 정지된 계정은 실시간 연결도 받지 않는다.
     if is_user_suspended(user_id):
         return False
@@ -1240,6 +1275,8 @@ def init_db():
         cur.execute(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"
         )
+        # 세션이 이 계정에서 발급된 것인지 확인하는 계정 토큰(drop_stale_sessions 참고).
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS session_token TEXT")
         cur.execute(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_visibility VARCHAR(20) NOT NULL DEFAULT 'friends'"
         )
@@ -3920,11 +3957,14 @@ def update_password():
         if not check_password_hash(user["password_hash"], current_password):
             return jsonify({"success": False, "error": "현재 비밀번호가 일치하지 않습니다."})
 
+        # 토큰을 새로 발급해 다른 기기의 로그인은 끊고, 지금 세션만 새 토큰으로 유지한다.
+        new_session_token = secrets.token_urlsafe(32)
         conn.execute(
-            "UPDATE users SET password_hash = %s WHERE id = %s",
-            (generate_password_hash(new_password), user_id),
+            "UPDATE users SET password_hash = %s, session_token = %s WHERE id = %s",
+            (generate_password_hash(new_password), new_session_token, user_id),
         )
         conn.commit()
+    session["session_token"] = new_session_token
 
     return jsonify({"success": True})
 
@@ -4372,8 +4412,9 @@ def confirm_password_reset():
                 400,
             )
 
+        # 비밀번호를 재설정하면 토큰을 지워 모든 기기의 기존 로그인을 끊는다.
         conn.execute(
-            "UPDATE users SET password_hash = %s WHERE email = %s",
+            "UPDATE users SET password_hash = %s, session_token = NULL WHERE email = %s",
             (generate_password_hash(new_password), email),
         )
         # 비밀번호를 바꾼 뒤에는 코드를 지워 재사용을 막는다.

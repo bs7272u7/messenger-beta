@@ -1,6 +1,7 @@
 """공개 페이지와 헬스 체크 통합 테스트(Flask 테스트 클라이언트 사용, 실제 DB는 필요하지 않다)."""
 
 import unittest
+from unittest import mock
 
 import app as application_module
 
@@ -28,6 +29,7 @@ class HealthCheckTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
         self.assertIn("편안하게", page)
+        # 랜딩의 목적은 가입 유도이므로 회원가입 경로가 살아 있어야 한다.
         self.assertIn('href="/login?mode=register"', page)
 
     def test_root_redirects_signed_in_users_to_the_chat_screen(self):
@@ -35,11 +37,39 @@ class HealthCheckTests(unittest.TestCase):
         client = application_module.app.test_client()
         with client.session_transaction() as session:
             session["user_id"] = 1
+            session["session_token"] = "token"
 
-        response = client.get("/")
+        # DB 없이 실행하므로 계정 토큰 확인은 통과한 것으로 둔다.
+        with mock.patch.object(application_module, "session_token_matches", return_value=True):
+            response = client.get("/")
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/chat"))
+
+    def test_session_without_account_token_is_treated_as_signed_out(self):
+        """계정 토큰이 없는 예전 세션(예: DB 초기화 전 쿠키)은 로그아웃 상태로 처리된다."""
+        client = application_module.app.test_client()
+        with client.session_transaction() as session:
+            session["user_id"] = 1
+
+        response = client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("편안하게", response.get_data(as_text=True))
+        with client.session_transaction() as session:
+            self.assertNotIn("user_id", session)
+
+    def test_session_with_mismatched_account_token_is_cleared(self):
+        """세션의 계정 토큰이 DB 값과 다르면 API는 로그인이 필요하다고 응답한다."""
+        client = application_module.app.test_client()
+        with client.session_transaction() as session:
+            session["user_id"] = 1
+            session["session_token"] = "old-token"
+
+        with mock.patch.object(application_module, "session_token_matches", return_value=False):
+            response = client.get("/api/conversations")
+
+        self.assertEqual(response.status_code, 401)
 
     def test_login_page_supports_register_mode_link(self):
         """/login?mode=register는 회원가입 모드로, /login은 로그인 모드로 렌더링된다."""
