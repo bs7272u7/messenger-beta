@@ -1448,7 +1448,11 @@
         "개인정보처리방침": "Privacy policy",
         "이용약관": "Terms of service",
         "개인정보처리방침 - Cloud Chatting": "Privacy policy - Cloud Chatting",
-        "이용약관 - Cloud Chatting": "Terms of service - Cloud Chatting"
+        "이용약관 - Cloud Chatting": "Terms of service - Cloud Chatting",
+        "화면 테마": "Display theme",
+        "테마": "Theme",
+        "클라우드": "Cloud",
+        "클래식": "Classic"
     });
     Object.assign(dictionaries.zh, {
         "클라우드 채팅": "云端聊天",
@@ -1458,7 +1462,11 @@
         "개인정보처리방침": "隐私政策",
         "이용약관": "服务条款",
         "개인정보처리방침 - Cloud Chatting": "隐私政策 - 云端聊天",
-        "이용약관 - Cloud Chatting": "服务条款 - 云端聊天"
+        "이용약관 - Cloud Chatting": "服务条款 - 云端聊天",
+        "화면 테마": "显示主题",
+        "테마": "主题",
+        "클라우드": "云朵",
+        "클래식": "经典"
     });
     Object.assign(dictionaries.ja, {
         "클라우드 채팅": "クラウドチャット",
@@ -1468,7 +1476,11 @@
         "개인정보처리방침": "プライバシーポリシー",
         "이용약관": "利用規約",
         "개인정보처리방침 - Cloud Chatting": "プライバシーポリシー - Cloud Chatting",
-        "이용약관 - Cloud Chatting": "利用規約 - Cloud Chatting"
+        "이용약관 - Cloud Chatting": "利用規約 - Cloud Chatting",
+        "화면 테마": "画面テーマ",
+        "테마": "テーマ",
+        "클라우드": "クラウド",
+        "클래식": "クラシック"
     });
     Object.assign(dictionaries.es, {
         "클라우드 채팅": "Cloud Chatting",
@@ -1478,7 +1490,11 @@
         "개인정보처리방침": "Política de privacidad",
         "이용약관": "Términos del servicio",
         "개인정보처리방침 - Cloud Chatting": "Política de privacidad - Cloud Chatting",
-        "이용약관 - Cloud Chatting": "Términos del servicio - Cloud Chatting"
+        "이용약관 - Cloud Chatting": "Términos del servicio - Cloud Chatting",
+        "화면 테마": "Tema de pantalla",
+        "테마": "Tema",
+        "클라우드": "Nube",
+        "클래식": "Clásico"
     });
 
     function t(key) {
