@@ -1,9 +1,17 @@
+"""ChatService 단위 테스트. 서비스가 실행하는 SQL을 흉내 내는 가짜 연결(Connection 계열)로 DB 없이 동작을 확인한다.
+
+가짜 연결은 쿼리 문자열에 포함된 키워드로 응답을 고르고, 서비스가 실제로 실행한 쓰기(INSERT/UPDATE/DELETE) 파라미터를 속성에 기록한다.
+테스트는 그 기록과 commit 여부로 결과를 검증한다.
+"""
+
 import unittest
 
 from services.chat_service import ChatService, ChatServiceError
 
 
 class Result:
+    """fetchone/fetchall만 흉내 내는 쿼리 결과."""
+
     def __init__(self, row, rows=None):
         self.row = row
         self.rows = rows or []
@@ -16,6 +24,8 @@ class Result:
 
 
 class Connection:
+    """읽음 처리·환경설정 테스트용 가짜 연결. member로 대화방 멤버 여부를, latest_id로 마지막 메시지 ID를 정한다."""
+
     def __init__(self, member=True, latest_id=7):
         self.member = member
         self.latest_id = latest_id
@@ -44,6 +54,8 @@ class Connection:
 
 
 class MembershipConnection:
+    """그룹 만들기·이름 변경·초대·강퇴 테스트용 가짜 연결. 요청자의 멤버/방장 여부, 그룹·비활성 상태, 기존 멤버 ID를 설정하고 추가·삭제된 멤버와 바뀐 이름을 기록한다."""
+
     def __init__(
         self,
         *,
@@ -107,6 +119,8 @@ class MembershipConnection:
 
 
 class LeaveConnection:
+    """대화방 나가기 테스트용 가짜 연결. 남은 멤버 수(remaining)와 방에 남은 이미지 경로를 설정하고, 방장 위임·방 삭제 여부를 기록한다."""
+
     def __init__(self, *, member=True, remaining=1, image_paths=None):
         self.member = member
         self.remaining = remaining
@@ -148,6 +162,8 @@ class LeaveConnection:
 
 
 class DisableConnection:
+    """그룹 비활성화(해산) 테스트용 가짜 연결. 방장 ID와 현재 비활성 여부를 설정하고, 누가 비활성화했는지 기록한다."""
+
     def __init__(self, *, member=True, owner_id=1, is_disabled=False):
         self.member = member
         self.owner_id = owner_id
@@ -179,6 +195,8 @@ class DisableConnection:
 
 
 class ThemeConnection:
+    """채팅 테마 변경 테스트용 가짜 연결. 멤버 여부와 비활성 여부를 설정하고, 저장된 테마를 기록한다."""
+
     def __init__(self, *, member=True, is_disabled=False):
         self.member = member
         self.is_disabled = is_disabled
@@ -207,6 +225,8 @@ class ThemeConnection:
 
 
 class ChatServiceTests(unittest.TestCase):
+    """대화방 권한 규칙을 확인한다: 멤버만 읽음·숨김·나가기·테마 변경이 가능하고, 이름 변경·비활성화·강퇴는 방장만 가능하며, 비활성 그룹에는 초대·테마 변경을 할 수 없다."""
+
     def test_mark_read_updates_to_the_latest_message(self):
         connection = Connection(latest_id=14)
 

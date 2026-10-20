@@ -1,3 +1,5 @@
+"""MessageService 단위 테스트(공감·고정·수정·삭제·신고·전달). 가짜 연결이 SQL 키워드로 응답을 고르고 서비스가 실행한 쓰기 값을 기록한다."""
+
 import json
 import unittest
 
@@ -5,6 +7,8 @@ from services.message_service import MessageService, MessageServiceError
 
 
 class Result:
+    """fetchone만 흉내 내는 쿼리 결과."""
+
     def __init__(self, row):
         self.row = row
 
@@ -13,6 +17,8 @@ class Result:
 
 
 class Connection:
+    """하나의 메시지를 돌려주는 가짜 연결. 공감, 고정, 수정, 삭제, 신고 쓰기 값을 속성에 기록해 테스트가 검증한다."""
+
     def __init__(self, message):
         self.message = message
         self.updated_reactions = None
@@ -51,6 +57,8 @@ class Connection:
 
 
 class ForwardConnection:
+    """메시지 전달 테스트용 가짜 연결. 원본 메시지 존재 여부(source)와 대상 대화방 멤버 여부(target_member)를 설정하고, 삽입된 메시지·읽음·마지막 활동 갱신 값을 기록한다."""
+
     def __init__(self, *, source=True, target_member=True):
         self.source = source
         self.target_member = target_member
@@ -92,6 +100,8 @@ class ForwardConnection:
 
 
 class MessageServiceTests(unittest.TestCase):
+    """본인 메시지만 수정·삭제할 수 있고, 본인 메시지는 신고할 수 없으며, 잘못된 이모지는 DB 접근 없이 거부되는지 등 권한·검증 규칙을 확인한다."""
+
     def test_toggle_reaction_adds_then_removes_emoji(self):
         connection = Connection({"conversation_id": 8, "reactions": '["👍"]'})
         service = MessageService(lambda: connection)

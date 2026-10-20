@@ -1,9 +1,13 @@
+"""UserRepository.find_for_login 단위 테스트. 실행된 SQL과 파라미터를 가짜 연결로 기록해 확인한다."""
+
 import unittest
 
 from repositories.user_repository import UserRepository
 
 
 class FakeCursor:
+    """fetchone만 흉내 내는 커서."""
+
     def __init__(self, row):
         self._row = row
 
@@ -12,6 +16,8 @@ class FakeCursor:
 
 
 class FakeConnection:
+    """컨텍스트 매니저로 쓰이는 가짜 DB 연결. 마지막으로 실행된 query와 params를 보관한다."""
+
     def __init__(self, row):
         self._row = row
         self.query = ""
@@ -30,6 +36,8 @@ class FakeConnection:
 
 
 class UserRepositoryTest(unittest.TestCase):
+    """로그인 식별자가 이메일이면 소문자로 바꿔 email 컬럼을, 아니면 username 컬럼을 조회해야 한다."""
+
     def test_email_login_uses_lowercase_email(self):
         connection = FakeConnection({"id": 1, "username": "tester"})
         repository = UserRepository(lambda: connection)

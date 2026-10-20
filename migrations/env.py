@@ -1,4 +1,4 @@
-"""Alembic 환경 설정. DB URL은 저장소가 아닌 환경 변수에서만 읽습니다."""
+"""Alembic 환경 설정. DB URL은 저장소가 아닌 환경 변수(DATABASE_URL)에서만 읽는다."""
 
 from __future__ import annotations
 
@@ -12,17 +12,19 @@ database_url = os.environ.get("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 
-# 현재 스키마는 기존 SQL 기반 앱이 관리한다. 기준 버전 이후 변경부터 명시적 migration을 사용한다.
+# 자동 생성(autogenerate)은 쓰지 않는다. 스키마는 app.py의 init_db()가 만들고, 이후 변경만 수동 revision으로 추가한다.
 target_metadata = None
 
 
 def run_migrations_offline() -> None:
+    """오프라인 모드: DB에 연결하지 않고 SQL 스크립트만 만든다(literal_binds로 값을 SQL에 직접 넣는다)."""
     context.configure(url=config.get_main_option("sqlalchemy.url"), literal_binds=True)
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
+    """온라인 모드: 실제 DB에 연결해 마이그레이션을 실행한다. 풀을 쓰지 않는(NullPool) 일회용 연결이다."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}), prefix="sqlalchemy.", poolclass=pool.NullPool
     )

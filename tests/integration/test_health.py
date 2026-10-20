@@ -1,10 +1,15 @@
+"""공개 페이지와 헬스 체크 통합 테스트(Flask 테스트 클라이언트 사용, 실제 DB는 필요하지 않다)."""
+
 import unittest
 
 import app as application_module
 
 
 class HealthCheckTests(unittest.TestCase):
+    """로그인하지 않은 방문자와 로그인한 사용자가 각각 어떤 화면을 받는지, /healthz가 기계가 읽을 수 있는 상태를 돌려주는지 확인한다."""
+
     def test_health_check_reports_a_machine_readable_status(self):
+        """DB가 없어도 200 또는 503과 정해진 상태 값을 돌려줘야 한다(배포 환경의 상태 점검용)."""
         client = application_module.app.test_client()
 
         response = client.get("/healthz")
@@ -15,6 +20,7 @@ class HealthCheckTests(unittest.TestCase):
         self.assertIn(payload["database"], {"available", "unavailable"})
 
     def test_root_serves_the_landing_page_to_signed_out_visitors(self):
+        """로그아웃 상태의 '/'는 랜딩 페이지를 보여 준다."""
         client = application_module.app.test_client()
 
         response = client.get("/")
@@ -22,10 +28,10 @@ class HealthCheckTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
         self.assertIn("편안하게", page)
-        # 랜딩의 목적은 가입 유도이므로 회원가입 경로가 살아 있어야 한다.
         self.assertIn('href="/login?mode=register"', page)
 
     def test_root_redirects_signed_in_users_to_the_chat_screen(self):
+        """로그인된 세션이면 '/'는 메신저 화면(/chat)으로 보낸다."""
         client = application_module.app.test_client()
         with client.session_transaction() as session:
             session["user_id"] = 1
@@ -36,6 +42,7 @@ class HealthCheckTests(unittest.TestCase):
         self.assertTrue(response.headers["Location"].endswith("/chat"))
 
     def test_login_page_supports_register_mode_link(self):
+        """/login?mode=register는 회원가입 모드로, /login은 로그인 모드로 렌더링된다."""
         client = application_module.app.test_client()
 
         register_response = client.get("/login?mode=register")
