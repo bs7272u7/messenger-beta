@@ -1,4 +1,4 @@
-"""인증 관련 비즈니스 로직."""
+"""로그인 자격 증명 검증을 담당하는 서비스."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from repositories.user_repository import UserRepository
 
 
 class AuthService:
-    """저장소 조회와 비밀번호 검증을 묶어 인증 흐름을 단순화합니다."""
+    """저장소 조회와 비밀번호 검증을 묶어 로그인 흐름을 단순하게 만든다."""
 
     def __init__(self, user_repository: UserRepository) -> None:
         self._user_repository = user_repository
@@ -20,10 +20,14 @@ class AuthService:
         identifier: str,
         password: str,
     ) -> dict[str, Any] | None:
-        """자격 증명이 유효하면 로그인 가능한 사용자 정보를 반환한다."""
+        """아이디(또는 이메일)와 비밀번호가 맞는지 확인한다.
+
+        Returns:
+            인증에 성공하면 사용자 정보 dict, 실패하면 None.
+        """
         user = self._user_repository.find_for_login(identifier)
 
-        # 존재 여부와 비밀번호 오류를 같은 결과로 처리해 계정 존재 여부를 노출하지 않습니다.
+        # 계정이 없는 경우와 비밀번호가 틀린 경우를 같은 None으로 돌려, 응답만으로 계정 존재 여부를 알 수 없게 한다.
         if user is None:
             return None
 

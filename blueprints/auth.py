@@ -1,4 +1,4 @@
-"""로그인·로그아웃·회원가입 API를 세션 처리와 함께 제공합니다."""
+"""로그인·로그아웃·회원가입 API를 세션 처리와 함께 제공한다."""
 
 from __future__ import annotations
 
@@ -27,13 +27,30 @@ def create_auth_blueprint(
     register_rate_limit,
     register_user_loader: Callable[[str], Any | None],
 ) -> Blueprint:
-    """인증 서비스와 보안 보조 함수를 주입해 인증 라우트를 만듭니다."""
+    """인증 서비스와 보안 보조 함수를 주입받아 인증 라우트를 만든다.
+
+    Args:
+        auth_service: 아이디·비밀번호를 검증하는 서비스.
+        registration_service: 인증코드 확인과 계정 생성을 처리하는 서비스.
+        connection_factory: DB 연결을 만들어 주는 함수.
+        user_loader: 사용자 ID로 Flask-Login 사용자 객체를 만드는 함수.
+        suspension_state_getter: 계정의 정지 상태(영구/기간/만료)를 판단하는 함수.
+        supported_languages: 서버가 받아 주는 언어 코드 집합.
+        login_rate_limit: 로그인 시도 횟수를 제한하는 데코레이터.
+        client_ip_getter: 요청자의 IP를 돌려주는 함수. 실패 로그에 쓴다.
+        api_login_required: 로그인 여부를 검사하는 데코레이터.
+        register_rate_limit: 회원가입 시도 횟수를 제한하는 데코레이터.
+        register_user_loader: 가입 직후 사용자 객체를 만드는 함수.
+    """
     auth_bp = Blueprint("auth", __name__)
 
     @auth_bp.route("/api/login", methods=["POST"])
     @login_rate_limit
     def login():
-        """자격 증명을 검증하고, 정지 상태를 확인한 뒤 새 로그인 세션을 만듭니다."""
+        """아이디(또는 이메일)와 비밀번호를 확인하고, 정지 상태를 점검한 뒤 로그인 세션을 만든다.
+
+        기간 정지가 이미 끝난 계정은 이 시점에 자동으로 정지를 풀어 준다.
+        """
         data = request.get_json() or {}
         identifier = (data.get("identifier") or "").strip()
         password = data.get("password") or ""
@@ -41,9 +58,11 @@ def create_auth_blueprint(
             data.get("language") if data.get("language") in supported_languages else None
         )
 
+        # 계정이 없을 때와 비밀번호가 틀렸을 때 모두 None이 돌아온다. 같은 응답을 줘서 계정 존재 여부를 숨긴다.
         user = auth_service.authenticate(identifier, password)
 
         if user is None:
+            # 비밀번호 대입 공격을 추적할 수 있게 실패 시도의 IP를 남긴다(계정 정보는 남기지 않는다).
             current_app.logger.warning(
                 "Failed login attempt: ip=%s",
                 client_ip_getter(),
@@ -57,6 +76,7 @@ def create_auth_blueprint(
 
         suspension_state = suspension_state_getter(user)
 
+        # 기간 정지가 끝난 계정은 정지 표시를 지우고 정상 로그인으로 이어 간다.
         if suspension_state == "expired":
             with connection_factory() as conn:
                 conn.execute(
@@ -71,6 +91,7 @@ def create_auth_blueprint(
                 )
 
                 conn.commit()
+        # 영구·기간 정지 중이면 로그인을 막는다. 정지 사유는 로그인 화면에 노출하지 않는다.
         elif suspension_state:
             return (
                 jsonify(
@@ -82,7 +103,7 @@ def create_auth_blueprint(
                 403,
             )
 
-        # 이전 계정의 세션 키가 남지 않도록 로그인 성공 직전에 모두 비웁니다.
+        # 다른 계정으로 로그인했던 흔적(세션 키)이 남지 않도록 로그인 성공 직전에 전부 비운다.
         session.clear()
         session["user_id"] = user["id"]
         session["username"] = user["username"]
@@ -92,6 +113,7 @@ def create_auth_blueprint(
             user["language"] if user["language"] in supported_languages else "ko"
         )
 
+        # 로그인 화면에서 언어를 골랐다면 그 선택을 계정 설정으로도 저장한다.
         if requested_language:
             with connection_factory() as conn:
                 conn.execute(
@@ -113,13 +135,14 @@ def create_auth_blueprint(
                 500,
             )
 
+        # fresh=True: 방금 비밀번호로 인증한 세션임을 표시한다(민감한 작업 재인증 판단에 쓴다).
         login_user(login_user_data, fresh=True)
         return jsonify({"success": True})
 
     @auth_bp.route("/api/logout", methods=["POST"])
     @api_login_required
     def logout():
-        """Flask-Login과 Flask 세션을 함께 종료합니다."""
+        """Flask-Login 로그인 상태와 Flask 세션 값을 함께 지운다."""
         logout_user()
         session.clear()
         return jsonify({"success": True})
@@ -127,7 +150,10 @@ def create_auth_blueprint(
     @auth_bp.route("/api/register", methods=["POST"])
     @register_rate_limit
     def register():
-        """입력 규칙·이메일 인증 코드를 확인한 뒤 가입과 자동 로그인을 처리합니다."""
+        """입력값과 이메일 인증코드를 검증한 뒤 계정을 만들고 바로 로그인시킨다.
+
+        아이디는 영문 소문자·숫자 5자 이상, 비밀번호는 PasswordPolicy를 따른다.
+        """
         data = request.get_json() or {}
         password = data.get("password") or ""
         password_confirmation = (
@@ -143,6 +169,7 @@ def create_auth_blueprint(
             return jsonify({"success": False, "error": "아이디, 이메일, 비밀번호를 입력해주세요."})
         if password_confirmation and password != password_confirmation:
             return jsonify({"success": False, "error": "비밀번호 확인이 일치하지 않습니다."}), 400
+        # 아이디는 입력창 안내와 같은 규칙(영문 소문자·숫자 5자 이상)으로 서버에서도 다시 검사한다.
         if not re.fullmatch(r"[a-z0-9]{5,}", username):
             return jsonify(
                 {"success": False, "error": "아이디는 영문 소문자와 숫자로 5자 이상 입력해주세요."}
@@ -158,6 +185,7 @@ def create_auth_blueprint(
             )
 
         try:
+            # 인증코드 확인, 중복 검사, 사용자 생성은 서비스에서 한 트랜잭션으로 처리한다.
             registered_user = registration_service.register(
                 username=username,
                 email=email,
@@ -169,7 +197,6 @@ def create_auth_blueprint(
         except RegistrationError as error:
             return jsonify({"success": False, "error": str(error)})
 
-        # 새 계정의 세션에 기존 사용자 정보가 섞이지 않게 초기화합니다.
         session.clear()
         session["user_id"] = registered_user.id
         session["username"] = registered_user.username
@@ -177,6 +204,7 @@ def create_auth_blueprint(
         session["profile_image"] = registered_user.profile_image
         session["language"] = registered_user.language
 
+        # 가입은 성공했는데 사용자 조회만 실패하는 비정상 상황은 로그로 남기고 세션을 비운다.
         new_user = register_user_loader(str(registered_user.id))
         if new_user is None:
             current_app.logger.error(
