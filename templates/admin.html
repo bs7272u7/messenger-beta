@@ -605,7 +605,7 @@
                     await api(`/api/admin/users/${userId}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"lift", reason:"관리자 이용 제한 해제"})});
                 } else if (deleteId) {
                     const username = event.target.dataset.username || "";
-                    const typed = prompt(`이 작업은 되돌릴 수 없습니다. 메시지, 체스 전적, 친구 관계가 함께 삭제됩니다.\n계속하려면 아이디(${username})를 정확히 입력하세요.`);
+                    const typed = prompt(`이 작업은 되돌릴 수 없습니다. 메시지, 친구 관계가 함께 삭제됩니다.\n계속하려면 아이디(${username})를 정확히 입력하세요.`);
                     if (typed !== username) { if (typed !== null) alert("아이디가 일치하지 않아 취소되었습니다."); return; }
                     await api(`/api/admin/users/${deleteId}`, {method:"DELETE"});
                 } else {
@@ -632,7 +632,7 @@
                     await api(`/api/admin/users/${suspendId}/suspension`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:duration, reason})});
                 } else if (deleteId) {
                     const username = event.target.dataset.username || "";
-                    const typed = prompt(`이 작업은 되돌릴 수 없습니다. 메시지, 체스 전적, 친구 관계가 함께 삭제됩니다.\n계속하려면 아이디(${username})를 정확히 입력하세요.`);
+                    const typed = prompt(`이 작업은 되돌릴 수 없습니다. 메시지, 친구 관계가 함께 삭제됩니다.\n계속하려면 아이디(${username})를 정확히 입력하세요.`);
                     if (typed !== username) { if (typed !== null) alert("아이디가 일치하지 않아 취소되었습니다."); return; }
                     await api(`/api/admin/users/${deleteId}`, {method:"DELETE"});
                 } else {
