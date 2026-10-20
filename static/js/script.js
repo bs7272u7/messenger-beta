@@ -1027,6 +1027,8 @@
 
         window.addEventListener("cloud-language-change", async function (event) {
             syncLanguageSetting();
+            // 모드 버튼 문구는 data-no-i18n이라 자동 번역되지 않으므로 직접 다시 쓴다.
+            syncOfficeModeLabel();
             // 이미 화면에 있던 시스템 메시지도 새 언어의 문장 형태로 다시 그린다.
             await readMessages();
             try {
