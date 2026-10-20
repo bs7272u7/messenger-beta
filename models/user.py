@@ -14,6 +14,7 @@ class User(UserMixin):
 
     DB 행 전체를 뷰에 넘기지 않고, 로그인에 필요한 값만 명시적으로 보관합니다.
     """
+
     id: int
     username: str
     display_name: str | None
@@ -23,10 +24,6 @@ class User(UserMixin):
     is_suspended: bool
     suspended_until: float
     language: str
-    chess_rating: int
-    chess_wins: int
-    chess_draws: int
-    chess_losses: int
     created_at: str | None
 
     @property
@@ -47,9 +44,5 @@ class User(UserMixin):
             is_suspended=bool(row.get("is_suspended")),
             suspended_until=float(row.get("suspended_until") or 0),
             language=row.get("language") or "ko",
-            chess_rating=int(row.get("chess_rating") or 400),
-            chess_wins=int(row.get("chess_wins") or 0),
-            chess_draws=int(row.get("chess_draws") or 0),
-            chess_losses=int(row.get("chess_losses") or 0),
             created_at=row.get("created_at"),
         )

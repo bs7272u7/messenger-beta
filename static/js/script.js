@@ -1973,19 +1973,13 @@
         async function loadFriendRequests() {
             const response = await fetch("/api/friend-requests");
             const result = await response.json();
-            const chessResult = window.CLOUD_CHESS_UI_ENABLED
-                ? await fetch("/api/chess/invites").then(async function (chessResponse) {
-                    return chessResponse.ok ? chessResponse.json() : { invites: [] };
-                })
-                : { invites: [] };
             const incoming = result.incoming || [];
             const outgoing = result.outgoing || [];
-            const chessInvites = chessResult.invites || [];
 
-            incomingRequestCount.innerText = incoming.length + chessInvites.length;
+            incomingRequestCount.innerText = incoming.length;
             outgoingRequestCount.innerText = outgoing.length;
-            friendInboxBadge.hidden = incoming.length + chessInvites.length === 0;
-            friendInboxBadge.textContent = incoming.length + chessInvites.length > 99 ? "99+" : incoming.length + chessInvites.length;
+            friendInboxBadge.hidden = incoming.length === 0;
+            friendInboxBadge.textContent = incoming.length > 99 ? "99+" : incoming.length;
 
             outgoingFriendRequestList.innerHTML = "";
 
@@ -2025,39 +2019,16 @@
                 });
             }
 
-            renderFriendRequestList(incoming, chessInvites);
+            renderFriendRequestList(incoming);
         }
 
-        function renderFriendRequestList(incoming, chessInvites = []) {
+        function renderFriendRequestList(incoming) {
             friendRequestList.innerHTML = "";
 
-            if(incoming.length === 0 && chessInvites.length === 0) {
+            if(incoming.length === 0) {
                 friendRequestList.innerHTML = `<div class="friend-request-empty">받은 요청이 없습니다.</div>`;
                 return;
             }
-
-            chessInvites.forEach(function (invite) {
-                const item = document.createElement("div");
-                item.className = "friend-request-item chess-inbox-invite";
-                item.innerHTML = `
-                    <img class="request-profile-image" src="${escapeHTML(invite.profile_image || "/static/default_profile.png")}"><span><strong><i class="fa-solid fa-chess-knight"></i> ${escapeHTML(invite.display_name || invite.username)}</strong><small>체스 대국에 초대했습니다.</small></span>
-                    <span class="accept-request-icon" title="수락"><i class="fa-solid fa-check"></i></span>
-                    <span class="decline-request-icon" title="거절"><i class="fa-solid fa-xmark"></i></span>
-                `;
-                item.querySelector(".accept-request-icon").addEventListener("click", async function () {
-                    const response = await fetch(`/api/chess/invites/${invite.id}/accept`, { method:"POST", headers:{"X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')?.content || ""} });
-                    const result = await response.json();
-                    if (!response.ok || !result.success) return showAlert(result.error || "체스 초대를 수락하지 못했습니다.");
-                    location.href = `/chess/game/${result.game.id}`;
-                });
-                item.querySelector(".decline-request-icon").addEventListener("click", async function () {
-                    const response = await fetch(`/api/chess/invites/${invite.id}/decline`, { method:"POST", headers:{"X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')?.content || ""} });
-                    const result = await response.json();
-                    if (!response.ok || !result.success) return showAlert(result.error || "체스 초대를 거절하지 못했습니다.");
-                    await loadFriendRequests();
-                });
-                friendRequestList.appendChild(item);
-            });
 
             incoming.forEach(function (req) {
                 const item = document.createElement("div");
@@ -2323,12 +2294,6 @@
                         ? `<span class="unblock-friend-icon" title="차단 해제"><i class="fa-solid fa-lock-open"></i></span>`
                         : `<span class="block-friend-icon" title="차단"><i class="fa-solid fa-ban"></i></span>`);
 
-                const chessInviteIconHTML = !window.CLOUD_CHESS_UI_ENABLED || friend.blockedByMe || friend.blockedMe
-                    ? ""
-                    : `<span class="chess-invite-friend-icon" title="체스 초대" role="button" tabindex="0" aria-label="${escapeHTML(friend.name)}님에게 체스 초대">
-                        <i class="fa-solid fa-chess-knight"></i>
-                    </span>`;
-
                 item.innerHTML = `
                     <button type="button" class="friend-panel-profile-trigger" aria-label="${escapeHTML(friend.name)} 프로필 보기">
                         <img src="${escapeHTML(friend.peerProfileImage || "/static/default_profile.png")}" alt="">
@@ -2336,7 +2301,6 @@
                     </button>
                     <div class="friend-panel-actions">
                         <button type="button" class="open-friend-chat-icon" title="채팅방 열기" aria-label="${escapeHTML(friend.name)}님과 채팅하기"><i class="fa-solid fa-comment-dots"></i></button>
-                        ${chessInviteIconHTML}
                         ${blockIconHTML}
                         <span class="delete-friend-icon" title="친구 삭제"><i class="fa-solid fa-trash"></i></span>
                     </div>
@@ -2373,42 +2337,6 @@
                     await readMessages();
                     setTimeout(function () { input.focus(); }, 10);
                 });
-
-                const chessInviteIcon = item.querySelector(".chess-invite-friend-icon");
-                if (chessInviteIcon) {
-                    const sendChessInvite = async function (event) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (chessInviteIcon.classList.contains("is-sending")) return;
-
-                        chessInviteIcon.classList.add("is-sending");
-                        chessInviteIcon.setAttribute("aria-busy", "true");
-
-                        try {
-                            const response = await fetch(`/api/chess/quick-invite/${friend.peerId}`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ timeControl: "unlimited" })
-                            });
-                            const result = await response.json();
-                            if (!response.ok || !result.success) {
-                                throw new Error(result.error || "체스 초대를 보내지 못했습니다.");
-                            }
-
-                            showToast(`"${friend.name}"님에게 체스 초대를 보냈습니다.`);
-                            window.location.href = `/chess/game/${result.game.id}`;
-                        } catch (error) {
-                            chessInviteIcon.classList.remove("is-sending");
-                            chessInviteIcon.removeAttribute("aria-busy");
-                            showAlert(error.message || "체스 초대를 보내는 중 문제가 발생했습니다.");
-                        }
-                    };
-
-                    chessInviteIcon.addEventListener("click", sendChessInvite);
-                    chessInviteIcon.addEventListener("keydown", function (event) {
-                        if (event.key === "Enter" || event.key === " ") sendChessInvite(event);
-                    });
-                }
 
                 item.querySelector(".delete-friend-icon").addEventListener("click", function () {
                     showConfirm(`"${friend.name}"님을 삭제하시겠습니까?`, async function (confirmDelete) {
@@ -4264,11 +4192,6 @@ async function sendVideo(file) {
             updateChatHeader(getCurrentFriend()); 
             readFriends();
             updateBlockState();
-        });
-        socket.on("chess_invite", async function () {
-            if (!window.CLOUD_CHESS_UI_ENABLED) return;
-            await loadFriendRequests();
-            showToast("메시지함에 체스 대국 초대가 도착했습니다.", "info");
         });
 
         // 친구 요청 도착/수락/거절, 차단/차단해제 — 친구 관계가 바뀔 때마다 여기로 신호가 옴
