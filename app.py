@@ -988,7 +988,7 @@ def is_blocked_either_way(conn, user_a, user_b):
 def handle_socket_connect():
     """웹소켓 연결 시 로그인·정지 여부를 확인하고, 연결을 사용자별 방에 등록한다.
 
-    False를 돌려주면 연결이 거부된다. 접속 사실은 다른 사용자에게 presence_updated로 알린다.
+    False를 돌려주면 연결이 거부된다. 접속 사실은 1:1 대화방 상대에게만 presence_updated로 알린다.
     """
     # 로그인하지 않은 연결은 거부한다.
     if "user_id" not in session:
@@ -1005,7 +1005,7 @@ def handle_socket_connect():
     # 사용자별 개인 방. 새 메시지·친구 알림 등은 이 방으로 보낸다.
     join_room(f"user_{user_id}")
     # 접속 상태가 바뀌었음을 알린다(친구 목록의 온라인 표시 갱신용).
-    emit_safe("presence_updated", {"userId": user_id, "online": True})
+    broadcast_presence(user_id, True)
 
 
 @socketio.on("disconnect")
@@ -1021,7 +1021,42 @@ def handle_socket_disconnect():
         if socket_ids:
             return
         active_socket_ids.pop(user_id, None)
-    emit_safe("presence_updated", {"userId": user_id, "online": False})
+    broadcast_presence(user_id, False)
+
+
+def get_presence_audience(user_id):
+    """이 사용자의 접속 상태를 목록에서 보는 사람들, 즉 1:1 대화방 상대의 ID 목록을 돌려준다.
+
+    접속 표시는 1:1 대화방 목록에만 나오므로(그룹에는 없음) 그 상대에게만 알리면 충분하다.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT other.user_id
+            FROM conversation_members mine
+            JOIN conversations c ON c.id = mine.conversation_id AND NOT c.is_group
+            JOIN conversation_members other
+              ON other.conversation_id = c.id AND other.user_id != mine.user_id
+            WHERE mine.user_id = %s
+            """,
+            (user_id,),
+        ).fetchall()
+    return [row["user_id"] for row in rows]
+
+
+def broadcast_presence(user_id, online):
+    """접속 상태 변화를 1:1 대화방 상대의 개인 방(user_<id>)으로만 보낸다.
+
+    예전에는 모든 접속자에게 보내 사용자가 늘수록 이벤트와 목록 재조회가 곱으로 늘었다.
+    알림은 부가 기능이라, 조회에 실패해도 연결 처리 자체는 막지 않고 로그만 남긴다.
+    """
+    try:
+        peer_ids = get_presence_audience(user_id)
+    except Exception:
+        app.logger.warning("접속 상태 알림 대상 조회 실패: user_id=%s", user_id, exc_info=True)
+        return
+    for peer_id in peer_ids:
+        notify_user(peer_id, "presence_updated", {"userId": user_id, "online": online})
 
 
 def is_user_online(user_id):

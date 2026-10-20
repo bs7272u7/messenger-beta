@@ -4772,9 +4772,24 @@ async function sendVideo(file) {
             }
         });
 
-        // 누군가의 접속 상태가 바뀌면 목록의 온라인 표시를 갱신한다. 주의: 서버가 모든 접속자에게 보내므로, 접속·종료가 있을 때마다 모든 사용자가 목록을 다시 불러온다(사용자가 많아지면 부하가 커진다).
-        socket.on("presence_updated", async function () {
-            await loadFriends();
+        // 1:1 대화방 상대의 접속 상태가 바뀌면 목록의 온라인 표시를 갱신한다.
+        // 서버는 그 상대에게만 보내며, 목록 전체를 다시 받지 않고 이미 가진 항목의 isOnline만 고쳐 다시 그린다.
+        socket.on("presence_updated", function (data) {
+            const peerRooms = friends.filter(function (friend) {
+                return !friend.isGroup && friend.peerId === data.userId;
+            });
+            let changed = false;
+            peerRooms.forEach(function (friend) {
+                if (friend.isOnline !== !!data.online) {
+                    friend.isOnline = !!data.online;
+                    changed = true;
+                }
+            });
+            if (!changed) return;
+            readFriends();
+            // 지금 열어 둔 대화의 상대라면 헤더의 접속 표시도 갱신한다.
+            const openFriend = peerRooms.find(function (friend) { return friend.id === currentConversationID; });
+            if (openFriend) updateChatHeader(openFriend);
         });
 
         // 관리자가 내 계정을 정지한 경우: 사유를 보여 주고 로그인 화면으로 보낸다.
