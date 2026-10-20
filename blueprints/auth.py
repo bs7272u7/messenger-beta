@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 from collections.abc import Callable
 from typing import Any
 
@@ -43,6 +44,23 @@ def create_auth_blueprint(
         register_user_loader: 가입 직후 사용자 객체를 만드는 함수.
     """
     auth_bp = Blueprint("auth", __name__)
+
+    def account_session_token(user_id: int) -> str:
+        """계정 토큰을 돌려준다. 아직 없으면 새로 만들어 저장한다.
+
+        이미 있는 토큰은 그대로 재사용하므로, 다른 기기에서 로그인해도 기존 기기의 로그인은 유지된다.
+        토큰은 비밀번호를 바꾸거나 재설정할 때만 바뀐다(app.py의 drop_stale_sessions 참고).
+        """
+        with connection_factory() as conn:
+            row = conn.execute(
+                "SELECT session_token FROM users WHERE id = %s", (user_id,)
+            ).fetchone()
+            if row and row["session_token"]:
+                return row["session_token"]
+            token = secrets.token_urlsafe(32)
+            conn.execute("UPDATE users SET session_token = %s WHERE id = %s", (token, user_id))
+            conn.commit()
+        return token
 
     @auth_bp.route("/api/login", methods=["POST"])
     @login_rate_limit
@@ -106,6 +124,7 @@ def create_auth_blueprint(
         # 다른 계정으로 로그인했던 흔적(세션 키)이 남지 않도록 로그인 성공 직전에 전부 비운다.
         session.clear()
         session["user_id"] = user["id"]
+        session["session_token"] = account_session_token(user["id"])
         session["username"] = user["username"]
         session["display_name"] = user["display_name"] or user["username"]
         session["profile_image"] = user["profile_image"]
@@ -199,6 +218,7 @@ def create_auth_blueprint(
 
         session.clear()
         session["user_id"] = registered_user.id
+        session["session_token"] = account_session_token(registered_user.id)
         session["username"] = registered_user.username
         session["display_name"] = registered_user.display_name
         session["profile_image"] = registered_user.profile_image
