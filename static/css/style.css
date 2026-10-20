@@ -1834,12 +1834,8 @@
 
         /*
          * 모달 겹침 순서는 DOM 순서(우연)가 아니라 명시적인 층(z-index)으로 고정한다.
-         * #modal-overlay(공용 알림/확인창)는 다른 모든 오버레이가 열려 있어도 그 위에서 보여야 한다. 안 그러면 alert가 화면 뒤로 숨는다.
-         * (주의: 이 값은 아래의 같은 선택자 규칙이 2000으로 다시 덮어쓴다.)
+         * 일반 오버레이 1000 < 자식 모달 1050 < 공용 알림/확인창(#modal-overlay, 아래 .modal-box 뒤에서 2000으로 지정).
          */
-        #modal-overlay {
-            z-index: 1200;
-        }
         /* 의도적으로 부모 모달 위에 뜨는 자식 모달(프로필 편집 위의 사진 자르기, 그룹원 관리 위의 초대 목록, 프로필 카드 위의 신고 창)은 부모보다 명시적으로 높은 층에 둔다. */
         #image-crop-overlay,
         #invite-member-overlay,
@@ -1859,7 +1855,10 @@
             text-align: center;
         }
 
-        /* 계정 삭제·그룹 채팅 삭제 같은 확인(confirm) 모달은 다른 오버레이(계정 설정, 그룹 멤버 등) 위에 항상 떠야 하므로 z-index를 가장 높이고, 박스 크기는 조금 줄인다. */
+        /*
+         * 공용 알림/확인창(#modal-overlay). 계정 삭제·그룹 채팅 삭제 같은 확인은 다른 오버레이(계정 설정, 그룹 멤버 등)가
+         * 열려 있어도 그 위에서 보여야 한다. 안 그러면 alert가 화면 뒤로 숨는다. 그래서 z-index를 가장 높이고 박스 크기는 조금 줄인다.
+         */
         #modal-overlay {
             z-index: 2000;
         }
@@ -2405,7 +2404,6 @@
 
         /*
          * 첨부 메뉴. 입력창 기준으로 위쪽에 뜬다(position:absolute). 기준이 부모라서 다른 곳으로 옮기면 위치가 틀어진다(script.js의 LG_REPARENT 주석 참고).
-         * (참고: 아래 box-shadow의 rgba 값은 인자가 3개뿐이라 유효하지 않아 그림자는 적용되지 않는다.)
          */
         .attach-menu {
             position: absolute;
@@ -2414,7 +2412,7 @@
             display: none;
             background: white;
             border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0.2);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
             overflow: hidden;
             z-index: 100;
         }

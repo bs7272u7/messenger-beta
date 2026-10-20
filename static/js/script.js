@@ -1603,10 +1603,10 @@
                 pinnedBox.style.display = "flex";
                 pinnedBox.style.cursor = "pointer";
 
+                // 고정 메시지 본문은 사용자가 쓴 글이라 반드시 escapeHTML을 거쳐 넣는다(XSS 방지).
                 const pinnedPreview = pinnedChat.image
-                    // 주의: 고정 메시지 본문(pinnedChat.text)은 escapeHTML을 거치지 않고 HTML에 들어간다. 메시지에 HTML이 있으면 그대로 해석되므로 XSS 위험이 있어, escapeHTML로 감싸는 수정이 필요하다.
                     ? `<img src="${pinnedChat.image}" style="width:32px; height:32px; border-radius:8px; object-fit:cover;"><span style="flex:1;">사진</span>`
-                    : `<span style="flex:1;">${pinnedChat.text}</span>`;
+                    : `<span style="flex:1;">${escapeHTML(pinnedChat.text)}</span>`;
 
                 pinnedBox.innerHTML = `
                     <i class="fa-solid fa-thumbtack"></i>
@@ -1704,9 +1704,9 @@
                     reactionPicker.style.top = top + "px";
                 });
 
-                // 주의: 반응 이모지(e)는 이스케이프 없이 HTML에 들어간다. 서버가 길이만 제한하므로 이스케이프를 거치는 편이 안전하다.
+                // 반응 값은 API로 아무 문자열(최대 32자)이나 보낼 수 있으므로 이모지라도 escapeHTML을 거쳐 넣는다.
                 const reactionsHTML = (chat.reactions && chat.reactions.length > 0)
-                    ? `<div class="reactions-row">${chat.reactions.map(function (e) { return `<span class="reactions-badge">${e}</span>`; }).join("")}</div>`
+                    ? `<div class="reactions-row">${chat.reactions.map(function (e) { return `<span class="reactions-badge">${escapeHTML(e)}</span>`; }).join("")}</div>`
                     : "";
 
                 const editedHTML = chat.edited ? `<div class="edited-label">수정 됨</div>` : "";

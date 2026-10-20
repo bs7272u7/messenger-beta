@@ -15,7 +15,6 @@ import io
 import ipaddress
 import json
 import os
-import random
 import re
 import secrets
 import socket
@@ -1566,6 +1565,8 @@ def init_db():
         for stmt in [
             "CREATE INDEX IF NOT EXISTS idx_conv_members_user ON conversation_members(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)",
+            # 대화방 목록의 '마지막 메시지'와 '읽지 않은 개수'(conversation_id + id 범위)를 빠르게 찾는다.
+            "CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id, id)",
             "CREATE INDEX IF NOT EXISTS idx_friend_requests_addressee ON friend_requests(addressee_id, status)",
             "CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id)",
             "CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id)",
@@ -2797,30 +2798,62 @@ def get_conversations():
     숨기지 않은 대화방만 대상으로 하며, 항목마다 상대 정보(1:1) 또는 그룹 정보, 마지막 메시지 미리보기,
     읽지 않은 개수, 접속 여부, 차단 관계를 채운다. 정렬은 '고정한 방 → 최근 활동 순'이다.
 
-    참고: 대화방마다 쿼리를 여러 번 실행하는 구조라 대화방 수에 비례해 느려진다.
+    대화방마다 쿼리를 따로 실행하지 않고, 필요한 값을 LATERAL 조인과 하위 쿼리로 한 번에 가져온다
+    (대화방이 많아져도 DB 왕복은 한 번이다).
     """
     user_id = session["user_id"]
     with get_db() as conn:
         rows = conn.execute(
             """
             SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id, c.chat_theme, c.is_disabled,
-                   cm.last_read_message_id, cm.is_muted, cm.is_pinned
+                   cm.last_read_message_id, cm.is_muted, cm.is_pinned,
+                   peer.id AS peer_id, peer.display_name AS peer_display_name,
+                   peer.username AS peer_username, peer.profile_image AS peer_profile_image,
+                   peer.cover_image AS peer_cover_image, peer.bio AS peer_bio,
+                   EXISTS(
+                       SELECT 1 FROM blocks WHERE blocker_id = %s AND blocked_id = peer.id
+                   ) AS blocked_by_me,
+                   EXISTS(
+                       SELECT 1 FROM blocks WHERE blocker_id = peer.id AND blocked_id = %s
+                   ) AS blocked_me,
+                   last_msg.id AS last_msg_id, last_msg.text AS last_msg_text,
+                   last_msg.image AS last_msg_image, last_msg.video AS last_msg_video,
+                   last_msg.audio AS last_msg_audio, last_msg.file_name AS last_msg_file_name,
+                   last_msg.time AS last_msg_time, last_msg.sent_at AS last_msg_sent_at,
+                   (SELECT COUNT(*) FROM conversation_members m WHERE m.conversation_id = c.id)
+                       AS member_count,
+                   -- 읽지 않은 개수는 '내가 마지막으로 읽은 메시지 ID보다 큰 메시지'를 센다.
+                   (SELECT COUNT(*) FROM messages unread
+                     WHERE unread.conversation_id = c.id AND unread.id > cm.last_read_message_id)
+                       AS unread_count
             FROM conversations c
             JOIN conversation_members cm ON cm.conversation_id = c.id
+            -- 1:1 대화방의 상대방. 그룹이면 조인하지 않아 peer.* 가 모두 NULL이 된다.
+            LEFT JOIN LATERAL (
+                SELECT users.id, users.display_name, users.username, users.profile_image,
+                       users.cover_image, users.bio
+                FROM conversation_members other
+                JOIN users ON users.id = other.user_id
+                WHERE other.conversation_id = c.id AND other.user_id != %s AND NOT c.is_group
+                ORDER BY users.id
+                LIMIT 1
+            ) peer ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT id, text, image, video, audio, file_name, time, sent_at
+                FROM messages
+                WHERE messages.conversation_id = c.id
+                ORDER BY id DESC
+                LIMIT 1
+            ) last_msg ON TRUE
             WHERE cm.user_id = %s AND cm.hidden_at IS NULL
         """,
-            (user_id,),
+            (user_id, user_id, user_id, user_id),
         ).fetchall()
 
         result = []
         for row in rows:
             conversation_id = row["id"]
-
-            peer_id = None
-            peer_username = None
-            peer_profile_image = None
-            blocked_by_me = False
-            blocked_me = False
+            peer_id = row["peer_id"]
 
             # 그룹은 방 이름·사진을, 1:1은 상대방의 이름·프로필을 대화방의 이름과 사진으로 쓴다.
             if row["is_group"]:
@@ -2828,71 +2861,27 @@ def get_conversations():
                 group_profile_image = row["profile_image"] or DEFAULT_PROFILE_IMAGE
             else:
                 group_profile_image = None
-                peer = conn.execute(
-                    """
-                    SELECT users.id, users.display_name, users.username, users.profile_image, users.cover_image, users.bio FROM conversation_members
-                    JOIN users ON users.id = conversation_members.user_id
-                    WHERE conversation_members.conversation_id = %s AND conversation_members.user_id != %s
-                """,
-                    (conversation_id, user_id),
-                ).fetchone()
-
-                if peer:
-                    display_name = peer["display_name"] or peer["username"]
-                    peer_id = peer["id"]
-                    peer_username = peer["username"]
-                    peer_profile_image = peer["profile_image"]
-                    blocked_by_me = (
-                        conn.execute(
-                            "SELECT 1 FROM blocks WHERE blocker_id = %s AND blocked_id = %s",
-                            (user_id, peer_id),
-                        ).fetchone()
-                        is not None
-                    )
-                    blocked_me = (
-                        conn.execute(
-                            "SELECT 1 FROM blocks WHERE blocker_id = %s AND blocked_id = %s",
-                            (peer_id, user_id),
-                        ).fetchone()
-                        is not None
-                    )
+                if peer_id:
+                    display_name = row["peer_display_name"] or row["peer_username"]
                 else:
                     display_name = "(알 수 없음)"
 
-            last_msg = conn.execute(
-                "SELECT id, text, image, video, audio, file_name, time, sent_at FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1",
-                (conversation_id,),
-            ).fetchone()
-
             message_text, last_time, last_sent_at = "", "", None
-            last_msg_id = last_msg["id"] if last_msg else 0
-            if last_msg:
+            last_msg_id = row["last_msg_id"] or 0
+            if row["last_msg_id"]:
                 # 마지막 메시지가 첨부면, 목록에 보여 줄 문구를 '__종류__문구' 형태로 만든다. 앞의 표식으로 프런트가 아이콘을 고른다.
-                if last_msg["audio"]:
+                if row["last_msg_audio"]:
                     message_text = "__AUDIO__음성 메시지"
-                elif last_msg["file_name"]:
+                elif row["last_msg_file_name"]:
                     message_text = "__FILE__파일"
-                elif last_msg["video"]:
+                elif row["last_msg_video"]:
                     message_text = "__VIDEO__동영상"
-                elif last_msg["image"]:
+                elif row["last_msg_image"]:
                     message_text = "__CAMERA__사진"
                 else:
-                    message_text = last_msg["text"] or ""
-                last_time = last_msg["time"] or ""
-                last_sent_at = last_msg["sent_at"]
-
-            member_count_row = conn.execute(
-                "SELECT COUNT(*) AS cnt FROM conversation_members WHERE conversation_id = %s",
-                (conversation_id,),
-            ).fetchone()
-            member_count = member_count_row["cnt"] if member_count_row else 0
-
-            # 읽지 않은 개수는 '내가 마지막으로 읽은 메시지 ID보다 큰 메시지'를 센다.
-            unread_row = conn.execute(
-                "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = %s AND id > %s",
-                (conversation_id, row["last_read_message_id"]),
-            ).fetchone()
-            unread = unread_row["cnt"] if unread_row else 0
+                    message_text = row["last_msg_text"] or ""
+                last_time = row["last_msg_time"] or ""
+                last_sent_at = row["last_msg_sent_at"]
 
             result.append(
                 {
@@ -2906,17 +2895,17 @@ def get_conversations():
                     "isDisabled": bool(row["is_disabled"]),
                     "isMuted": bool(row["is_muted"]),
                     "isPinned": bool(row["is_pinned"]),
-                    "unreadCount": unread,
+                    "unreadCount": row["unread_count"],
                     "peerId": peer_id,
-                    "peerUsername": peer_username,
-                    "peerProfileImage": peer_profile_image,
-                    "peerCoverImage": peer["cover_image"] if not row["is_group"] and peer else None,
-                    "peerBio": peer["bio"] if not row["is_group"] and peer else "",
+                    "peerUsername": row["peer_username"],
+                    "peerProfileImage": row["peer_profile_image"],
+                    "peerCoverImage": row["peer_cover_image"],
+                    "peerBio": row["peer_bio"] if peer_id else "",
                     "isOnline": bool(peer_id and is_user_online(peer_id)),
                     "groupProfileImage": group_profile_image,
-                    "memberCount": member_count,
-                    "blockedByMe": blocked_by_me,
-                    "blockedMe": blocked_me,
+                    "memberCount": row["member_count"],
+                    "blockedByMe": bool(peer_id and row["blocked_by_me"]),
+                    "blockedMe": bool(peer_id and row["blocked_me"]),
                     # 정렬 기준. 시스템 메시지 등도 반영하는 last_activity_id를 우선하고, 없으면 마지막 메시지 ID를 쓴다.
                     "_sortKey": row["last_activity_id"] or last_msg_id,
                 }
@@ -3348,11 +3337,7 @@ def send_image(conversation_id):
     if not image_data_url or not image_data_url.startswith("data:image"):
         return jsonify({"success": False, "error": "올바른 이미지 데이터가 아닙니다."}), 400
 
-    # 주의: 이미지를 먼저 저장하고 아래에서 멤버·차단 여부를 확인한다. 권한이 없어 거부되는 경우에도 저장된 파일이 남는다(순서 개선 필요).
-    image_path = save_base64_image(image_data_url)
-    if not image_path:
-        return jsonify({"success": False, "error": "이미지 처리 중 오류가 발생했습니다."}), 400
-
+    # 권한(멤버·종료 여부·차단)을 먼저 확인한 뒤에 이미지를 저장한다. 거부될 요청의 파일이 저장소에 남지 않게 하기 위해서다.
     with get_db() as conn:
         if not get_membership(conn, conversation_id, user_id):
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
@@ -3374,6 +3359,12 @@ def send_image(conversation_id):
                 403,
             )
 
+    # 업로드(Cloudinary)는 느릴 수 있으므로 DB 연결을 잡지 않은 상태에서 저장한다.
+    image_path = save_base64_image(image_data_url)
+    if not image_path:
+        return jsonify({"success": False, "error": "이미지 처리 중 오류가 발생했습니다."}), 400
+
+    with get_db() as conn:
         sent_at = current_message_timestamp_ms()
         time_label, date_label = legacy_message_labels(sent_at)
         msg_row = conn.execute(
@@ -4065,10 +4056,7 @@ def update_group_photo(conversation_id):
     if not image_data_url or not image_data_url.startswith("data:image"):
         return jsonify({"success": False, "error": "올바른 이미지 데이터가 아닙니다."}), 400
 
-    new_path = save_base64_image(image_data_url)
-    if not new_path:
-        return jsonify({"success": False, "error": "이미지 처리 중 오류가 발생했습니다."}), 400
-
+    # 방장 권한을 먼저 확인한 뒤에 이미지를 저장한다(거부될 요청의 파일이 남지 않게).
     with get_db() as conn:
         conv = conn.execute(
             "SELECT is_group, owner_id, profile_image, is_disabled FROM conversations WHERE id = %s",
@@ -4087,7 +4075,19 @@ def update_group_photo(conversation_id):
                 403,
             )
 
-        old_image = conv["profile_image"]
+    new_path = save_base64_image(image_data_url)
+    if not new_path:
+        return jsonify({"success": False, "error": "이미지 처리 중 오류가 발생했습니다."}), 400
+
+    with get_db() as conn:
+        # 저장하는 사이에 다른 요청이 사진을 바꿨을 수 있으므로 지울 이전 사진은 다시 읽는다.
+        current = conn.execute(
+            "SELECT profile_image FROM conversations WHERE id = %s", (conversation_id,)
+        ).fetchone()
+        if not current:
+            delete_image_file(new_path)
+            return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
+        old_image = current["profile_image"]
         conn.execute(
             "UPDATE conversations SET profile_image = %s WHERE id = %s", (new_path, conversation_id)
         )
@@ -4295,8 +4295,8 @@ def send_password_reset_code():
         if not user:
             return jsonify({"success": True, "message": message})
 
-        # 6자리 숫자 인증번호(앞자리 0 포함). 주의: random은 암호학적으로 안전한 난수가 아니다. 보안을 더 높이려면 secrets 모듈로 바꾸는 것이 좋다.
-        code = f"{random.randint(0, 999999):06d}"
+        # 6자리 숫자 인증번호(앞자리 0 포함). 추측하기 어렵도록 암호학적으로 안전한 secrets로 만든다.
+        code = f"{secrets.randbelow(1_000_000):06d}"
         kst = timezone(timedelta(hours=9))
         # 유효시간 3분. now_str()과 같은 형식(KST 문자열)이라 문자열 비교만으로 만료를 판단한다.
         expires_at = (datetime.now(kst) + timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")
@@ -4489,7 +4489,7 @@ def send_verification_code():
         if existing:
             return jsonify({"success": False, "error": "이미 가입된 이메일입니다."}), 400
 
-        code = f"{random.randint(0, 999999):06d}"
+        code = f"{secrets.randbelow(1_000_000):06d}"
         kst = timezone(timedelta(hours=9))
         expires_at = (datetime.now(kst) + timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -4563,7 +4563,7 @@ def send_account_email_code():
         if existing:
             return jsonify({"success": False, "error": "이미 사용 중인 이메일입니다."}), 400
 
-        code = f"{random.randint(0, 999999):06d}"
+        code = f"{secrets.randbelow(1_000_000):06d}"
         kst = timezone(timedelta(hours=9))
         expires_at = (datetime.now(kst) + timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -4660,11 +4660,34 @@ admin_bp = create_admin_blueprint(
 app.register_blueprint(admin_bp)
 
 
+def retry_init_db_in_background():
+    """시작 시 실패한 init_db()를 DB가 준비될 때까지 백그라운드에서 다시 시도한다.
+
+    Render에서 DB를 새로 만들었거나 잠시 응답하지 않으면 서버가 DB보다 먼저 뜰 수 있다.
+    예전에는 이 경우 테이블이 만들어지지 않은 채로 남아 서버를 수동으로 재시작해야 했다.
+    대기 시간은 5초에서 시작해 두 배씩 늘리고 최대 60초로 제한한다. init_db()는 IF NOT EXISTS로만
+    만들기 때문에 여러 워커가 동시에 시도해도 안전하다.
+    """
+    delay = 5
+    while True:
+        socketio.sleep(delay)
+        try:
+            init_db()
+        except Exception as e:
+            app.logger.warning("DB 초기화 재시도 실패, %s초 뒤 다시 시도합니다: %s", delay, e)
+            delay = min(delay * 2, 60)
+            continue
+        app.logger.info("DB 초기화 재시도 성공")
+        return
+
+
 try:
-    # 서버가 시작될 때 필요한 테이블을 만든다. DB가 아직 준비되지 않았어도 서버는 뜨지만 이때는 테이블이 만들어지지 않는다. DB가 준비된 뒤 서버를 다시 시작해야 한다.
+    # 서버가 시작될 때 필요한 테이블을 만든다. DB가 아직 준비되지 않았으면 서버는 그대로 띄우고,
+    # 백그라운드에서 준비될 때까지 다시 시도한다(retry_init_db_in_background).
     init_db()
 except Exception as e:
     app.logger.warning("초기 DB 생성 실패 (서버 연결 대기 중일 수 있음): %s", e)
+    socketio.start_background_task(retry_init_db_in_background)
 
 # 정리 작업은 백그라운드 스레드로 계속 돈다(요청 제한 기록 정리, 만료된 인증코드 삭제).
 socketio.start_background_task(cleanup_rate_limit_buckets)
