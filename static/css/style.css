@@ -4117,17 +4117,19 @@
         }
 
         /*
-         * 설정 창은 어두운 오버레이 위에 뜨므로 유리로 두면 회색으로 탁해진다.
+         * 설정 창과 메시지함은 어두운 오버레이 위에 뜨므로 유리로 두면 회색으로 탁해진다.
          * 라이트 모드에서는 불투명한 연하늘→흰색 면으로 읽기 쉽게 한다.
          */
-        body.theme-liquid-glass:not(.dark-mode) .settings-modal {
+        body.theme-liquid-glass:not(.dark-mode) .settings-modal,
+        body.theme-liquid-glass:not(.dark-mode) .friend-inbox-modal {
             background-image: linear-gradient(180deg, #e3f1ff 0%, #f3f9ff 38%, #ffffff 100%);
             background-color: #ffffff;
             border-color: rgba(255, 255, 255, .95);
             -webkit-backdrop-filter: none;
                     backdrop-filter: none;
         }
-        body.theme-liquid-glass:not(.dark-mode) .settings-modal .settings-modal-header {
+        body.theme-liquid-glass:not(.dark-mode) .settings-modal .settings-modal-header,
+        body.theme-liquid-glass:not(.dark-mode) .friend-inbox-modal .settings-modal-header {
             background: linear-gradient(135deg, #ffffff, #eaf5ff);
         }
 
