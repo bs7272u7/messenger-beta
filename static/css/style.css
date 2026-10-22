@@ -916,6 +916,14 @@
 
         /* 채팅 테마 선택 창: 분류 탭(기본/계절/시즌) + 테마 카드 격자 + 미리보기. */
         .chat-theme-modal { width: 430px; max-width: 90vw; padding: 0; overflow: hidden; }
+        /*
+         * 파일 아래쪽의 .modal-box 규칙(padding 25px 30px, max-width 400px)이 위 값을 덮어써서,
+         * 제목 줄이 창 안쪽에 떠 있는 큰 상자처럼 보였다. 클래스를 겹쳐 우선순위를 높여 제목 줄이 창 끝까지 닿게 한다.
+         * 제목은 메시지함처럼 가운데 정렬하고, 닫기 버튼은 오른쪽 끝에 띄워 둔다.
+         */
+        .modal-box.chat-theme-modal { max-width: 90vw; padding: 0; }
+        .chat-theme-modal .settings-modal-header { position: relative; justify-content: center; padding: 15px 52px; text-align: center; }
+        .chat-theme-modal .settings-modal-close { position: absolute; top: 50%; right: 14px; transform: translateY(-50%); }
         .chat-theme-category-tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin:0 18px; padding:5px; border-radius:12px; background:color-mix(in srgb, var(--chat-bg) 76%, var(--panel-bg)); }
         .chat-theme-category { min-height:34px; padding:0 5px; border:0; border-radius:8px; background:transparent; color:color-mix(in srgb, var(--text-color) 62%, transparent); cursor:pointer; font:inherit; font-size:11px; font-weight:700; }
         .chat-theme-category:hover { color:var(--text-color); background:color-mix(in srgb, var(--panel-bg) 70%, var(--brand-color)); }
