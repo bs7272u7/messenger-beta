@@ -169,16 +169,6 @@
         }
 
         /**
-         * 접속 상태 점(온라인/오프라인)의 HTML을 만든다. 그룹은 한 사람의 접속 상태로 나타낼 수 없어 점을 표시하지 않는다.
-         */
-        function getPresenceIndicatorHTML(friend) {
-            if (friend.isGroup) return "";
-            const state = friend.isOnline ? "online" : "offline";
-            const label = friend.isOnline ? "온라인" : "오프라인";
-            return `<span class="status-dot ${state}" title="${label}" aria-label="${label}"></span>`;
-        }
-
-        /**
          * 상대방 프로필 카드(배경·사진·소개글·접속 상태)를 연다. 그룹 대화방에서는 열지 않는다.
          */
         function openProfileCard(friend) {
@@ -2231,12 +2221,10 @@
                     : "";
 
                 const avatarImg = getConversationAvatar(friend);
-                const statusHTML = getPresenceIndicatorHTML(friend);
-                
+
                 newFriend.innerHTML = `
                     <div class="profile ${friend.isGroup ? "" : "friend-profile-trigger"}" ${friend.isGroup ? "" : 'role="button" tabindex="0" aria-label="상대방 프로필 보기"'}>
                         <img src="${avatarImg}" alt="Profile Image">
-                        ${statusHTML}
                     </div>
                     <div style="flex:1; min-width:0;">
                         <div class="friend-header-row">
