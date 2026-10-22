@@ -511,33 +511,6 @@
             white-space: nowrap;
         }
 
-        /*
-         * 접속 상태 점. 아바타의 오른쪽 아래 모서리에 걸쳐(절반은 겹치고 절반은 밖에) 보이도록 위치를 잡는다.
-         * 아바타 틀의 overflow가 점을 자르지 않도록 .friend-profile-trigger에서 overflow를 풀어 둔다.
-         */
-        .status-dot {
-            position: absolute;
-            right: -9px;
-            bottom: -9px;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            border: 3px solid var(--panel-bg);
-            box-sizing: border-box;
-            box-shadow: none;
-            transition: background-color 0.2s, opacity 0.2s;
-        }
-
-        .status-dot.online {
-            background-color: #35b96d;
-            box-shadow: none;
-        }
-
-        .status-dot.offline {
-            background-color: #aeb7c2;
-            opacity: 0.85;
-        }
-
         .friend-header-row {
             display: flex;
             justify-content: space-between;
