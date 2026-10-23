@@ -20,17 +20,23 @@ class HealthCheckTests(unittest.TestCase):
         self.assertIn(payload["status"], {"ok", "degraded"})
         self.assertIn(payload["database"], {"available", "unavailable"})
 
-    def test_root_serves_the_landing_page_to_signed_out_visitors(self):
-        """로그아웃 상태의 '/'는 랜딩 페이지를 보여 준다."""
+    def test_root_serves_the_combined_intro_and_login_screen_to_signed_out_visitors(self):
+        """로그아웃 상태의 '/'는 왼쪽 로고와 오른쪽 로그인 폼이 함께 있는 통합 화면을 보여 준다."""
         client = application_module.app.test_client()
 
         response = client.get("/")
 
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
-        self.assertIn("편안하게", page)
-        # 랜딩의 목적은 가입 유도이므로 회원가입 경로가 살아 있어야 한다.
-        self.assertIn('href="/login?mode=register"', page)
+        # 소개(로고) 영역과 로그인 폼이 한 화면에 있어야 한다.
+        self.assertIn('class="intro-brand"', page)
+        self.assertIn('id="auth-form"', page)
+        # 처음에는 로그인 모드이고, 같은 자리에서 회원가입으로 전환할 수 있다.
+        self.assertIn('data-auth-mode="login"', page)
+        self.assertIn('id="switch-link"', page)
+        # 약관 링크는 하단 링크 줄에 있다.
+        self.assertIn('href="/terms"', page)
+        self.assertIn('href="/privacy"', page)
 
     def test_root_redirects_signed_in_users_to_the_chat_screen(self):
         """로그인된 세션이면 '/'는 메신저 화면(/chat)으로 보낸다."""
