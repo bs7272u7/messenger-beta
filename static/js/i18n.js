@@ -1467,15 +1467,7 @@
         "화면 테마": "Display theme",
         "테마": "Theme",
         "클라우드": "Cloud",
-        "클래식": "Classic",
-        "Cloud Chatting에서 편안하게 대화하세요": "Chat comfortably on Cloud Chatting",
-        "메시지, 사진, 파일을 한자리에서 주고받습니다. 설치할 것은 없습니다.": "Send messages, photos and files in one place. Nothing to install.",
-        "실시간 전달": "Real-time delivery",
-        "새로고침 없이 바로 도착하고, 상대가 읽었는지 확인됩니다.": "Messages arrive without refreshing, and you can see if they were read.",
-        "친구와 그룹": "Friends and groups",
-        "친구를 추가해 1:1로 대화하거나 여러 명이 함께 이야기할 수 있습니다.": "Add friends to chat one-on-one or talk together in a group.",
-        "안전한 계정": "A safe account",
-        "이메일 인증으로 계정을 보호하고, 원하지 않는 상대는 차단합니다.": "Protect your account with email verification and block people you don't want to hear from."
+        "클래식": "Classic"
     });
     Object.assign(dictionaries.zh, {
         "클라우드 채팅": "云端聊天",
@@ -1489,15 +1481,7 @@
         "화면 테마": "显示主题",
         "테마": "主题",
         "클라우드": "云朵",
-        "클래식": "经典",
-        "Cloud Chatting에서 편안하게 대화하세요": "在 Cloud Chatting 轻松聊天",
-        "메시지, 사진, 파일을 한자리에서 주고받습니다. 설치할 것은 없습니다.": "在一处收发消息、照片和文件，无需安装。",
-        "실시간 전달": "实时送达",
-        "새로고침 없이 바로 도착하고, 상대가 읽었는지 확인됩니다.": "无需刷新即可送达，还能确认对方是否已读。",
-        "친구와 그룹": "好友与群组",
-        "친구를 추가해 1:1로 대화하거나 여러 명이 함께 이야기할 수 있습니다.": "添加好友进行一对一聊天，或多人一起聊天。",
-        "안전한 계정": "安全的账号",
-        "이메일 인증으로 계정을 보호하고, 원하지 않는 상대는 차단합니다.": "通过邮箱验证保护账号，并可屏蔽不想联系的人。"
+        "클래식": "经典"
     });
     Object.assign(dictionaries.ja, {
         "클라우드 채팅": "クラウドチャット",
@@ -1511,15 +1495,7 @@
         "화면 테마": "画面テーマ",
         "테마": "テーマ",
         "클라우드": "クラウド",
-        "클래식": "クラシック",
-        "Cloud Chatting에서 편안하게 대화하세요": "Cloud Chattingで心地よくおしゃべり",
-        "메시지, 사진, 파일을 한자리에서 주고받습니다. 설치할 것은 없습니다.": "メッセージ、写真、ファイルを一か所でやり取り。インストールは不要です。",
-        "실시간 전달": "リアルタイム配信",
-        "새로고침 없이 바로 도착하고, 상대가 읽었는지 확인됩니다.": "更新なしですぐ届き、相手が読んだかも確認できます。",
-        "친구와 그룹": "友だちとグループ",
-        "친구를 추가해 1:1로 대화하거나 여러 명이 함께 이야기할 수 있습니다.": "友だちを追加して1対1や複数人で会話できます。",
-        "안전한 계정": "安全なアカウント",
-        "이메일 인증으로 계정을 보호하고, 원하지 않는 상대는 차단합니다.": "メール認証でアカウントを守り、不要な相手はブロックできます。"
+        "클래식": "クラシック"
     });
     Object.assign(dictionaries.es, {
         "클라우드 채팅": "Cloud Chatting",
@@ -1533,15 +1509,7 @@
         "화면 테마": "Tema de pantalla",
         "테마": "Tema",
         "클라우드": "Nube",
-        "클래식": "Clásico",
-        "Cloud Chatting에서 편안하게 대화하세요": "Chatea con comodidad en Cloud Chatting",
-        "메시지, 사진, 파일을 한자리에서 주고받습니다. 설치할 것은 없습니다.": "Envía mensajes, fotos y archivos en un solo lugar. Sin instalar nada.",
-        "실시간 전달": "Entrega en tiempo real",
-        "새로고침 없이 바로 도착하고, 상대가 읽었는지 확인됩니다.": "Llegan sin recargar y puedes ver si fueron leídos.",
-        "친구와 그룹": "Amigos y grupos",
-        "친구를 추가해 1:1로 대화하거나 여러 명이 함께 이야기할 수 있습니다.": "Añade amigos para chatear a solas o en grupo.",
-        "안전한 계정": "Una cuenta segura",
-        "이메일 인증으로 계정을 보호하고, 원하지 않는 상대는 차단합니다.": "Protege tu cuenta con verificación por correo y bloquea a quien no quieras."
+        "클래식": "Clásico"
     });
 
     /**
