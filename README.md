@@ -54,7 +54,7 @@ blueprints/         URL 연결 계층 (auth, chat, friends, profile, support, ad
 services/           비즈니스 규칙 (인증, 가입, 채팅, 메시지, 친구, 관리자, 비밀번호 정책)
 repositories/       DB 조회 (사용자)
 models/             User 모델
-templates/          index(메신저), login, landing, admin, admin_verify, legal
+templates/          index(메신저), login(소개 + 로그인·회원가입, /와 /login 공용), admin, admin_verify, legal
 static/             css/style.css, js/script.js · i18n.js · liquid-glass.js, push-sw.js(서비스 워커)
 migrations/         Alembic 환경과 기준 버전, manual/ 에 수동 실행 SQL
 tests/              unit (서비스·모델·저장소), integration (페이지·접근 통제·스키마)

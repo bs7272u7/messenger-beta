@@ -1899,10 +1899,13 @@ def health_check():
 
 @app.route("/")
 def landing_page():
-    """소개 페이지(/). 이미 로그인한 사용자는 바로 채팅 화면으로 보낸다."""
+    """첫 화면(/). 소개와 로그인·회원가입 폼이 한 화면에 있는 login.html을 보여 준다.
+
+    이미 로그인한 사용자는 바로 채팅 화면으로 보낸다. /login과 같은 템플릿을 쓰므로 가입 주소는 /login?mode=register다.
+    """
     if session.get("user_id"):
         return redirect(url_for("home"))
-    return render_template("landing.html")
+    return render_template("login.html", initial_mode="login")
 
 
 @app.route("/chat")

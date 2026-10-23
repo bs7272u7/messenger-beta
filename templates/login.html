@@ -6,6 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{{ "회원가입" if initial_mode == "register" else "로그인" }} - Cloud Chatting 계정</title>
+    <!-- 소개 페이지(/)와 이 화면이 하나로 합쳐졌으므로, 검색·공유 미리보기용 메타도 여기서 관리한다. -->
+    <meta name="description" content="친구와 메시지, 사진, 파일을 편안하게 주고받는 실시간 채팅 서비스. 설치 없이 브라우저에서 바로 시작하세요.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Cloud Chatting">
+    <meta property="og:description" content="대화가 자연스럽게 이어지는 곳.">
+    <meta property="og:image" content="{{ url_for('static', filename='favicon-180x180.png', _external=True) }}">
+    <meta name="color-scheme" content="light dark">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico', v='20260814') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png', v='20260814') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png', v='20260814') }}">
@@ -487,37 +494,120 @@
         .verification-status.success { color: var(--accent-2); font-weight: 700; }
         .verification-status.error { color: var(--error); }
 
+
+        /* ======================================================
+         * 통합 화면 레이아웃 (소개 + 로그인/회원가입)
+         * 위쪽의 카드 중심 규칙을 덮어써서, 큰 화면에서는 왼쪽 소개 / 오른쪽 폼의 2단으로 바꾼다.
+         * ====================================================== */
+        :root {
+            --side-bg: rgba(255, 255, 255, 0.55);
+            --select-bg: #ffffff;
+            --feature-bg: rgba(255, 255, 255, 0.6);
+        }
+
+        /*
+         * 다크 모드: 기기 설정(prefers-color-scheme)을 따른다. 입력칸·체크박스는 위에서 흰색 반투명(rgba(255,255,255,.04~.08))을
+         * 쓰고 있어서 어두운 배경 위에서도 그대로 자연스럽다. 그래서 색 토큰과 배경만 바꾼다.
+         */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-a: #0b111c;
+                --bg-b: #0d1626;
+                --bg-c: #0a0f19;
+                --surface: rgba(22, 31, 46, 0.92);
+                --surface-strong: #16202f;
+                --border-glass: #263349;
+                --text-primary: #e8edf5;
+                --text-muted: #a3afc2;
+                --text-faint: #6f7d93;
+                --accent-soft: rgba(74, 144, 226, 0.22);
+                --error: #ff7a8d;
+                --side-bg: rgba(20, 28, 42, 0.72);
+                --select-bg: #16202f;
+                --feature-bg: rgba(255, 255, 255, 0.05);
+            }
+            body {
+                background:
+                    radial-gradient(60% 50% at 12% 10%, rgba(74, 144, 226, 0.16), transparent 60%),
+                    linear-gradient(160deg, var(--bg-a) 0%, var(--bg-b) 55%, var(--bg-c) 100%);
+            }
+            .auth-language-select option { color: #e8edf5; background: #16202f; }
+        }
+
+        /* 한 화면에 소개와 폼이 함께 있으므로 body를 가운데 정렬 상자가 아니라 세로로 쌓이는 문서로 되돌린다. */
+        body { display: block; padding: 0; min-height: 100vh; }
+        .page { display: flex; flex-direction: column; min-height: 100vh; }
+        .split { flex: 1; display: flex; flex-direction: column; }
+
+        /* 소개 영역: 좁은 화면에서는 로고와 제목만 짧게 보여 준다. */
+        .intro { padding: 22px 22px 0; }
+        .intro-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text-primary); font-size: 18px; font-weight: 800; text-decoration: none; }
+        .intro-brand img { width: 34px; height: 34px; border-radius: 10px; }
+        /* 한글이 단어 중간에서 줄바꿈되지 않도록 단어 단위로 끊는다(keep-all). */
+        .intro-title { margin: 20px 0 0; font-size: 26px; font-weight: 800; line-height: 1.3; letter-spacing: -0.5px; word-break: keep-all; }
+        .intro-lead, .intro-features, .intro-visual { display: none; }
+        .intro-features { margin: 0; padding: 0; list-style: none; }
+
+        /* 폼 영역. 좁은 화면에서는 기존 카드 모양을 그대로 쓴다. */
+        .auth-side { display: flex; justify-content: center; padding: 22px 20px 30px; }
+        /* 소개 영역에 이미 로고가 있어 폼 안의 로고는 숨긴다. */
+        .auth-panel .brand-mark { display: none; }
+
+        /* 하단 링크 줄. */
+        .site-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 22px; padding: 18px 20px 24px; border-top: 1px solid var(--border-glass); color: var(--text-muted); font-size: 12.5px; }
+        .site-footer a { color: inherit; text-decoration: none; }
+        .site-footer a:hover { color: var(--accent); text-decoration: underline; }
+        /* 언어 선택은 예전에 화면 구석에 고정돼 있었다. 하단 링크 줄 안의 일반 요소로 바꾼다. */
+        .site-footer .auth-language-select { position: static; min-width: 104px; background: var(--select-bg); backdrop-filter: none; }
+
+        @media (min-width: 900px) {
+            .split { flex-direction: row; }
+            .intro { position: relative; display: flex; flex: 1 1 0; flex-direction: column; justify-content: center; padding: 72px 56px; }
+            .intro-brand { position: absolute; top: 36px; left: 48px; }
+            .intro-copy { max-width: 560px; margin: 0 auto; }
+            .intro-title { margin: 0; font-size: clamp(34px, 3.4vw, 46px); }
+            .intro-lead { display: block; margin: 20px 0 0; color: var(--text-muted); font-size: 18px; line-height: 1.65; word-break: keep-all; }
+            .intro-features { display: grid; gap: 12px; margin-top: 32px; }
+            .intro-features li { display: grid; gap: 3px; padding: 14px 16px; border: 1px solid var(--border-glass); border-radius: 14px; background: var(--feature-bg); }
+            .intro-features strong { font-size: 15px; }
+            .intro-features span { color: var(--text-muted); font-size: 13.5px; line-height: 1.5; }
+            /* 나중에 앱 화면 이미지 등을 넣을 자리. 지금은 높이를 차지하지 않는다. */
+            .intro-visual { display: block; }
+
+            /* 오른쪽 폼 영역: 구분선과 약간 다른 배경으로 인스타그램 로그인 화면처럼 나눈다. */
+            .auth-side { flex: 0 0 min(46%, 560px); align-items: center; padding: 56px 48px; border-left: 1px solid var(--border-glass); background: var(--side-bg); }
+            /* 카드 모양(테두리·그림자·흐림)을 없애고 평평한 폼으로 보여 준다. */
+            .auth-panel { max-width: 380px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; animation: none; }
+        }
     </style>
 </head>
 {# initial_mode(login/register)는 app.py의 /login, /register 라우트가 넘긴다. 아래 스크립트가 data-auth-mode로 읽어 첫 화면 상태를 맞춘다. #}
 <body data-auth-mode="{{ initial_mode }}">
-    <!-- 언어 선택. data-language-select를 i18n.js가 찾아 선택값을 저장하고 화면 문구를 바꾼다. -->
-    <select class="auth-language-select" data-language-select aria-label="언어">
-        <option value="ko">한국어</option><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option><option value="es">español</option>
-    </select>
+    <!--
+      소개(왼쪽)와 로그인·회원가입 폼(오른쪽)을 한 화면에 둔다. 좁은 화면에서는 소개가 위, 폼이 아래로 쌓인다.
+      왼쪽 .intro-visual은 나중에 앱 화면 이미지 등을 넣을 자리이며 지금은 비워 둔다.
+    -->
+    <div class="page">
+    <main class="split">
+        <section class="intro" aria-label="서비스 소개">
+            <a class="intro-brand" href="/">
+                <img src="{{ url_for('static', filename='favicon-180x180.png') }}" alt="">
+                <span>Cloud Chatting</span>
+            </a>
+            <div class="intro-copy">
+                <h1 class="intro-title">Cloud Chatting에서 편안하게 대화하세요</h1>
+                <p class="intro-lead">메시지, 사진, 파일을 한자리에서 주고받습니다. 설치할 것은 없습니다.</p>
+                <!-- 큰 화면에서만 보이는 기능 소개(좁은 화면에서는 폼이 먼저 보이도록 숨긴다). -->
+                <ul class="intro-features">
+                    <li><strong>실시간 전달</strong><span>새로고침 없이 바로 도착하고, 상대가 읽었는지 확인됩니다.</span></li>
+                    <li><strong>친구와 그룹</strong><span>친구를 추가해 1:1로 대화하거나 여러 명이 함께 이야기할 수 있습니다.</span></li>
+                    <li><strong>안전한 계정</strong><span>이메일 인증으로 계정을 보호하고, 원하지 않는 상대는 차단합니다.</span></li>
+                </ul>
+            </div>
+            <div class="intro-visual" aria-hidden="true"></div>
+        </section>
 
-    <!-- 배경 장식 말풍선 4개(순수 장식이라 스크린리더·클릭 대상에서 제외된다). -->
-    <div class="bubble-deco bubble-1">
-        <svg viewBox="0 0 90 70" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 0h66a12 12 0 0112 12v28a12 12 0 01-12 12H34L14 66V52H12A12 12 0 010 40V12A12 12 0 0112 0z" fill="#ff6f91" fill-opacity="0.35"/>
-        </svg>
-    </div>
-    <div class="bubble-deco bubble-2">
-        <svg viewBox="0 0 60 48" xmlns="http://www.w3.org/2000/svg">
-            <path d="M10 0h40a10 10 0 0110 10v18a10 10 0 01-10 10H26L12 46V38H10A10 10 0 010 28V10A10 10 0 0110 0z" fill="#5eead4" fill-opacity="0.35"/>
-        </svg>
-    </div>
-    <div class="bubble-deco bubble-3">
-        <svg viewBox="0 0 70 56" xmlns="http://www.w3.org/2000/svg">
-            <path d="M11 0h48a11 11 0 0111 11v21a11 11 0 01-11 11H30L14 54V43h-3A11 11 0 010 32V11A11 11 0 0111 0z" fill="#a06bff" fill-opacity="0.3"/>
-        </svg>
-    </div>
-    <div class="bubble-deco bubble-4">
-        <svg viewBox="0 0 100 78" xmlns="http://www.w3.org/2000/svg">
-            <path d="M14 0h72a14 14 0 0114 14v26a14 14 0 01-14 14H40L18 74V54h-4A14 14 0 010 40V14A14 14 0 0114 0z" fill="#ff6f91" fill-opacity="0.22"/>
-        </svg>
-    </div>
-
+        <section class="auth-side">
     <!-- 로그인·회원가입 공용 카드. 모드에 따라 필요한 입력칸(.field)만 스크립트가 보이게 한다. -->
     <div class="auth-panel">
         <div class="brand-mark">
@@ -615,8 +705,21 @@
             </button>
         </div>
     </div>
+        </section>
+    </main>
 
-    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+    <!-- 하단 링크 줄: 약관, 언어 선택(data-language-select를 i18n.js가 찾아 언어를 바꾼다), 저작권. -->
+    <footer class="site-footer">
+        <a href="/terms">이용약관</a>
+        <a href="/privacy">개인정보처리방침</a>
+        <select class="auth-language-select" data-language-select aria-label="언어">
+            <option value="ko">한국어</option><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option><option value="es">español</option>
+        </select>
+        <span class="site-copy">&copy; {{ current_year or 2026 }} Cloud Chatting</span>
+    </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/i18n.js', v='20261023.1') }}"></script>
     <script>
         // CSRF 보호: 서버가 meta 태그로 내려준 토큰을 읽어, 상태를 바꾸는 요청(POST 등)의 X-CSRF-Token 헤더에 자동으로 붙인다.
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
