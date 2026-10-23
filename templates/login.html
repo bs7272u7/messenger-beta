@@ -547,8 +547,9 @@
 
         /* 소개 영역: 로고만 보여 준다. */
         .intro { padding: 22px 22px 0; }
-        .intro-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text-primary); font-size: 18px; font-weight: 800; text-decoration: none; }
-        .intro-brand img { width: 34px; height: 34px; border-radius: 10px; }
+        /* 로고는 이미지만 보인다. 글자가 없으므로 스크린리더용 이름은 alt와 aria-label로 둔다. */
+        .intro-brand { display: inline-flex; align-items: center; text-decoration: none; }
+        .intro-brand img { width: 40px; height: 40px; border-radius: 12px; }
         .intro-visual { display: none; }
 
         /* 폼 영역. 좁은 화면에서는 기존 카드 모양을 그대로 쓴다. */
@@ -586,9 +587,8 @@
     <div class="page">
     <main class="split">
         <section class="intro" aria-label="서비스 소개">
-            <a class="intro-brand" href="/">
-                <img src="{{ url_for('static', filename='favicon-180x180.png') }}" alt="">
-                <span>Cloud Chatting</span>
+            <a class="intro-brand" href="/" aria-label="Cloud Chatting">
+                <img src="{{ url_for('static', filename='favicon-180x180.png') }}" alt="Cloud Chatting">
             </a>
             <div class="intro-visual" aria-hidden="true"></div>
         </section>
