@@ -29,12 +29,7 @@
         if (!button) return;
         const action = button.dataset.rail;
 
-        if (action === "more") {
-            // 설정 메뉴는 문서 클릭에서 '바깥 클릭'으로 닫히므로, 이 클릭이 위로 전달되지 않게 막는다.
-            event.stopPropagation();
-            openSettingsFromRail(button);
-            return;
-        }
+        if (action === "more") return; // 아래 capture 리스너가 처리한다.
         if (action === "profile" && window.openModernProfile) {
             window.openModernProfile(MY_USER_ID);
             return;
@@ -50,6 +45,16 @@
         const target = RAIL_TARGETS[action] && $(RAIL_TARGETS[action]);
         if (target) target.click();
     });
+
+    // '더 보기'는 누를 때마다 열고 닫는다. script.js의 문서 클릭 리스너가 '바깥 클릭'으로 먼저 메뉴를 닫아 버리면 다시 열려 버리므로,
+    // 캡처 단계에서 먼저 처리하고 다른 리스너에는 전달하지 않는다.
+    document.addEventListener("click", function (event) {
+        const button = event.target.closest('[data-rail="more"]');
+        if (!button) return;
+        event.stopImmediatePropagation();
+        if ($("#settings-menu").style.display === "block") closeSettingsMenu();
+        else openSettingsFromRail(button);
+    }, true);
 
     /**
      * '더 보기' 버튼 옆에 설정 메뉴를 연다. script.js의 openSettingsMenu는 메뉴를 버튼 오른쪽 '위쪽 정렬'로 놓는데,
@@ -69,37 +74,16 @@
     }
 
     // ---------------------------------------------------------------
-    // 1-2) '더 보기'에 마우스를 올리면 설정 카드가 뜨고, 버튼과 카드 둘 다 벗어나면 잠시 뒤 닫힌다.
+    // 1-2) '더 보기'는 버튼을 눌러야 설정 카드가 열리고, 다시 누르거나 바깥을 누르거나 Esc를 누르면 닫힌다.
     // ---------------------------------------------------------------
     const moreButton = $('[data-rail="more"]');
     const settingsCard = $("#settings-menu");
-    let closeTimer = null;
-    const canHover = window.matchMedia("(hover: hover) and (min-width: 768px)");
-
-    function cancelClose() {
-        clearTimeout(closeTimer);
-        closeTimer = null;
-    }
-    function scheduleClose() {
-        cancelClose();
-        closeTimer = setTimeout(function () {
-            if (settingsCard.matches(":hover") || moreButton.matches(":hover")) return;
-            if (settingsCard.contains(document.activeElement) && document.activeElement.matches("select, input")) return;
-            closeSettingsMenu();
-        }, 250);
-    }
     if (moreButton && settingsCard) {
-        moreButton.addEventListener("mouseenter", function () {
-            if (!canHover.matches) return;
-            cancelClose();
-            if (settingsCard.style.display !== "block") openSettingsFromRail(moreButton);
-        });
-        [moreButton, settingsCard].forEach(function (el) {
-            el.addEventListener("mouseleave", function () {
-                if (canHover.matches && document.body.classList.contains("ui-modern")) scheduleClose();
-            });
-            el.addEventListener("mouseenter", cancelClose);
-        });
+        // 카드가 열려 있는 동안에는 아이콘 줄이 접히지 않게 해서, 카드가 줄 옆에 붙어 있게 한다(CSS의 modern-more-open).
+        new MutationObserver(function () {
+            rail.classList.toggle("modern-more-open", settingsCard.style.display === "block");
+        }).observe(settingsCard, { attributes: true, attributeFilter: ["style"] });
+
         // 키보드: Esc로 닫고 버튼으로 포커스를 돌려준다.
         document.addEventListener("keydown", function (event) {
             if (event.key === "Escape" && settingsCard.style.display === "block" && document.body.classList.contains("ui-modern")) {

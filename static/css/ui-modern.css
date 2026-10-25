@@ -122,6 +122,7 @@ body.ui-modern .lg-backdrop { display: none; }
     }
     /* 마우스를 올리거나 키보드로 들어오면 글자가 보이는 폭으로 펼쳐져 목록 위를 덮는다(컨테이너 폭은 그대로라 화면이 밀리지 않는다). */
     body.ui-modern #modern-rail:hover,
+    body.ui-modern #modern-rail.modern-more-open,
     body.ui-modern #modern-rail:focus-within {
         width: 244px;
         box-shadow: 8px 0 28px rgba(0, 0, 0, .18);
@@ -154,6 +155,7 @@ body.ui-modern .lg-backdrop { display: none; }
     /* 글자는 줄이 좁을 때 보이지 않다가, 펼쳐지면 나타난다. */
     body.ui-modern #modern-rail button > span:not(.modern-rail-avatar) { opacity: 0; transition: opacity .15s ease; }
     body.ui-modern #modern-rail:hover button > span:not(.modern-rail-avatar),
+    body.ui-modern #modern-rail.modern-more-open button > span:not(.modern-rail-avatar),
     body.ui-modern #modern-rail:focus-within button > span:not(.modern-rail-avatar) { opacity: 1; }
     /* 프로필 버튼의 아바타. 내 프로필 사진(또는 기본 아이콘)을 복사해 온다. */
     body.ui-modern #modern-rail .modern-rail-avatar {
