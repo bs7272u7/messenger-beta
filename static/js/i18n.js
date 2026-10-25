@@ -1467,7 +1467,9 @@
         "화면 테마": "Display theme",
         "테마": "Theme",
         "클라우드": "Cloud",
-        "클래식": "Classic"
+        "클래식": "Classic",
+        "UI 방식": "UI style",
+        "모던 (준비 중)": "Modern (coming soon)"
     });
     Object.assign(dictionaries.zh, {
         "클라우드 채팅": "云端聊天",
@@ -1481,7 +1483,9 @@
         "화면 테마": "显示主题",
         "테마": "主题",
         "클라우드": "云朵",
-        "클래식": "经典"
+        "클래식": "经典",
+        "UI 방식": "界面方式",
+        "모던 (준비 중)": "现代（准备中）"
     });
     Object.assign(dictionaries.ja, {
         "클라우드 채팅": "クラウドチャット",
@@ -1495,7 +1499,9 @@
         "화면 테마": "画面テーマ",
         "테마": "テーマ",
         "클라우드": "クラウド",
-        "클래식": "クラシック"
+        "클래식": "クラシック",
+        "UI 방식": "UIの種類",
+        "모던 (준비 중)": "モダン（準備中）"
     });
     Object.assign(dictionaries.es, {
         "클라우드 채팅": "Cloud Chatting",
@@ -1509,7 +1515,9 @@
         "화면 테마": "Tema de pantalla",
         "테마": "Tema",
         "클라우드": "Nube",
-        "클래식": "Clásico"
+        "클래식": "Clásico",
+        "UI 방식": "Estilo de interfaz",
+        "모던 (준비 중)": "Moderno (próximamente)"
     });
 
     /**
