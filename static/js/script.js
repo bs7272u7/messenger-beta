@@ -2609,6 +2609,23 @@
         });
 
         /**
+         * 그룹에 넣을 수 있는 사람 목록. 클래식은 친구 목록 그대로이고, 모던은 친구가 없어도
+         * 지금 대화가 열려 있는(메시지 요청이 수락됐거나 맞팔인) 1:1 상대를 함께 후보로 한다.
+         */
+        function getGroupCandidates() {
+            if (getUiLayout() !== "modern") return friendDirectory;
+            const candidates = friendDirectory.slice();
+            const seen = new Set(candidates.map(function (friend) { return friend.peerUsername; }));
+            friends.forEach(function (room) {
+                if (room.isGroup || !room.peerUsername || seen.has(room.peerUsername)) return;
+                if (room.dmState !== "active" || room.blockedByMe || room.blockedMe) return;
+                seen.add(room.peerUsername);
+                candidates.push({ peerUsername: room.peerUsername, name: room.name, peerId: room.peerId, peerProfileImage: room.peerProfileImage });
+            });
+            return candidates;
+        }
+
+        /**
          * 그룹에 초대할 수 있는 친구(아직 멤버가 아닌 사람) 목록을 체크박스로 그린다.
          */
         function renderInviteMemberList() {
@@ -2616,7 +2633,7 @@
 
             // 이미 그룹에 있는 사람은 후보에서 뺀다. 서버가 이미 멤버인 사용자는 조용히 건너뛰긴 하지만, 화면에서도 보이지 않게 한다.
             const memberUsernames = new Set(currentGroupMembers.map(function (m) { return m.username; }));
-            const invitableFriends = friendDirectory.filter(function (friend) {
+            const invitableFriends = getGroupCandidates().filter(function (friend) {
                 return !memberUsernames.has(friend.peerUsername);
             });
 
@@ -2815,7 +2832,7 @@
         function renderNewGroupMemberList() {
             newGroupMemberList.innerHTML = "";
 
-            const oneOnOnFriends = friendDirectory;
+            const oneOnOnFriends = getGroupCandidates();
 
             if (oneOnOnFriends.length === 0) {
                 newGroupMemberList.innerHTML = `<div style="padding: 10px; font-size: 13px; color: #999;">함께 그룹을 만들 친구가 없습니다.</div>`;
