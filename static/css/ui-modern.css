@@ -710,10 +710,15 @@ body.ui-modern #modern-rail button.active .modern-rail-avatar { box-shadow: 0 0 
 @keyframes modern-rail-pop { 0% { transform: scale(.8); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
 body.ui-modern.modern-cloud:not(.dark-mode).modern-profile-page #modern-profile-page { background: transparent; }
 
-/* PC에서는 왼쪽 메뉴의 '새 그룹', 목록 머리의 새 그룹(연필) 버튼, 목록 제목 옆의 '요청' 버튼을 숨긴다.
-   (메시지함은 왼쪽 메뉴에 있다.) 모바일에는 왼쪽 메뉴가 없어서 이 버튼들이 유일한 입구이므로 그대로 둔다. */
-@media (min-width: 768px) {
-    body.ui-modern #modern-rail [data-rail="group"],
-    body.ui-modern .modern-list-header [data-rail="group"],
-    body.ui-modern .modern-list-title [data-rail="inbox"] { display: none; }
+/* 왼쪽 메뉴의 '새 그룹', 목록 머리의 새 그룹(연필) 버튼, 목록 제목 옆의 '요청' 버튼은 PC·모바일 모두 숨긴다. */
+body.ui-modern #modern-rail [data-rail="group"],
+body.ui-modern .modern-list-header [data-rail="group"],
+body.ui-modern .modern-list-title [data-rail="inbox"] { display: none; }
+
+/* 모바일 하단 탭바의 메시지함 버튼: 모던에서만 보이고 숫자 배지를 아이콘 오른쪽 위에 붙인다.
+   style.css의 '#mobile-bottom-nav button { display:flex }'를 이기려면 같은 수준의 선택자가 필요하다. */
+#mobile-bottom-nav #mobile-inbox-nav-btn { display: none; }
+@media (max-width: 767px) {
+    body.ui-modern #mobile-bottom-nav #mobile-inbox-nav-btn { position: relative; display: flex; }
+    body.ui-modern #mobile-bottom-nav #mobile-inbox-nav-btn .modern-badge { position: absolute; top: 4px; left: calc(50% + 8px); }
 }
