@@ -326,4 +326,15 @@ body.ui-modern .lg-backdrop { display: none; }
     }
     body.ui-modern .modern-info-actions button:hover { background: var(--friend-hover); }
     body.ui-modern .modern-info-actions button > i { width: 20px; text-align: center; }
+
+    /* ---------- 더 보기 카드(설정 메뉴 재사용) ---------- */
+    body.ui-modern #settings-menu {
+        z-index: 1000;
+        max-height: calc(100vh - 20px);
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        background: var(--panel-bg, var(--bg-color));
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    }
 }

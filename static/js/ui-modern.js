@@ -48,9 +48,55 @@
     function openSettingsFromRail(button) {
         const menu = $("#settings-menu");
         openSettingsMenu(button);
+        if (isMobileViewport()) return;
+        const rail = $("#modern-rail");
+        // 아이콘 줄은 마우스를 올리면 펼쳐지므로, 펼쳐진 폭(244px) 기준으로 카드를 옆에 붙인다.
+        const railRight = rail ? rail.getBoundingClientRect().left + Math.max(rail.offsetWidth, 244) : 244;
+        menu.style.left = railRight + 8 + window.scrollX + "px";
         const rect = button.getBoundingClientRect();
         const top = Math.max(10, Math.min(rect.bottom - menu.offsetHeight, window.innerHeight - menu.offsetHeight - 10));
         menu.style.top = top + window.scrollY + "px";
+    }
+
+    // ---------------------------------------------------------------
+    // 1-2) '더 보기'에 마우스를 올리면 설정 카드가 뜨고, 버튼과 카드 둘 다 벗어나면 잠시 뒤 닫힌다.
+    // ---------------------------------------------------------------
+    const moreButton = $('[data-rail="more"]');
+    const settingsCard = $("#settings-menu");
+    let closeTimer = null;
+    const canHover = window.matchMedia("(hover: hover) and (min-width: 768px)");
+
+    function cancelClose() {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+    }
+    function scheduleClose() {
+        cancelClose();
+        closeTimer = setTimeout(function () {
+            if (settingsCard.matches(":hover") || moreButton.matches(":hover")) return;
+            if (settingsCard.contains(document.activeElement) && document.activeElement.matches("select, input")) return;
+            closeSettingsMenu();
+        }, 250);
+    }
+    if (moreButton && settingsCard) {
+        moreButton.addEventListener("mouseenter", function () {
+            if (!canHover.matches) return;
+            cancelClose();
+            if (settingsCard.style.display !== "block") openSettingsFromRail(moreButton);
+        });
+        [moreButton, settingsCard].forEach(function (el) {
+            el.addEventListener("mouseleave", function () {
+                if (canHover.matches && document.body.classList.contains("ui-modern")) scheduleClose();
+            });
+            el.addEventListener("mouseenter", cancelClose);
+        });
+        // 키보드: Esc로 닫고 버튼으로 포커스를 돌려준다.
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape" && settingsCard.style.display === "block" && document.body.classList.contains("ui-modern")) {
+                closeSettingsMenu();
+                moreButton.focus();
+            }
+        });
     }
 
     // ---------------------------------------------------------------
