@@ -1190,6 +1190,9 @@
             document.body.classList.toggle("ui-modern", modern);
             if (uiLayoutSelect) uiLayoutSelect.value = layout;
             if (!modern) document.body.classList.remove("modern-info-open");
+            // 모던의 공개 범위는 전체 공개/비공개 두 가지뿐이라 '친구만 공개' 항목을 숨긴다.
+            const friendsOnlyOption = myProfileVisibility && myProfileVisibility.querySelector('option[value="friends"]');
+            if (friendsOnlyOption) friendsOnlyOption.hidden = friendsOnlyOption.disabled = modern;
 
             // 모던 UI는 자체 색을 쓰므로 오피스 모드는 보는 동안만 꺼 둔다. 저장값(officeMode, theme)은 그대로 두어,
             // 클래식으로 돌아오면 init 구간과 같은 상태(오피스 모드면 다크 해제)로 복원된다.
@@ -3076,7 +3079,9 @@
         mobileProfileNavBtn.addEventListener("click", function () {
             closeSettingsMenu();
             closeFriendPanel();
-            openProfileEditor();
+            // 모던 UI에서는 프로필 화면(팔로워·팔로잉)을 먼저 보여 주고, 편집은 그 안의 버튼으로 연다.
+            if (getUiLayout() === "modern" && window.openModernProfile) window.openModernProfile(MY_USER_ID);
+            else openProfileEditor();
             setMobileNavActive(mobileProfileNavBtn);
         });
 
@@ -3173,7 +3178,9 @@
             try {
                 const profile = await fetch("/api/account/profile").then(response => response.json());
                 myProfileBio.value = profile.bio || "";
-                myProfileVisibility.value = profile.profile_visibility || "friends";
+                // 모던에는 '친구만 공개'가 없다. 예전에 그렇게 정한 계정은 같은 뜻에 가까운 '비공개'로 보여 준다.
+                const savedVisibility = profile.profile_visibility || "friends";
+                myProfileVisibility.value = getUiLayout() === "modern" && savedVisibility === "friends" ? "private" : savedVisibility;
                 updateProfileCoverPreview(profile.cover_image);
             } catch (error) { }
             myProfileOverlay.style.display = "flex";
