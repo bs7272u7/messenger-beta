@@ -1801,13 +1801,22 @@
 
               } else {
                     // 상대 메시지. 그룹 채팅에서는 보낸 사람의 사진과 이름을 함께 보여 주기 위해 한 칸 더 감싼다.
-                    message.className = isGroupChat ? "message-left-container group-message" : "message-left-container";
+                    // 모던 UI의 1:1 채팅에서도 상대 사진을 옆에 보여 준다. 같은 사람이 이어서 보낸 묶음의 마지막 메시지에만 붙이고, 나머지는 빈 칸으로 줄을 맞춘다.
+                    const modernPeerAvatar = !isGroupChat && document.body.classList.contains("ui-modern");
+                    const nextChat = chatList[index + 1];
+                    const lastOfRun = !nextChat || nextChat.mine || nextChat.messageType === "system";
+                    message.className = (isGroupChat || modernPeerAvatar) ? "message-left-container group-message" : "message-left-container";
 
-                    const avatarHTML = isGroupChat
+                    let avatarHTML = isGroupChat
                         ? (chat.senderProfileImage
                             ? `<img src="${chat.senderProfileImage}" class="msg-avatar">`
                             : `<div class="msg-avatar"><i class="fa-solid fa-circle-user"></i></div>`)
                         : "";
+                    if (modernPeerAvatar) {
+                        avatarHTML = lastOfRun
+                            ? `<div class="msg-avatar">${chatHeaderAvatar.innerHTML}</div>`
+                            : `<div class="msg-avatar msg-avatar-spacer"></div>`;
+                    }
                     const senderNameHTML = isGroupChat
                         ? `<div class="msg-sender-name">${escapeHTML(chat.senderName || "")}</div>`
                         : "";
@@ -1838,7 +1847,7 @@
                             ${reactionsHTML}
                         `;
                     } else if (chat.reply) {
-                        if (!isGroupChat) {
+                        if (!isGroupChat && !modernPeerAvatar) {
                             message.style.flexDirection = "column";
                             message.style.alignItems = "flex-start";
                         }
@@ -1860,7 +1869,7 @@
                         `;
                     }
 
-                    message.innerHTML = isGroupChat
+                    message.innerHTML = (isGroupChat || modernPeerAvatar)
                         ? `${avatarHTML}<div class="msg-content-col">${senderNameHTML}${innerContent}</div>`
                         : innerContent;
                 }
