@@ -23,6 +23,8 @@ class DatabaseSchemaTests(unittest.TestCase):
             "conversation_members",
             "messages",
             "friend_requests",
+            "follows",
+            "follow_requests",
             "blocks",
             "support_inquiries",
             "reports",

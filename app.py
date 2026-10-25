@@ -45,6 +45,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from blueprints.admin import ADMIN_ROUTES, create_admin_blueprint
 from blueprints.auth import create_auth_blueprint
 from blueprints.chat import CHAT_ROUTES, create_chat_blueprint
+from blueprints.follows import create_follows_blueprint
 from blueprints.friends import create_friends_blueprint
 from blueprints.profile import create_profile_blueprint
 from blueprints.support import create_support_blueprint
@@ -55,7 +56,9 @@ from repositories.user_repository import UserRepository
 from services.admin_service import AdminService, AdminServiceError
 from services.auth_service import AuthService
 from services.chat_service import ChatService, ChatServiceError
+from services.dm_request_service import DmRequestService, send_block_reason
 from services.friend_service import FriendService
+from services.follow_service import FollowService
 from services.message_service import MessageService, MessageServiceError
 from services.password_policy import PasswordPolicy
 from services.registration_service import RegistrationService
@@ -821,6 +824,17 @@ friend_service = FriendService(
     lambda conn, user_a, user_b: is_blocked_either_way(conn, user_a, user_b),
     lambda conn, request_id: accept_friend_request(conn, request_id),
 )
+follow_service = FollowService(
+    get_db,
+    lambda: now_str(),
+    lambda conn, user_a, user_b: is_blocked_either_way(conn, user_a, user_b),
+)
+dm_request_service = DmRequestService(
+    get_db,
+    lambda: now_str(),
+    lambda conn, user_a, user_b: is_blocked_either_way(conn, user_a, user_b),
+    FollowService.is_mutual,
+)
 chat_service = ChatService(get_db, lambda: now_str(), DEFAULT_PROFILE_IMAGE)
 message_service = MessageService(
     get_db,
@@ -1035,6 +1049,7 @@ def get_presence_audience(user_id):
             SELECT DISTINCT other.user_id
             FROM conversation_members mine
             JOIN conversations c ON c.id = mine.conversation_id AND NOT c.is_group
+                 AND c.dm_state = 'active'
             JOIN conversation_members other
               ON other.conversation_id = c.id AND other.user_id != mine.user_id
             WHERE mine.user_id = %s
@@ -1083,7 +1098,19 @@ def broadcast_to_conversation(conn, conversation_id, event, payload):
 
 
 def unhide_conversation(conn, conversation_id):
-    """새 메시지가 오면 모든 멤버의 '숨김' 상태를 풀어, 숨겨 둔 대화방이 다시 목록에 나타나게 한다."""
+    """새 메시지가 오면 모든 멤버의 '숨김' 상태를 풀어, 숨겨 둔 대화방이 다시 목록에 나타나게 한다.
+
+    메시지 요청이 수락되기 전(수락 대기·거절된 1:1 방)에는 요청한 사람만 풀어, 받는 사람의 목록에는 나타나지 않게 한다.
+    """
+    conv = conn.execute(
+        "SELECT dm_state, dm_requester_id FROM conversations WHERE id = %s", (conversation_id,)
+    ).fetchone()
+    if conv and conv["dm_state"] != "active":
+        conn.execute(
+            "UPDATE conversation_members SET hidden_at = NULL WHERE conversation_id = %s AND user_id = %s",
+            (conversation_id, conv["dm_requester_id"]),
+        )
+        return
     conn.execute(
         "UPDATE conversation_members SET hidden_at = NULL WHERE conversation_id = %s",
         (conversation_id,),
@@ -1138,6 +1165,7 @@ def notify_conversation_message(conn, conversation_id, sender_id, preview):
         SELECT cm.user_id, cm.is_muted, COALESCE(c.name, '') AS conversation_name
         FROM conversation_members cm JOIN conversations c ON c.id = cm.conversation_id
         WHERE cm.conversation_id = %s AND cm.user_id != %s
+          AND (c.dm_state = 'active' OR c.dm_requester_id = cm.user_id)
     """,
         (conversation_id, sender_id),
     ).fetchall()
@@ -1560,6 +1588,35 @@ def init_db():
         """
         )
 
+        # 모던 UI의 팔로우: 수락 대기 요청(follow_requests)과 수락된 한쪽 방향 관계(follows). 친구(friend_requests)와는 별개다.
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS follows (
+                follower_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                followee_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (follower_id, followee_id),
+                CHECK (follower_id <> followee_id)
+            )
+        """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS follow_requests (
+                id SERIAL PRIMARY KEY,
+                requester_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                target_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL,
+                UNIQUE (requester_id, target_id),
+                CHECK (requester_id <> target_id)
+            )
+        """
+        )
+        # 한 번만 실행하는 데이터 이관의 완료 표시.
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS app_flags (name VARCHAR(100) PRIMARY KEY, created_at TEXT NOT NULL)"
+        )
+
         # 예전 DB에 없는 컬럼을 채워 넣는 마이그레이션 목록. 이미 있으면 아무 일도 일어나지 않는다.
         for stmt in [
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS owner_id INT",
@@ -1568,6 +1625,9 @@ def init_db():
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS disabled_by INT",
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_activity_id INT NOT NULL DEFAULT 0",
+            # 1:1 메시지 요청 상태: active(보통 대화) / pending(수락 대기) / declined(거절됨). 기존 방은 모두 active.
+            "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS dm_state VARCHAR(20) NOT NULL DEFAULT 'active'",
+            "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS dm_requester_id INT",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS hidden_at TEXT",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS chat_theme VARCHAR(20) NOT NULL DEFAULT 'default'",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS is_muted BOOLEAN NOT NULL DEFAULT FALSE",
@@ -1610,8 +1670,29 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_inquiries_user ON support_inquiries(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee_id, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_follow_requests_target ON follow_requests(target_id)",
         ]:
             cur.execute(stmt)
+
+        # 팔로우를 처음 도입할 때 한 번만: 이미 친구인 사이를 서로 팔로우로 옮겨 팔로워·팔로잉 수가 0에서 시작하지 않게 한다.
+        # 표식(app_flags)이 있으면 다시 실행하지 않으므로, 이후에 언팔로우한 관계가 되살아나지 않는다.
+        cur.execute("SELECT 1 FROM app_flags WHERE name = 'follows_backfilled'")
+        if cur.fetchone() is None:
+            cur.execute(
+                """
+                INSERT INTO follows (follower_id, followee_id, created_at)
+                SELECT requester_id, addressee_id, created_at FROM friend_requests WHERE status = 'accepted'
+                UNION
+                SELECT addressee_id, requester_id, created_at FROM friend_requests WHERE status = 'accepted'
+                ON CONFLICT DO NOTHING
+            """
+            )
+            cur.execute(
+                "INSERT INTO app_flags (name, created_at) VALUES ('follows_backfilled', %s)",
+                (now_str(),),
+            )
 
         conn.commit()
     except Exception:
@@ -2047,6 +2128,17 @@ friends_bp = create_friends_blueprint(
     friend_service,
 )
 app.register_blueprint(friends_bp)
+
+follows_bp = create_follows_blueprint(
+    login_required_api,
+    notify_user,
+    follow_service,
+    dm_request_service,
+    # 팔로우·메시지 요청처럼 상태를 바꾸는 요청은 IP당 10분에 60번, 검색·목록 조회는 1분에 60번까지.
+    write_rate_limit=rate_limit(60, 10 * 60, "follow_write"),
+    search_rate_limit=rate_limit(60, 60, "follow_search"),
+)
+app.register_blueprint(follows_bp)
 
 
 # 관리자 페이지 라우트
@@ -2843,7 +2935,7 @@ def get_conversations():
     with get_db() as conn:
         rows = conn.execute(
             """
-            SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id, c.chat_theme, c.is_disabled,
+            SELECT c.id, c.is_group, c.name, c.profile_image, c.last_activity_id, c.chat_theme, c.is_disabled, c.dm_state,
                    cm.last_read_message_id, cm.is_muted, cm.is_pinned,
                    peer.id AS peer_id, peer.display_name AS peer_display_name,
                    peer.username AS peer_username, peer.profile_image AS peer_profile_image,
@@ -2884,6 +2976,8 @@ def get_conversations():
                 LIMIT 1
             ) last_msg ON TRUE
             WHERE cm.user_id = %s AND cm.hidden_at IS NULL
+              -- 수락 전의 메시지 요청은 받는 사람 목록에 나타나지 않는다.
+              AND (c.dm_state = 'active' OR c.dm_requester_id = cm.user_id)
         """,
             (user_id, user_id, user_id, user_id),
         ).fetchall()
@@ -2939,7 +3033,7 @@ def get_conversations():
                     "peerProfileImage": row["peer_profile_image"],
                     "peerCoverImage": row["peer_cover_image"],
                     "peerBio": row["peer_bio"] if peer_id else "",
-                    "isOnline": bool(peer_id and is_user_online(peer_id)),
+                    "isOnline": bool(peer_id and row["dm_state"] == "active" and is_user_online(peer_id)),
                     "groupProfileImage": group_profile_image,
                     "memberCount": row["member_count"],
                     "blockedByMe": bool(peer_id and row["blocked_by_me"]),
@@ -3322,6 +3416,11 @@ def send_message(conversation_id):
                 403,
             )
 
+        # 메시지 요청이 수락되기 전의 1:1 방에서는 받는 사람은 보낼 수 없고, 보낸 사람은 정해진 개수까지만 보낼 수 있다.
+        dm_block = send_block_reason(conn, conversation_id, user_id)
+        if dm_block:
+            return jsonify({"success": False, "error": dm_block[1]}), dm_block[0]
+
         # 기준 시각(UTC 밀리초)을 한 번 정하고, 같은 값으로 호환용 시간 문자열도 만든다.
         sent_at = current_message_timestamp_ms()
         time_label, date_label = legacy_message_labels(sent_at)
@@ -3396,6 +3495,11 @@ def send_image(conversation_id):
                 ),
                 403,
             )
+
+        # 메시지 요청이 수락되기 전의 1:1 방에서는 받는 사람은 보낼 수 없고, 보낸 사람은 정해진 개수까지만 보낼 수 있다.
+        dm_block = send_block_reason(conn, conversation_id, user_id)
+        if dm_block:
+            return jsonify({"success": False, "error": dm_block[1]}), dm_block[0]
 
     # 업로드(Cloudinary)는 느릴 수 있으므로 DB 연결을 잡지 않은 상태에서 저장한다.
     image_path = save_base64_image(image_data_url)
@@ -3490,6 +3594,11 @@ def send_video(conversation_id):
                 403,
             )
 
+        # 메시지 요청이 수락되기 전의 1:1 방에서는 받는 사람은 보낼 수 없고, 보낸 사람은 정해진 개수까지만 보낼 수 있다.
+        dm_block = send_block_reason(conn, conversation_id, user_id)
+        if dm_block:
+            return jsonify({"success": False, "error": dm_block[1]}), dm_block[0]
+
         # 권한 검사를 모두 통과한 뒤에만 파일을 저장한다.
         video_path, _ = save_uploaded_file(video_file, "videos")
         if not video_path:
@@ -3561,6 +3670,11 @@ def send_file(conversation_id):
                 ),
                 403,
             )
+
+        # 메시지 요청이 수락되기 전의 1:1 방에서는 받는 사람은 보낼 수 없고, 보낸 사람은 정해진 개수까지만 보낼 수 있다.
+        dm_block = send_block_reason(conn, conversation_id, user_id)
+        if dm_block:
+            return jsonify({"success": False, "error": dm_block[1]}), dm_block[0]
 
     # 권한 검사용 DB 연결은 위에서 닫고, 오래 걸릴 수 있는 파일 저장은 연결 없이 한다(연결 풀을 오래 점유하지 않기 위해).
     file_path, file_name = save_uploaded_file(upload, "files")
@@ -3650,6 +3764,12 @@ def send_audio(conversation_id):
                 ),
                 403,
             )
+
+        # 메시지 요청이 수락되기 전의 1:1 방에서는 받는 사람은 보낼 수 없고, 보낸 사람은 정해진 개수까지만 보낼 수 있다.
+        dm_block = send_block_reason(conn, conversation_id, user_id)
+        if dm_block:
+            return jsonify({"success": False, "error": dm_block[1]}), dm_block[0]
+
     # 권한 검사용 연결은 닫고, 파일 저장을 한 뒤 새 연결로 메시지를 기록한다.
     audio_path, _ = save_uploaded_file(audio_file, "audio")
     if not audio_path:
