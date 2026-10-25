@@ -27,7 +27,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261023.1') }}">
     {# 모던 UI 전용 규칙. 모두 body.ui-modern 아래에만 있어서 클래식 화면에는 영향이 없다. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261026.3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261026.4') }}">
 </head>
 <body>
     <!-- 리퀴드 글래스 테마의 배경. 유리는 뒤에 있는 것을 밀어내 굴절을 만들기 때문에,
@@ -979,10 +979,10 @@
         const MY_USER_ID = {{ user_id }};
         window.CLOUD_LANGUAGE = {{ user_language|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/i18n.js', v='20261026.3') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js', v='20261026.4') }}"></script>
     <!-- liquid-glass.js — MIT, (c) 2026 Deepika Rao · github.com/deepika-builds/liquid-glass -->
     <script src="{{ url_for('static', filename='js/liquid-glass.js', v='20260831.2') }}"></script>
-    <script src="{{ url_for('static', filename='js/script.js', v='20261026.3') }}"></script>
-    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261026.3') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js', v='20261026.4') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261026.4') }}"></script>
 </body>
 </html>

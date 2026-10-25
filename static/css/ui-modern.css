@@ -337,4 +337,74 @@ body.ui-modern .lg-backdrop { display: none; }
         background: var(--panel-bg, var(--bg-color));
         box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
     }
+
+    /* ---------- 대화창: 말풍선·헤더·입력창 ----------
+     * 채팅방 테마(.chat-theme-*)가 말풍선·입력창 색을 따로 정하므로, 같은 요소를 더 높은 우선순위로 덮는다.
+     * 테마는 대화창 배경(.messages-wrap)에만 남는다. */
+    html body.ui-modern .chat[class] .chat-header {
+        background: var(--panel-bg);
+        box-shadow: none;
+    }
+    html body.ui-modern .chat[class] .bubble {
+        background: linear-gradient(135deg, #4a5df9 0%, #8a3ffc 100%);
+        color: #fff;
+        padding: 10px 16px;
+        border: 0;
+        border-radius: 22px;
+        box-shadow: none;
+        font-size: 15px;
+    }
+    html body.ui-modern .chat[class] .message-left {
+        background: var(--message-left-bg);
+        color: var(--text-color);
+        padding: 10px 16px;
+        border: 0;
+        border-radius: 22px;
+        box-shadow: none;
+        font-size: 15px;
+    }
+    body.ui-modern .message-left-container.group-message { margin-bottom: 4px; }
+    body.ui-modern .message-right { margin-top: 4px; }
+    body.ui-modern .msg-avatar { width: 28px; height: 28px; margin-right: 8px; align-self: flex-end; }
+    body.ui-modern .msg-avatar i { font-size: 16px; }
+    body.ui-modern .msg-avatar-spacer { background: transparent; }
+
+    html body.ui-modern .chat[class] .input-area {
+        padding: 12px 20px 16px;
+        background: var(--panel-bg);
+        border-top: 0;
+    }
+    html body.ui-modern .chat[class] .input-area textarea {
+        min-height: 44px;
+        border: 1px solid var(--input-border);
+        border-radius: 22px;
+        background: var(--panel-bg);
+        color: var(--text-color);
+        padding: 10px 18px;
+        font-size: 15px;
+        box-shadow: none;
+    }
+    html body.ui-modern .chat[class] .input-area textarea:focus {
+        border-color: var(--muted-color);
+        box-shadow: none;
+    }
+    /* 보내기 버튼: 알약 대신 글자색의 작은 원형 아이콘 버튼. */
+    html body.ui-modern .chat[class] .input-area #plus-btn {
+        width: 44px;
+        height: 44px;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--text-color);
+        box-shadow: none;
+    }
+    html body.ui-modern .chat[class] .input-area #send-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: transparent;
+        color: #4a5df9;
+        box-shadow: none;
+    }
+    html body.ui-modern .chat[class] .input-area #send-btn:hover { background: var(--friend-hover); transform: none; box-shadow: none; }
 }
