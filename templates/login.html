@@ -549,7 +549,7 @@
         .intro { padding: 22px 22px 0; }
         /* 로고는 이미지만 보인다. 글자가 없으므로 스크린리더용 이름은 alt와 aria-label로 둔다. */
         .intro-brand { display: inline-flex; align-items: center; text-decoration: none; }
-        .intro-brand img { width: 40px; height: 40px; border-radius: 12px; }
+        .intro-brand img { width: 48px; height: 48px; border-radius: 14px; }
         .intro-visual { display: none; }
 
         /* 폼 영역. 좁은 화면에서는 기존 카드 모양을 그대로 쓴다. */
@@ -567,7 +567,9 @@
         @media (min-width: 900px) {
             .split { flex-direction: row; }
             .intro { position: relative; flex: 1 1 0; padding: 0; }
-            .intro-brand { position: absolute; top: 36px; left: 48px; }
+            /* 큰 화면의 로고는 가로 60px로 키우고 왼쪽 위 모서리에서 조금 떨어뜨려 둔다. */
+            .intro-brand { position: absolute; top: 44px; left: 46px; }
+            .intro-brand img { width: 60px; height: 60px; border-radius: 18px; }
             /* 나중에 앱 화면 이미지 등을 넣을 자리. 지금은 비어 있다. */
             .intro-visual { display: block; }
 
