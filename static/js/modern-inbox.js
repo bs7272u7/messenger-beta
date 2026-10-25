@@ -197,6 +197,10 @@
         });
     }
 
+    // 모바일 하단 탭바의 메시지함 버튼(모던에서만 보인다).
+    const mobileInboxButton = $("#mobile-inbox-nav-btn");
+    if (mobileInboxButton) mobileInboxButton.addEventListener("click", () => open());
+
     window.openModernInbox = open;
     window.refreshModernInboxBadge = refreshBadge;
     // 클래식에서는 이 배지를 쓰지 않으므로 요청을 보내지 않는다. 모던으로 바꾸면 applyUiLayout이 다시 부른다.

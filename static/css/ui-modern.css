@@ -714,3 +714,11 @@ body.ui-modern.modern-cloud:not(.dark-mode).modern-profile-page #modern-profile-
 body.ui-modern #modern-rail [data-rail="group"],
 body.ui-modern .modern-list-header [data-rail="group"],
 body.ui-modern .modern-list-title [data-rail="inbox"] { display: none; }
+
+/* 모바일 하단 탭바의 메시지함 버튼: 모던에서만 보이고 숫자 배지를 아이콘 오른쪽 위에 붙인다.
+   style.css의 '#mobile-bottom-nav button { display:flex }'를 이기려면 같은 수준의 선택자가 필요하다. */
+#mobile-bottom-nav #mobile-inbox-nav-btn { display: none; }
+@media (max-width: 767px) {
+    body.ui-modern #mobile-bottom-nav #mobile-inbox-nav-btn { position: relative; display: flex; }
+    body.ui-modern #mobile-bottom-nav #mobile-inbox-nav-btn .modern-badge { position: absolute; top: 4px; left: calc(50% + 8px); }
+}
