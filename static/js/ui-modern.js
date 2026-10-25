@@ -30,6 +30,11 @@
         const action = button.dataset.rail;
 
         if (action === "more") return; // 아래 capture 리스너가 처리한다.
+        if (action === "chats" && window.closeModernProfile) {
+            // 프로필 페이지를 보고 있었다면 채팅 화면으로 돌아간다(채팅 아이콘이 다시 채워진다).
+            window.closeModernProfile();
+            return;
+        }
         if (action === "profile" && window.openModernProfile) {
             window.openModernProfile(MY_USER_ID);
             return;

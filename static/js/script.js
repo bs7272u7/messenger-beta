@@ -3086,6 +3086,7 @@
 
         // 모바일 하단 메뉴: 채팅 목록 · 친구 관리 · 프로필 · 설정을 각각 한 번에 열고, 서로 겹쳐 열려 있던 패널은 닫는다.
         mobileChatNavBtn.addEventListener("click", function () {
+            if (window.closeModernProfile) window.closeModernProfile();
             closeMobileChat();
             closeFriendPanel();
             closeSettingsMenu();
