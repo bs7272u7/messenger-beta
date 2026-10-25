@@ -452,3 +452,29 @@ html body.ui-modern .chat[class] .input-area #send-btn:hover { background: var(-
     body.ui-modern .chat-header { min-height: 56px; padding: 0 12px; border-radius: 0; }
     html body.ui-modern .chat[class] .input-area { padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); }
 }
+
+/* ======================================================
+ * 모던 + 클라우드 테마(라이트): 평평한 구조는 그대로 두고 배경만 하늘색 그라데이션, 패널은 반투명 흰색으로 한다.
+ * 굴절 같은 유리 효과(theme-liquid-glass)는 쓰지 않는다. 다크는 단색 그대로다.
+ * ====================================================== */
+body.ui-modern.modern-cloud:not(.dark-mode) {
+    --panel-bg: rgba(255, 255, 255, 0.58);
+    --chat-bg: transparent;
+    --friend-hover: rgba(255, 255, 255, 0.55);
+    --friend-active: rgba(255, 255, 255, 0.8);
+    --message-left-bg: rgba(255, 255, 255, 0.88);
+    --border-color: rgba(255, 255, 255, 0.7);
+    --input-border: rgba(74, 144, 226, 0.28);
+    background: linear-gradient(180deg, #9fcdf0 0%, #c3e0f8 38%, #ddeeff 70%, #eef7ff 100%);
+    background-attachment: fixed;
+}
+body.ui-modern.modern-cloud:not(.dark-mode) .friend-list,
+body.ui-modern.modern-cloud:not(.dark-mode) .chat,
+body.ui-modern.modern-cloud:not(.dark-mode) #modern-rail,
+body.ui-modern.modern-cloud:not(.dark-mode) #desktop-chat-info,
+body.ui-modern.modern-cloud:not(.dark-mode) #mobile-bottom-nav {
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+}
+body.ui-modern.modern-cloud:not(.dark-mode) #settings-menu { background: rgba(255, 255, 255, 0.92); }
+
