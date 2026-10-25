@@ -27,7 +27,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261023.1') }}">
     {# 모던 UI 전용 규칙. 모두 body.ui-modern 아래에만 있어서 클래식 화면에는 영향이 없다. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261026.1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261026.2') }}">
 </head>
 <body>
     <!-- 리퀴드 글래스 테마의 배경. 유리는 뒤에 있는 것을 밀어내 굴절을 만들기 때문에,
@@ -109,7 +109,7 @@
             <label>UI 방식
                 <select id="ui-layout-select">
                     <option value="classic">클래식</option>
-                    <option value="modern">모던 (준비 중)</option>
+                    <option value="modern">모던 (베타)</option>
                 </select>
             </label>
         </div>
@@ -162,11 +162,42 @@
     </button>
 </nav>
 
+<!--
+  모던 UI의 왼쪽 아이콘 줄. 클래식에서는 CSS가 숨긴다(ui-modern.css). 버튼은 기능을 새로 만들지 않고
+  ui-modern.js가 기존 버튼(친구 관리·메시지함·새 그룹·프로필·설정)을 대신 눌러 준다. 마우스를 올리면 글자까지 펼쳐진다.
+-->
+<nav id="modern-rail" aria-label="주요 메뉴">
+    <div class="modern-rail-top">
+        <a class="modern-rail-logo" href="/chat" aria-label="Cloud Chatting"><img src="{{ url_for('static', filename='favicon-180x180.png') }}" alt=""></a>
+        <button type="button" class="active" data-rail="chats" aria-current="page"><i class="fa-regular fa-comment-dots"></i><span>채팅</span></button>
+        <button type="button" data-rail="friends"><i class="fa-solid fa-user-group"></i><span>친구</span></button>
+        <button type="button" data-rail="inbox"><i class="fa-regular fa-envelope"></i><span>메시지함</span><b class="modern-badge" hidden>0</b></button>
+        <button type="button" data-rail="group"><i class="fa-solid fa-user-plus"></i><span>새 그룹</span></button>
+        <button type="button" data-rail="profile"><span class="modern-rail-avatar"><i class="fa-solid fa-circle-user"></i></span><span>프로필</span></button>
+    </div>
+    <div class="modern-rail-bottom">
+        <button type="button" data-rail="more" aria-haspopup="true"><i class="fa-solid fa-bars"></i><span>더 보기</span></button>
+    </div>
+</nav>
+
 <!-- # 메인 레이아웃: 친구 목록과 채팅 화면을 나란히 배치한다. -->
 <div class="container">
 
     <!-- # 친구 목록 영역: 친구를 추가하고 선택할 수 있는 패널이다. -->
     <div class="friend-list">
+        <!-- 모던 UI 전용 목록 머리: 내 이름 + 새 그룹, 대화 검색, '메시지 / 요청(메시지함)' 제목. 클래식에서는 숨긴다. -->
+        <div class="modern-list-header">
+            <strong id="modern-list-username">{{ username }}</strong>
+            <button type="button" data-rail="group" aria-label="새 그룹"><i class="fa-regular fa-pen-to-square"></i></button>
+        </div>
+        <label class="modern-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="modern-conv-search" type="search" placeholder="대화 검색" autocomplete="off">
+        </label>
+        <div class="modern-list-title">
+            <strong>메시지</strong>
+            <button type="button" data-rail="inbox">요청 <b class="modern-badge" hidden>0</b></button>
+        </div>
         <!-- PC에서는 내 프로필과 탐색 기능을 이 패널에 합쳐 하나의 앱 창처럼 보이게 한다. -->
         <div class="desktop-profile-card">
             <div class="profile" id="side-nav-profile-pic">
@@ -250,6 +281,8 @@
                 <button id="gallery-toggle-btn" class="chat-secondary-action" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-regular fa-images"></i></button>
                 <button id="search-toggle-btn" style="border: none; background: none; color: var(--text-color); opacity:0.75; font-size: 20px; cursor: pointer;"><i class="fa-solid fa-magnifying-glass"></i></button>
                 <button id="mobile-chat-more-btn" type="button" aria-label="채팅방 더보기"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                <!-- 모던 UI 전용: 오른쪽 대화 정보 패널을 열고 닫는다(ui-modern.js). 클래식에서는 숨긴다. -->
+                <button id="modern-info-toggle" type="button" aria-label="대화 정보" aria-pressed="false"><i class="fa-solid fa-circle-info"></i></button>
             </div>
         </div>
         <!-- 모바일 채팅 헤더의 '더보기(⋮)' 시트. PC의 헤더 버튼들을 한곳으로 모은 메뉴다. -->
@@ -482,6 +515,13 @@
         <div id="desktop-conversation-actions" class="desktop-conversation-actions">
             <button type="button" id="desktop-conversation-pin"><i class="fa-solid fa-thumbtack"></i> 고정</button>
             <button type="button" id="desktop-conversation-mute"><i class="fa-solid fa-bell-slash"></i> 알림 끄기</button>
+        </div>
+        <!-- 모던 UI 전용: 헤더에서 빠진 기능(채팅 테마·사진 모아보기·메시지 검색·그룹 관리)을 여기서 연다. -->
+        <div id="modern-info-actions" class="modern-info-actions" hidden>
+            <button type="button" data-info-action="theme"><i class="fa-solid fa-palette"></i> 채팅 테마</button>
+            <button type="button" data-info-action="gallery"><i class="fa-regular fa-images"></i> 사진 모아보기</button>
+            <button type="button" data-info-action="search"><i class="fa-solid fa-magnifying-glass"></i> 메시지 검색</button>
+            <button type="button" data-info-action="members" hidden><i class="fa-solid fa-users-gear"></i> 그룹 관리</button>
         </div>
     </aside>
 
@@ -939,9 +979,10 @@
         const MY_USER_ID = {{ user_id }};
         window.CLOUD_LANGUAGE = {{ user_language|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/i18n.js', v='20261026.1') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js', v='20261026.2') }}"></script>
     <!-- liquid-glass.js — MIT, (c) 2026 Deepika Rao · github.com/deepika-builds/liquid-glass -->
     <script src="{{ url_for('static', filename='js/liquid-glass.js', v='20260831.2') }}"></script>
-    <script src="{{ url_for('static', filename='js/script.js', v='20261026.1') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js', v='20261026.2') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261026.2') }}"></script>
 </body>
 </html>

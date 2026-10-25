@@ -3,7 +3,327 @@
  *
  * 설정 > UI에서 '모던'을 고르면 <html>과 <body>에 ui-modern 클래스가 붙는다(script.js의 applyUiLayout).
  * 이 파일의 규칙은 모두 body.ui-modern 아래에만 둔다. 그래야 기본값인 클래식 화면은 한 줄도 바뀌지 않고,
- * 설정에서 '클래식'으로 돌아오면 바로 원래대로 보인다.
+ * 설정에서 '클래식'으로 돌아오면 바로 원래대로 보인다. 이 파일이 style.css 뒤에 로드되므로, 같은 선택자 구조라면 여기 규칙이 이긴다.
  *
- * 단계별로 채워 간다: 1) 뼈대(이 파일) 2) PC 레이아웃 3) 더 보기 카드 4) 대화 화면 5) 모바일
+ * 단계: 1) 뼈대 2) PC 레이아웃(이 파일의 대부분) 3) 더 보기 카드 4) 대화 화면 5) 모바일
  */
+
+/* ======================================================
+ * 모던 전용 요소는 클래식에서 보이지 않게 기본값을 숨김으로 둔다.
+ * (아이콘 줄, 목록 위쪽의 검색·제목, 헤더의 (i) 버튼, 정보 패널의 모던 액션)
+ * ====================================================== */
+#modern-rail,
+.modern-list-header,
+.modern-search,
+.modern-list-title,
+#modern-info-toggle,
+.modern-info-actions { display: none; }
+
+/* ======================================================
+ * 색 토큰. 다크는 참고 화면에서 읽은 값이고, 라이트는 같은 구조로 정한 값이다.
+ * style.css의 변수 이름을 그대로 덮어쓰므로 기존 규칙들이 새 색을 따라간다.
+ * ====================================================== */
+body.ui-modern {
+    --bg-color: #ffffff;
+    --panel-bg: #ffffff;
+    --chat-bg: #ffffff;
+    --text-color: #262626;
+    --muted-color: #737373;
+    --border-color: #dbdbdb;
+    --input-border: #dbdbdb;
+    --friend-hover: #f2f2f2;
+    --friend-active: #efefef;
+    --message-left-bg: #efefef;
+    --panel-tint: transparent;
+    --panel-tint-strong: transparent;
+}
+
+body.ui-modern.dark-mode {
+    --bg-color: #0c1014;
+    --panel-bg: #0c1014;
+    --chat-bg: #0c1014;
+    --text-color: #f5f5f5;
+    --muted-color: #a2a3a3;
+    --border-color: #262626;
+    --input-border: #363636;
+    --friend-hover: #25292e;
+    --friend-active: #262626;
+    --message-left-bg: #262626;
+}
+
+/* 배경은 그라디언트 없이 단색이다. 클라우드 테마의 구름 덩어리 레이어는 보이지 않게 한다. */
+body.ui-modern { background: var(--bg-color); }
+body.ui-modern .lg-backdrop { display: none; }
+
+/* ======================================================
+ * PC 레이아웃 (768px 이상)
+ * 왼쪽 아이콘 줄(72px, 고정) + 대화 목록 + 대화창. 대화 정보는 평소 숨기고 (i) 버튼으로 연다.
+ * ====================================================== */
+@media (min-width: 768px) {
+    body.ui-modern {
+        display: block;
+        min-height: 100vh;
+        overflow: hidden;
+    }
+
+    /* 컨테이너가 화면 전체를 쓴다. 왼쪽 72px은 고정된 아이콘 줄이 차지하므로 padding으로 비워 둔다. */
+    body.ui-modern .container {
+        display: grid;
+        grid-template-columns: clamp(300px, 28vw, 400px) minmax(0, 1fr);
+        gap: 0;
+        width: 100%;
+        max-width: none;
+        height: 100vh;
+        margin: 0;
+        padding-left: 72px;
+        box-sizing: border-box;
+    }
+    body.ui-modern.modern-info-open .container {
+        grid-template-columns: clamp(300px, 28vw, 400px) minmax(0, 1fr) 340px;
+    }
+
+    /* 카드처럼 떠 있던 세 패널을 평평한 칸으로: 모서리·그림자·테두리를 없애고 사이 구분선만 둔다. */
+    body.ui-modern .friend-list,
+    body.ui-modern .chat,
+    body.ui-modern #desktop-chat-info {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        background: var(--panel-bg);
+    }
+    body.ui-modern .friend-list {
+        width: 100%;
+        padding: 0;
+        border-right: 1px solid var(--border-color);
+    }
+    /* 대화 정보는 평소에 숨기고, 열면 오른쪽 세 번째 칸이 된다. */
+    body.ui-modern #desktop-chat-info {
+        display: none;
+        padding: 28px 20px;
+        border-left: 1px solid var(--border-color);
+    }
+    body.ui-modern.modern-info-open #desktop-chat-info { display: flex; }
+
+    /* ---------- 왼쪽 아이콘 줄 ---------- */
+    body.ui-modern #modern-rail {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 900;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        width: 72px;
+        padding: 12px 8px;
+        box-sizing: border-box;
+        border-right: 1px solid var(--border-color);
+        background: var(--panel-bg);
+        overflow: hidden;
+        transition: width .2s ease, box-shadow .2s ease;
+    }
+    /* 마우스를 올리거나 키보드로 들어오면 글자가 보이는 폭으로 펼쳐져 목록 위를 덮는다(컨테이너 폭은 그대로라 화면이 밀리지 않는다). */
+    body.ui-modern #modern-rail:hover,
+    body.ui-modern #modern-rail:focus-within {
+        width: 244px;
+        box-shadow: 8px 0 28px rgba(0, 0, 0, .18);
+    }
+    body.ui-modern #modern-rail button,
+    body.ui-modern #modern-rail .modern-rail-logo {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        width: 100%;
+        height: 48px;
+        padding: 0 12px;
+        box-sizing: border-box;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        color: var(--text-color);
+        font: inherit;
+        font-size: 15px;
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    body.ui-modern #modern-rail .modern-rail-logo { margin-bottom: 14px; }
+    body.ui-modern #modern-rail .modern-rail-logo img { width: 28px; height: 28px; border-radius: 8px; flex: none; }
+    body.ui-modern #modern-rail button:hover { background: var(--friend-hover); }
+    body.ui-modern #modern-rail button.active { font-weight: 700; }
+    body.ui-modern #modern-rail button > i { flex: none; width: 24px; font-size: 21px; text-align: center; }
+    /* 글자는 줄이 좁을 때 보이지 않다가, 펼쳐지면 나타난다. */
+    body.ui-modern #modern-rail button > span:not(.modern-rail-avatar) { opacity: 0; transition: opacity .15s ease; }
+    body.ui-modern #modern-rail:hover button > span:not(.modern-rail-avatar),
+    body.ui-modern #modern-rail:focus-within button > span:not(.modern-rail-avatar) { opacity: 1; }
+    /* 프로필 버튼의 아바타. 내 프로필 사진(또는 기본 아이콘)을 복사해 온다. */
+    body.ui-modern #modern-rail .modern-rail-avatar {
+        display: grid;
+        flex: none;
+        width: 26px;
+        height: 26px;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 50%;
+        margin: 0 -1px;
+        font-size: 24px;
+    }
+    body.ui-modern #modern-rail .modern-rail-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* 메시지함 숫자 배지: 아이콘 오른쪽 위에 붙인다. */
+    body.ui-modern .modern-badge {
+        display: inline-grid;
+        min-width: 17px;
+        height: 17px;
+        padding: 0 4px;
+        box-sizing: border-box;
+        border-radius: 999px;
+        place-items: center;
+        background: #ff3040;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+    }
+    body.ui-modern .modern-badge[hidden] { display: none; }
+    body.ui-modern #modern-rail .modern-badge { position: absolute; top: 6px; left: 30px; }
+
+    /* ---------- 대화 목록 칸 ---------- */
+    /* 클래식의 프로필 카드·빠른 실행·제목은 아이콘 줄과 새 머리로 옮겨졌으므로 숨긴다. 요소는 남아 있어 script.js 연결은 그대로다. */
+    body.ui-modern .desktop-profile-card,
+    body.ui-modern .desktop-quick-actions,
+    body.ui-modern .friend-list-heading,
+    body.ui-modern .friend-list > hr { display: none; }
+
+    body.ui-modern .modern-list-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 28px 20px 8px;
+    }
+    body.ui-modern .modern-list-header strong { overflow: hidden; font-size: 22px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    body.ui-modern .modern-list-header button,
+    body.ui-modern .modern-list-title button {
+        border: 0;
+        background: transparent;
+        color: var(--text-color);
+        font: inherit;
+        cursor: pointer;
+    }
+    body.ui-modern .modern-list-header button { padding: 6px; font-size: 22px; }
+
+    body.ui-modern .modern-search {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 40px;
+        margin: 8px 20px 14px;
+        padding: 0 14px;
+        box-sizing: border-box;
+        border-radius: 12px;
+        background: var(--friend-hover);
+        color: var(--muted-color);
+    }
+    body.ui-modern .modern-search input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: none;
+        background: transparent;
+        color: var(--text-color);
+        font: inherit;
+        font-size: 14px;
+    }
+    body.ui-modern .modern-search input::placeholder { color: var(--muted-color); }
+
+    body.ui-modern .modern-list-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 20px 8px;
+        font-size: 16px;
+    }
+    body.ui-modern .modern-list-title button { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-color); font-size: 14px; font-weight: 700; }
+
+    /* 대화방 행: 큰 원형 사진 + 이름 / '미리보기 · 시간' 두 줄. 선택된 행과 마우스를 올린 행은 배경색으로 구분한다. */
+    body.ui-modern #friend-list { padding: 0 8px 12px; }
+    body.ui-modern .friend {
+        gap: 12px;
+        padding: 9px 12px;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        box-shadow: none;
+    }
+    body.ui-modern .friend:hover { background: var(--friend-hover); }
+    body.ui-modern .friend.active { background: var(--friend-active); }
+    body.ui-modern .friend .profile { width: 56px; height: 56px; flex: none; margin: 0; }
+    body.ui-modern .friend > div:nth-child(2) {
+        display: grid;
+        grid-template-columns: minmax(0, max-content) auto;
+        justify-content: start;
+        align-items: baseline;
+        column-gap: 6px;
+        row-gap: 2px;
+    }
+    /* 이름 줄의 이름/시간을 같은 그리드의 칸으로 풀어서, 시간이 이름 줄이 아니라 미리보기 뒤에 붙게 한다. */
+    body.ui-modern .friend-header-row { display: contents; }
+    body.ui-modern .friend-name { grid-column: 1 / -1; font-size: 15px; font-weight: 600; }
+    body.ui-modern .friend-preview {
+        grid-row: 2;
+        grid-column: 1;
+        overflow: hidden;
+        color: var(--muted-color);
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    body.ui-modern .friend-time { grid-row: 2; grid-column: 2; color: var(--muted-color); font-size: 13px; }
+    body.ui-modern .friend-time::before { content: "· "; }
+    /* 대화 검색으로 걸러 낸 행(ui-modern.js가 hidden을 붙인다). */
+    body.ui-modern .friend[hidden] { display: none; }
+
+    /* ---------- 대화창 머리 ---------- */
+    body.ui-modern .chat-header {
+        min-height: 72px;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--border-color);
+        border-radius: 0;
+        background: var(--panel-bg);
+        box-shadow: none;
+    }
+    body.ui-modern .chat-header-title { font-size: 16px; font-weight: 700; }
+    /* 헤더에는 (i)만 남기고, 나머지 기능(채팅 테마·사진 모아보기·메시지 검색·그룹 관리)은 정보 패널로 옮겼다. */
+    body.ui-modern #chat-header-actions .chat-secondary-action,
+    body.ui-modern #chat-header-actions #search-toggle-btn { display: none !important; }
+    body.ui-modern #modern-info-toggle {
+        display: inline-flex;
+        padding: 6px;
+        border: 0;
+        background: transparent;
+        color: var(--text-color);
+        font-size: 24px;
+        cursor: pointer;
+    }
+    body.ui-modern #modern-info-toggle[aria-pressed="true"] { color: var(--brand-color); }
+
+    /* ---------- 대화 정보 패널 ---------- */
+    body.ui-modern .modern-info-actions { display: grid; gap: 4px; width: 100%; margin-top: 16px; }
+    body.ui-modern .modern-info-actions[hidden],
+    body.ui-modern .modern-info-actions button[hidden] { display: none; }
+    body.ui-modern .modern-info-actions button {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 44px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text-color);
+        font: inherit;
+        font-size: 14px;
+        text-align: left;
+        cursor: pointer;
+    }
+    body.ui-modern .modern-info-actions button:hover { background: var(--friend-hover); }
+    body.ui-modern .modern-info-actions button > i { width: 20px; text-align: center; }
+}
