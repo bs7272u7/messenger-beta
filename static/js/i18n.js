@@ -1723,6 +1723,62 @@
         "프로필을 불러오지 못했습니다.": "No se pudo cargar el perfil.",
         "목록을 불러오지 못했습니다.": "No se pudo cargar la lista.",
     });
+    Object.assign(dictionaries.en, {
+        "팔로우 요청": "Follow requests",
+        "메시지 요청": "Message requests",
+        "수락": "Accept",
+        "거절": "Decline",
+        "거절한 요청": "Declined requests",
+        "받은 팔로우 요청이 없어요": "No follow requests",
+        "메시지 요청이 없어요": "No message requests",
+        "보낸 요청이 없어요": "No sent requests",
+        "아이디 또는 이름": "Username or name",
+        "아이디나 이름을 2글자 이상 입력해주세요.": "Enter at least 2 characters of a username or name.",
+        "검색하지 못했습니다.": "Search failed.",
+        "처리하지 못했습니다.": "Couldn't complete that.",
+    });
+    Object.assign(dictionaries.zh, {
+        "팔로우 요청": "关注请求",
+        "메시지 요청": "消息请求",
+        "수락": "接受",
+        "거절": "拒绝",
+        "거절한 요청": "已拒绝的请求",
+        "받은 팔로우 요청이 없어요": "没有关注请求",
+        "메시지 요청이 없어요": "没有消息请求",
+        "보낸 요청이 없어요": "没有已发送的请求",
+        "아이디 또는 이름": "账号或名称",
+        "아이디나 이름을 2글자 이상 입력해주세요.": "请输入至少2个字符的账号或名称。",
+        "검색하지 못했습니다.": "搜索失败。",
+        "처리하지 못했습니다.": "无法完成操作。",
+    });
+    Object.assign(dictionaries.ja, {
+        "팔로우 요청": "フォローリクエスト",
+        "메시지 요청": "メッセージリクエスト",
+        "수락": "承認",
+        "거절": "拒否",
+        "거절한 요청": "拒否したリクエスト",
+        "받은 팔로우 요청이 없어요": "フォローリクエストはありません",
+        "메시지 요청이 없어요": "メッセージリクエストはありません",
+        "보낸 요청이 없어요": "送信したリクエストはありません",
+        "아이디 또는 이름": "IDまたは名前",
+        "아이디나 이름을 2글자 이상 입력해주세요.": "IDまたは名前を2文字以上入力してください。",
+        "검색하지 못했습니다.": "検索できませんでした。",
+        "처리하지 못했습니다.": "処理できませんでした。",
+    });
+    Object.assign(dictionaries.es, {
+        "팔로우 요청": "Solicitudes de seguimiento",
+        "메시지 요청": "Solicitudes de mensaje",
+        "수락": "Aceptar",
+        "거절": "Rechazar",
+        "거절한 요청": "Solicitudes rechazadas",
+        "받은 팔로우 요청이 없어요": "No hay solicitudes de seguimiento",
+        "메시지 요청이 없어요": "No hay solicitudes de mensaje",
+        "보낸 요청이 없어요": "No hay solicitudes enviadas",
+        "아이디 또는 이름": "Usuario o nombre",
+        "아이디나 이름을 2글자 이상 입력해주세요.": "Escribe al menos 2 caracteres de un usuario o nombre.",
+        "검색하지 못했습니다.": "No se pudo buscar.",
+        "처리하지 못했습니다.": "No se pudo completar.",
+    });
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
     /**
      * 처음 한 번 번역하고, 이후 JavaScript가 그리는 UI(채팅 목록·모달 등)도 같은 사전으로 번역하도록 DOM 변화를 감시한다.

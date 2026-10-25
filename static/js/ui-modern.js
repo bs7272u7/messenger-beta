@@ -20,8 +20,6 @@
     // ---------------------------------------------------------------
     /** data-rail 값 → 대신 눌러 줄 기존 버튼의 선택자. 설정 메뉴('more')는 아래에서 따로 처리한다. */
     const RAIL_TARGETS = {
-        friends: "#friend-panel-tab",
-        inbox: "#friend-inbox-btn",
         group: "#open-new-group-btn",
         profile: "#edit-profile-btn"
     };
@@ -39,6 +37,14 @@
         }
         if (action === "profile" && window.openModernProfile) {
             window.openModernProfile(MY_USER_ID);
+            return;
+        }
+        if (action === "search" && window.openModernSearch) {
+            window.openModernSearch();
+            return;
+        }
+        if (action === "inbox" && window.openModernInbox) {
+            window.openModernInbox();
             return;
         }
         const target = RAIL_TARGETS[action] && $(RAIL_TARGETS[action]);
@@ -104,23 +110,8 @@
     }
 
     // ---------------------------------------------------------------
-    // 2) 메시지함 숫자 배지 복사 (원본: #friend-inbox-badge)
+    // 2) 메시지함 숫자 배지는 modern-inbox.js가 서버의 요청 수(팔로우 요청 + 메시지 요청)로 채운다.
     // ---------------------------------------------------------------
-    const sourceBadge = $("#friend-inbox-badge");
-    const modernBadges = document.querySelectorAll(".modern-badge");
-
-    /** 원본 배지의 숫자와 표시 여부를 모던 UI의 배지들에 그대로 옮긴다. */
-    function syncInboxBadge() {
-        if (!sourceBadge) return;
-        modernBadges.forEach(function (badge) {
-            badge.textContent = sourceBadge.textContent;
-            badge.hidden = sourceBadge.hidden;
-        });
-    }
-    if (sourceBadge) {
-        new MutationObserver(syncInboxBadge).observe(sourceBadge, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
-        syncInboxBadge();
-    }
 
     // ---------------------------------------------------------------
     // 3) 내 이름·사진 복사 (원본: #current-username, #side-nav-profile-pic)

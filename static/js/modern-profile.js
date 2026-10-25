@@ -12,7 +12,7 @@
     const overlay = $("#modern-profile-overlay");
     const body = $("#modern-profile-body");
     const relationsOverlay = $("#modern-relations-overlay");
-    if (!overlay || !body || !relationsOverlay) return;
+    if (!overlay || !body || !relationsOverlay || !$("#modern-search-overlay")) return;
 
     const relationsTitle = $("#modern-relations-title");
     const relationsSearch = $("#modern-relations-q");
@@ -284,18 +284,17 @@
         }, 250);
     });
 
-    relationsList.addEventListener("click", async (event) => {
+    /**
+     * 사용자 행(팔로워·팔로잉·검색 결과 공통)의 버튼 동작. 처리 후에는 refresh로 목록과 열려 있는 프로필을 새로 그린다.
+     */
+    async function handleRowClick(event, refresh, closeList) {
         const button = event.target.closest("[data-act]");
         const row = event.target.closest(".mr-row");
         if (!button || !row) return;
         const userId = Number(row.dataset.userId);
         const act = button.dataset.act;
-        const refresh = async () => {
-            await loadRelations(true);
-            if (shownUserId !== null) openModernProfile(shownUserId);
-        };
         if (act === "profile") {
-            closeRelations();
+            closeList();
             openModernProfile(userId);
         } else if (act === "follow") {
             if (await changeFollow(userId, "POST")) refresh();
@@ -312,7 +311,18 @@
                 else showAlert(data.error || "처리하지 못했습니다.");
             });
         }
-    });
+    }
+
+    relationsList.addEventListener("click", (event) =>
+        handleRowClick(
+            event,
+            async () => {
+                await loadRelations(true);
+                if (shownUserId !== null) openModernProfile(shownUserId);
+            },
+            closeRelations
+        )
+    );
     $("#modern-relations-close").addEventListener("click", closeRelations);
     relationsOverlay.addEventListener("click", (event) => {
         if (event.target === relationsOverlay) closeRelations();
@@ -322,6 +332,60 @@
         if (event.key !== "Escape") return;
         if (relationsOverlay.style.display === "flex") closeRelations();
         else if (overlay.style.display === "flex") closeModernProfile();
+        else if (searchOverlay.style.display === "flex") closeModernSearch();
+    });
+
+    // ------------------------------------------------------------------
+    // 사용자 검색(왼쪽 메뉴의 '검색')
+    // ------------------------------------------------------------------
+    const searchOverlay = $("#modern-search-overlay");
+    const searchInput = $("#modern-search-q");
+    const searchList = $("#modern-search-list");
+    let searchSeq = 0;
+
+    async function runUserSearch() {
+        const query = searchInput.value.trim();
+        const seq = ++searchSeq;
+        if (query.length < 2) {
+            searchList.innerHTML = `<p class="mr-empty">아이디나 이름을 2글자 이상 입력해주세요.</p>`;
+            return;
+        }
+        const { ok, data } = await api(`/api/users/find?${new URLSearchParams({ q: query })}`);
+        if (seq !== searchSeq) return; // 더 새로운 검색이 진행 중이다.
+        searchList.innerHTML = "";
+        if (!ok) {
+            searchList.innerHTML = `<p class="mr-empty">${escapeHTML(data.error || "검색하지 못했습니다.")}</p>`;
+            return;
+        }
+        if (!data.users.length) {
+            searchList.innerHTML = `<p class="mr-empty">검색 결과가 없어요</p>`;
+            return;
+        }
+        data.users.forEach((user) => searchList.appendChild(relationRow(user, { userId: null, kind: "search" })));
+    }
+
+    function openModernSearch() {
+        searchOverlay.style.display = "flex";
+        searchInput.value = "";
+        searchSeq++;
+        searchList.innerHTML = `<p class="mr-empty">아이디나 이름을 2글자 이상 입력해주세요.</p>`;
+        setTimeout(() => searchInput.focus(), 30);
+    }
+
+    function closeModernSearch() {
+        searchOverlay.style.display = "none";
+        searchList.innerHTML = "";
+    }
+
+    let userSearchTimer = null;
+    searchInput.addEventListener("input", () => {
+        clearTimeout(userSearchTimer);
+        userSearchTimer = setTimeout(runUserSearch, 300);
+    });
+    searchList.addEventListener("click", (event) => handleRowClick(event, runUserSearch, closeModernSearch));
+    $("#modern-search-close").addEventListener("click", closeModernSearch);
+    searchOverlay.addEventListener("click", (event) => {
+        if (event.target === searchOverlay) closeModernSearch();
     });
 
     // 상대가 팔로우 요청·수락·취소를 하면 열려 있는 화면의 숫자와 버튼을 새로 고친다.
@@ -333,4 +397,7 @@
     }
 
     window.openModernProfile = openModernProfile;
+    window.openModernSearch = openModernSearch;
+    // 메시지함(modern-inbox.js)이 같은 요청 함수와 대화방 열기를 쓴다.
+    window.ModernUi = { api, avatarHTML, openConversation, confirmThen };
 })();

@@ -1190,6 +1190,7 @@
             document.body.classList.toggle("ui-modern", modern);
             if (uiLayoutSelect) uiLayoutSelect.value = layout;
             if (!modern) document.body.classList.remove("modern-info-open");
+            if (modern && window.refreshModernInboxBadge) window.refreshModernInboxBadge();
             // 모던의 공개 범위는 전체 공개/비공개 두 가지뿐이라 '친구만 공개' 항목을 숨긴다.
             const friendsOnlyOption = myProfileVisibility && myProfileVisibility.querySelector('option[value="friends"]');
             if (friendsOnlyOption) friendsOnlyOption.hidden = friendsOnlyOption.disabled = modern;
@@ -3071,6 +3072,12 @@
 
         mobileFriendsNavBtn.addEventListener("click", function () {
             closeSettingsMenu();
+            // 모던 UI에서는 친구 관리 패널 대신 사용자 검색(팔로우)을 연다.
+            if (getUiLayout() === "modern" && window.openModernSearch) {
+                closeFriendPanel();
+                window.openModernSearch();
+                return;
+            }
             if (friendPanel.classList.contains("open")) closeFriendPanel();
             else openFriendPanel();
             setMobileNavActive(mobileFriendsNavBtn);
