@@ -37,6 +37,10 @@
             openSettingsFromRail(button);
             return;
         }
+        if (action === "profile" && window.openModernProfile) {
+            window.openModernProfile(MY_USER_ID);
+            return;
+        }
         const target = RAIL_TARGETS[action] && $(RAIL_TARGETS[action]);
         if (target) target.click();
     });
