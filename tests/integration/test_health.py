@@ -77,6 +77,29 @@ class HealthCheckTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 401)
 
+    def test_chat_template_has_the_ui_layout_setting_and_loads_modern_styles(self):
+        """메신저 화면 템플릿에 UI 선택(클래식/모던) 항목과 모던 전용 스타일 파일이 들어 있다.
+
+        /chat은 로그인과 DB가 필요하므로, 템플릿만 직접 렌더링해 확인한다.
+        """
+        with application_module.app.test_request_context("/chat"):
+            page = application_module.render_template(
+                "index.html",
+                user_id=1,
+                username="tester",
+                profile_image=None,
+                user_email="tester@example.com",
+                user_language="ko",
+                csrf_token="token",
+            )
+
+        self.assertIn('id="ui-layout-select"', page)
+        self.assertIn('<option value="classic">', page)
+        self.assertIn('<option value="modern">', page)
+        self.assertIn("css/ui-modern.css", page)
+        # 화면이 그려지기 전에 저장된 UI 방식을 <html>에 먼저 적용하는 스크립트가 head에 있어야 한다.
+        self.assertIn('localStorage.getItem("uiLayout")', page)
+
     def test_login_page_supports_register_mode_link(self):
         """/login?mode=register는 회원가입 모드로, /login은 로그인 모드로 렌더링된다."""
         client = application_module.app.test_client()

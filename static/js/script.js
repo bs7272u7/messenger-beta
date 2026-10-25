@@ -909,6 +909,7 @@
         const officeDensitySelect = document.querySelector("#office-density-select");
         const officeReduceMotion = document.querySelector("#office-reduce-motion");
         const appThemeSelect = document.querySelector("#app-theme-select");
+        const uiLayoutSelect = document.querySelector("#ui-layout-select");
         const languageSelect = document.querySelector("#language-select");
         const languageSettingCurrent = document.querySelector("#language-setting-current");
         // 계정 삭제, 프로필 사진 변경·자르기(crop), 동영상 첨부, 이메일 변경에 쓰는 요소.
@@ -1172,6 +1173,25 @@
         }
 
         /**
+         * 저장된 UI 방식(classic 또는 modern)을 읽는다. 기본값은 classic(지금 화면)이다.
+         */
+        function getUiLayout() {
+            return localStorage.getItem("uiLayout") === "modern" ? "modern" : "classic";
+        }
+
+        /**
+         * UI 방식을 적용한다. modern이면 <html>과 <body>에 ui-modern 클래스를 붙여 ui-modern.css의 규칙이 켜지게 한다.
+         * <html> 쪽 클래스는 index.html의 head 스크립트가 화면을 그리기 전에 먼저 붙이므로, 여기서는 둘을 같은 상태로 맞춘다.
+         */
+        function applyUiLayout() {
+            const layout = getUiLayout();
+            const modern = layout === "modern";
+            document.documentElement.classList.toggle("ui-modern", modern);
+            document.body.classList.toggle("ui-modern", modern);
+            if (uiLayoutSelect) uiLayoutSelect.value = layout;
+        }
+
+        /**
          * 저장된 화면 테마(liquid-glass 또는 classic)를 읽는다. 기본값은 liquid-glass(클라우드).
          */
         function getAppTheme() {
@@ -1248,6 +1268,7 @@
         syncOfficeModeLabel();
         applyOfficeComfortSettings();
         lgReparentFixedPopovers();
+        applyUiLayout();
         applyAppTheme();
         lgWatch();
         syncLanguageSetting();
@@ -1286,6 +1307,14 @@
             localStorage.setItem("officeReduceMotion", String(officeReduceMotion.checked));
             applyOfficeComfortSettings();
         });
+
+        // UI 방식(클래식/모던) 선택: 저장하고 바로 적용한다.
+        if (uiLayoutSelect) {
+            uiLayoutSelect.addEventListener("change", function () {
+                localStorage.setItem("uiLayout", uiLayoutSelect.value);
+                applyUiLayout();
+            });
+        }
 
         // 화면 테마(클라우드/클래식) 선택: 저장하고 바로 적용한다.
         if (appThemeSelect) {
