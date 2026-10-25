@@ -352,8 +352,9 @@ html body.ui-modern .chat[class] .chat-header {
     background: var(--panel-bg);
     box-shadow: none;
 }
+html body.ui-modern.dark-mode .chat[class] .bubble { background: #3b4570; }
 html body.ui-modern .chat[class] .bubble {
-    background: linear-gradient(135deg, #4a5df9 0%, #8a3ffc 100%);
+    background: linear-gradient(135deg, #4a90e2 0%, #78b8ff 100%);
     color: #fff;
     padding: 10px 16px;
     border: 0;
@@ -395,14 +396,14 @@ html body.ui-modern .chat[class] .input-area textarea:focus {
     border-color: var(--muted-color);
     box-shadow: none;
 }
-/* 보내기 버튼: 알약 대신 글자색의 작은 원형 아이콘 버튼. */
+/* 첨부(+)·보내기 버튼: 알약 대신 브랜드 색(#4a90e2)의 작은 원형 아이콘 버튼. */
 html body.ui-modern .chat[class] .input-area #plus-btn {
     width: 44px;
     height: 44px;
     border: 0;
     border-radius: 50%;
     background: transparent;
-    color: var(--text-color);
+    color: #4a90e2;
     box-shadow: none;
 }
 html body.ui-modern .chat[class] .input-area #send-btn {
@@ -410,7 +411,7 @@ html body.ui-modern .chat[class] .input-area #send-btn {
     height: 44px;
     border-radius: 50%;
     background: transparent;
-    color: #4a5df9;
+    color: #4a90e2;
     box-shadow: none;
 }
 html body.ui-modern .chat[class] .input-area #send-btn:hover { background: var(--friend-hover); transform: none; box-shadow: none; }
