@@ -1215,6 +1215,8 @@
             // 모던 UI는 유리 질감 대신 평평한 색을 쓰므로, 저장된 테마가 클라우드여도 모던에서는 켜지 않는다.
             const useGlass = theme === "liquid-glass" && getUiLayout() !== "modern";
             document.body.classList.toggle("theme-liquid-glass", useGlass);
+            // 모던에서 클라우드 테마를 고른 경우: 유리 효과 대신 하늘색 배경과 반투명 패널만 입힌다(ui-modern.css의 modern-cloud).
+            document.body.classList.toggle("modern-cloud", theme === "liquid-glass" && getUiLayout() === "modern");
             if (appThemeSelect) appThemeSelect.value = theme;
             if (!useGlass) {
                 lgDetachAll();
