@@ -709,3 +709,11 @@ body.ui-modern #modern-rail button.active > i { animation: modern-rail-pop .28s 
 body.ui-modern #modern-rail button.active .modern-rail-avatar { box-shadow: 0 0 0 2px var(--text-color); }
 @keyframes modern-rail-pop { 0% { transform: scale(.8); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
 body.ui-modern.modern-cloud:not(.dark-mode).modern-profile-page #modern-profile-page { background: transparent; }
+
+/* PC에서는 왼쪽 메뉴의 '새 그룹', 목록 머리의 새 그룹(연필) 버튼, 목록 제목 옆의 '요청' 버튼을 숨긴다.
+   (메시지함은 왼쪽 메뉴에 있다.) 모바일에는 왼쪽 메뉴가 없어서 이 버튼들이 유일한 입구이므로 그대로 둔다. */
+@media (min-width: 768px) {
+    body.ui-modern #modern-rail [data-rail="group"],
+    body.ui-modern .modern-list-header [data-rail="group"],
+    body.ui-modern .modern-list-title [data-rail="inbox"] { display: none; }
+}
