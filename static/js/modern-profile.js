@@ -9,10 +9,10 @@
     "use strict";
 
     const $ = (selector) => document.querySelector(selector);
-    const overlay = $("#modern-profile-overlay");
+    const page = $("#modern-profile-page");
     const body = $("#modern-profile-body");
     const relationsOverlay = $("#modern-relations-overlay");
-    if (!overlay || !body || !relationsOverlay || !$("#modern-search-overlay")) return;
+    if (!page || !body || !relationsOverlay || !$("#modern-search-overlay")) return;
 
     const relationsTitle = $("#modern-relations-title");
     const relationsSearch = $("#modern-relations-q");
@@ -46,23 +46,65 @@
     // ------------------------------------------------------------------
     // 프로필 화면
     // ------------------------------------------------------------------
-    async function openModernProfile(userId) {
-        shownUserId = userId;
-        overlay.style.display = "flex";
+    const rail = $("#modern-rail");
+
+    /** 왼쪽 메뉴의 '지금 보는 곳' 표시. 채팅 아이콘은 보고 있을 때 안쪽이 채워진 모양(solid)으로 바뀐다. */
+    function setRailActive(name) {
+        if (!rail) return;
+        rail.querySelectorAll('[data-rail="chats"], [data-rail="profile"]').forEach((button) => {
+            const active = button.dataset.rail === name;
+            button.classList.toggle("active", active);
+            if (active) button.setAttribute("aria-current", "page");
+            else button.removeAttribute("aria-current");
+        });
+        const chatIcon = rail.querySelector('[data-rail="chats"] i');
+        if (chatIcon) {
+            chatIcon.classList.toggle("fa-solid", name === "chats");
+            chatIcon.classList.toggle("fa-regular", name !== "chats");
+        }
+    }
+
+    /** 주소 표시줄을 /u/<아이디> 또는 /chat으로 바꾼다(새로 불러오지 않는다). replace가 true면 기록을 쌓지 않는다. */
+    function setAddress(path, replace) {
+        if (location.pathname === path) return;
+        try { history[replace ? "replaceState" : "pushState"]({}, "", path); } catch (error) { /* 주소 변경이 막힌 환경 */ }
+    }
+
+    /** 프로필 페이지를 연다. fromAddress가 true면 주소창/뒤로가기에서 온 것이라 주소를 다시 바꾸지 않는다. */
+    async function showProfilePage(load, fromAddress) {
+        document.body.classList.add("modern-profile-page");
+        setRailActive("profile");
         body.innerHTML = `<p class="mp-loading">…</p>`;
-        const { ok, data } = await api(`/api/users/${userId}/summary`);
-        if (shownUserId !== userId) return; // 불러오는 사이 다른 프로필로 바뀌었다.
+        window.scrollTo(0, 0);
+        const { ok, data } = await load();
+        if (!document.body.classList.contains("modern-profile-page")) return; // 불러오는 사이 채팅으로 돌아갔다.
         if (!ok) {
+            shownUserId = null;
             body.innerHTML = `<p class="mp-loading">${escapeHTML(data.error || "프로필을 불러오지 못했습니다.")}</p>`;
             return;
         }
+        shownUserId = data.id;
         renderProfile(data);
+        if (!fromAddress) setAddress(`/u/${encodeURIComponent(data.username)}`, false);
     }
 
-    function closeModernProfile() {
+    function openModernProfile(userId, fromAddress) {
+        shownUserId = userId;
+        return showProfilePage(() => api(`/api/users/${userId}/summary`), fromAddress);
+    }
+
+    function openModernProfileByUsername(username, fromAddress) {
+        return showProfilePage(() => api(`/api/profiles/${encodeURIComponent(username)}`), fromAddress);
+    }
+
+    /** 프로필 페이지를 닫고 채팅 화면으로 돌아간다. 열려 있지 않으면 아무것도 하지 않는다. */
+    function closeModernProfile(fromAddress) {
+        if (!document.body.classList.contains("modern-profile-page")) return;
         shownUserId = null;
-        overlay.style.display = "none";
+        document.body.classList.remove("modern-profile-page");
         body.innerHTML = "";
+        setRailActive("chats");
+        if (!fromAddress) setAddress("/chat", false);
     }
 
     function actionButtons(summary) {
@@ -177,7 +219,6 @@
         const userId = shownUserId;
         const act = button.dataset.act;
         if (act === "edit") {
-            closeModernProfile();
             openProfileEditor();
         } else if (act === "follow") {
             if (await changeFollow(userId, "POST")) openModernProfile(userId);
@@ -195,13 +236,8 @@
             // 기존 프로필 카드의 신고·차단 흐름(사유 선택, 확인창)을 그대로 쓴다.
             menu.hidden = true;
             profileCardTarget = { peerId: userId, name: body.dataset.username };
-            closeModernProfile();
             $(act === "report" ? "#profile-card-report" : "#profile-card-block").click();
         }
-    });
-    $("#modern-profile-close").addEventListener("click", closeModernProfile);
-    overlay.addEventListener("click", (event) => {
-        if (event.target === overlay) closeModernProfile();
     });
 
     // ------------------------------------------------------------------
@@ -318,7 +354,7 @@
             event,
             async () => {
                 await loadRelations(true);
-                if (shownUserId !== null) openModernProfile(shownUserId);
+                if (shownUserId !== null) openModernProfile(shownUserId, true);
             },
             closeRelations
         )
@@ -331,7 +367,6 @@
     document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
         if (relationsOverlay.style.display === "flex") closeRelations();
-        else if (overlay.style.display === "flex") closeModernProfile();
         else if (searchOverlay.style.display === "flex") closeModernSearch();
     });
 
@@ -391,7 +426,7 @@
     // 상대가 팔로우 요청·수락·취소를 하면 열려 있는 화면의 숫자와 버튼을 새로 고친다.
     if (typeof socket !== "undefined") {
         socket.on("follow_updated", () => {
-            if (overlay.style.display === "flex" && shownUserId !== null) openModernProfile(shownUserId);
+            if (document.body.classList.contains("modern-profile-page") && shownUserId !== null) openModernProfile(shownUserId, true);
             if (relationsState) loadRelations(true);
         });
     }
@@ -404,8 +439,23 @@
         if (room && !room.isGroup && room.peerId) openModernProfile(room.peerId);
     });
 
+    // 뒤로가기/앞으로가기: 주소가 /u/<아이디>면 그 프로필 페이지를, 아니면 채팅 화면을 보여 준다.
+    window.addEventListener("popstate", () => {
+        if (!document.body.classList.contains("ui-modern")) return;
+        const match = location.pathname.match(/^\/u\/([^/]+)/);
+        if (match) openModernProfileByUsername(decodeURIComponent(match[1]), true);
+        else closeModernProfile(true);
+    });
+
     window.openModernProfile = openModernProfile;
+    window.closeModernProfile = () => closeModernProfile(false);
     window.openModernSearch = openModernSearch;
     // 메시지함(modern-inbox.js)이 같은 요청 함수와 대화방 열기를 쓴다.
     window.ModernUi = { api, avatarHTML, openConversation, confirmThen };
+
+    // /u/<아이디> 주소로 바로 들어온 경우: 모던이면 프로필 페이지를, 클래식이면 채팅 화면으로 주소를 고친다.
+    if (typeof INITIAL_PROFILE_USERNAME === "string" && INITIAL_PROFILE_USERNAME) {
+        if (document.body.classList.contains("ui-modern")) openModernProfileByUsername(INITIAL_PROFILE_USERNAME, true);
+        else setAddress("/chat", true);
+    }
 })();

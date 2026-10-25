@@ -673,3 +673,33 @@ body.ui-modern .mr-text small { max-width: 220px; }
 /* 클라우드 테마(라이트)의 패널은 반투명이지만, 팝업은 뒤가 비치지 않게 거의 불투명하게 둔다. */
 body.ui-modern.modern-cloud:not(.dark-mode) .modal-box.modern-profile,
 body.ui-modern.modern-cloud:not(.dark-mode) .modal-box.modern-relations { background: rgba(255, 255, 255, 0.97); }
+
+/* ======================================================
+ * 프로필 페이지(/u/<아이디>)
+ * 모달이 아니라 채팅 화면(.container) 자리를 대신 차지하는 페이지다. 왼쪽 메뉴는 그대로 보인다.
+ * ====================================================== */
+#modern-profile-page { display: none; }
+body.ui-modern.modern-profile-page .container { display: none; }
+body.ui-modern.modern-profile-page #modern-profile-page {
+    display: block;
+    min-height: 100vh;
+    box-sizing: border-box;
+    padding: 0 0 calc(80px + env(safe-area-inset-bottom));
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+@media (min-width: 768px) {
+    body.ui-modern.modern-profile-page #modern-profile-page { padding-left: 72px; padding-bottom: 40px; }
+}
+body.ui-modern #modern-profile-body { position: relative; box-sizing: border-box; max-width: 935px; margin: 0 auto; padding: 56px 24px 24px; }
+body.ui-modern .mp-menu { top: 96px; left: 224px; z-index: 5; }
+@media (max-width: 767px) {
+    body.ui-modern #modern-profile-body { padding: 28px 16px 16px; }
+    body.ui-modern .mp-menu { top: 64px; left: 120px; }
+}
+
+/* 지금 보는 곳의 아이콘은 안쪽이 채워지면서 살짝 커졌다 돌아온다. */
+body.ui-modern #modern-rail button.active > i { animation: modern-rail-pop .28s ease; }
+body.ui-modern #modern-rail button.active .modern-rail-avatar { box-shadow: 0 0 0 2px var(--text-color); }
+@keyframes modern-rail-pop { 0% { transform: scale(.8); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+body.ui-modern.modern-cloud:not(.dark-mode).modern-profile-page #modern-profile-page { background: transparent; }

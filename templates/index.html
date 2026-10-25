@@ -27,7 +27,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261023.1') }}">
     {# 모던 UI 전용 규칙. 모두 body.ui-modern 아래에만 있어서 클래식 화면에는 영향이 없다. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261027.4') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261027.5') }}">
 </head>
 <body>
     <!-- 리퀴드 글래스 테마의 배경. 유리는 뒤에 있는 것을 밀어내 굴절을 만들기 때문에,
@@ -169,7 +169,7 @@
 <nav id="modern-rail" aria-label="주요 메뉴">
     <div class="modern-rail-top">
         <a class="modern-rail-logo" href="/chat" aria-label="Cloud Chatting"><img src="{{ url_for('static', filename='favicon-180x180.png') }}" alt=""></a>
-        <button type="button" class="active" data-rail="chats" aria-current="page"><i class="fa-regular fa-paper-plane"></i><span>채팅</span></button>
+        <button type="button" class="active" data-rail="chats" aria-current="page"><i class="fa-solid fa-paper-plane"></i><span>채팅</span></button>
         <button type="button" data-rail="search"><i class="fa-solid fa-magnifying-glass"></i><span>검색</span></button>
         <button type="button" data-rail="inbox"><i class="fa-regular fa-envelope"></i><span>메시지함</span><b class="modern-badge" hidden>0</b></button>
         <button type="button" data-rail="group"><i class="fa-solid fa-user-plus"></i><span>새 그룹</span></button>
@@ -179,6 +179,11 @@
         <button type="button" data-rail="more" aria-haspopup="true"><i class="fa-solid fa-bars"></i><span>더 보기</span></button>
     </div>
 </nav>
+
+<!-- 모던 UI의 프로필 페이지(/u/<아이디>). 평소엔 숨겨 두고, modern-profile.js가 내용을 그리며 채팅 화면(.container) 대신 보여 준다. -->
+<main id="modern-profile-page" aria-label="프로필">
+    <div id="modern-profile-body"></div>
+</main>
 
 <!-- # 메인 레이아웃: 친구 목록과 채팅 화면을 나란히 배치한다. -->
 <div class="container">
@@ -636,12 +641,6 @@
     </div>
 
     <!-- 모던 UI의 프로필 화면(내 프로필과 다른 사람 프로필)과 팔로워/팔로잉 목록. 내용은 modern-profile.js가 그린다. -->
-    <div class="modal-overlay" id="modern-profile-overlay">
-        <section class="modal-box modern-profile" role="dialog" aria-modal="true" aria-labelledby="modern-profile-id">
-            <button type="button" id="modern-profile-close" class="settings-modal-close" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
-            <div id="modern-profile-body"></div>
-        </section>
-    </div>
     <div class="modal-overlay" id="modern-search-overlay">
         <section class="modal-box modern-relations" role="dialog" aria-modal="true" aria-labelledby="modern-search-title">
             <header>
@@ -1024,14 +1023,16 @@
         // 서버(Jinja)가 현재 로그인 사용자 정보를 script.js보다 먼저 전역으로 넘겨준다. MY_USER_ID는 내 메시지/상대 메시지를 구분하는 기준이다.
         // user_language는 |tojson으로 안전하게 JS 문자열로 직렬화한다.
         const MY_USER_ID = {{ user_id }};
+        // /u/<아이디> 주소로 들어왔을 때 모던 UI가 바로 보여 줄 프로필의 아이디. 일반 /chat이면 빈 문자열이다.
+        const INITIAL_PROFILE_USERNAME = {{ (initial_profile or "")|tojson }};
         window.CLOUD_LANGUAGE = {{ user_language|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/i18n.js', v='20261027.4') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js', v='20261027.5') }}"></script>
     <!-- liquid-glass.js — MIT, (c) 2026 Deepika Rao · github.com/deepika-builds/liquid-glass -->
     <script src="{{ url_for('static', filename='js/liquid-glass.js', v='20260831.2') }}"></script>
-    <script src="{{ url_for('static', filename='js/script.js', v='20261027.4') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-profile.js', v='20261027.4') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-inbox.js', v='20261027.4') }}"></script>
-    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261027.4') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js', v='20261027.5') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-profile.js', v='20261027.5') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-inbox.js', v='20261027.5') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261027.5') }}"></script>
 </body>
 </html>

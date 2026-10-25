@@ -91,16 +91,19 @@ class HealthCheckTests(unittest.TestCase):
                 user_email="tester@example.com",
                 user_language="ko",
                 csrf_token="token",
+                initial_profile="bobby",
             )
 
         self.assertIn('id="ui-layout-select"', page)
+        # /u/<아이디>로 들어오면 그 아이디가 스크립트에 전달된다.
+        self.assertIn('INITIAL_PROFILE_USERNAME = "bobby"', page)
         self.assertIn('<option value="classic">', page)
         self.assertIn('<option value="modern">', page)
         self.assertIn("css/ui-modern.css", page)
         # 화면이 그려지기 전에 저장된 UI 방식을 <html>에 먼저 적용하는 스크립트가 head에 있어야 한다.
         self.assertIn('localStorage.getItem("uiLayout")', page)
         # 모던 프로필 화면과 팔로워/팔로잉 목록 팝업, 그리고 그것을 그리는 스크립트가 들어 있어야 한다.
-        self.assertIn('id="modern-profile-overlay"', page)
+        self.assertIn('id="modern-profile-page"', page)
         self.assertIn('id="modern-relations-overlay"', page)
         self.assertIn("js/modern-profile.js", page)
         self.assertIn('id="modern-search-overlay"', page)

@@ -2005,9 +2005,12 @@ def landing_page():
 
 
 @app.route("/chat")
+@app.route("/u/<profile_username>")
 @login_required_page
-def home():
-    """채팅 화면(/chat). 로그인한 사용자 정보를 템플릿에 넘긴다.
+def home(profile_username=None):
+    """채팅 화면(/chat)과 프로필 주소(/u/<아이디>). 로그인한 사용자 정보를 템플릿에 넘긴다.
+
+    프로필 주소도 같은 화면을 내려 주고, 모던 UI의 스크립트가 주소의 아이디를 읽어 프로필 페이지를 보여 준다.
 
     DB에서 계정이 사라졌다면(예: DB 초기화) 세션을 비우고 로그인 화면으로 보낸다.
     """
@@ -2037,6 +2040,7 @@ def home():
         profile_image=profile_image,
         user_email=user["email"],
         user_language=session["language"],
+        initial_profile=(profile_username or "").lower(),
     )
 
 

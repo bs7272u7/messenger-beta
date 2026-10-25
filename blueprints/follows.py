@@ -47,6 +47,17 @@ def create_follows_blueprint(
             return error_response(error)
         return jsonify({"success": True, **summary})
 
+    @follows_bp.route("/api/profiles/<username>", methods=["GET"])
+    @api_login_required
+    @search_rate_limit
+    def profile_summary_by_username(username):
+        """아이디로 프로필 요약을 돌려준다(프로필 페이지 주소 /u/<아이디>)."""
+        try:
+            summary = follow_service.summary_by_username(session["user_id"], username)
+        except FollowServiceError as error:
+            return error_response(error)
+        return jsonify({"success": True, **summary})
+
     @follows_bp.route("/api/users/<int:user_id>/follow", methods=["POST"])
     @api_login_required
     @write_rate_limit

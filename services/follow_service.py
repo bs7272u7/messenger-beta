@@ -127,6 +127,16 @@ class FollowService:
     # ------------------------------------------------------------------
     # 프로필 요약
     # ------------------------------------------------------------------
+    def summary_by_username(self, viewer_id: int, username: str) -> dict:
+        """아이디로 프로필 요약을 돌려준다(프로필 페이지 주소 /u/<아이디>용). 없으면 404."""
+        with self._connection_factory() as conn:
+            row = conn.execute(
+                "SELECT id FROM users WHERE username = %s", ((username or "").strip().lower(),)
+            ).fetchone()
+        if not row:
+            raise FollowServiceError("사용자를 찾을 수 없습니다.", 404)
+        return self.summary(viewer_id, row["id"])
+
     def summary(self, viewer_id: int, target_id: int) -> dict:
         """프로필 화면에 필요한 정보를 돌려준다. 상세를 볼 수 없으면 소개글과 커버를 비운다."""
         with self._connection_factory() as conn:
