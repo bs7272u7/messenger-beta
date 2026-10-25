@@ -1189,6 +1189,15 @@
             document.documentElement.classList.toggle("ui-modern", modern);
             document.body.classList.toggle("ui-modern", modern);
             if (uiLayoutSelect) uiLayoutSelect.value = layout;
+            if (!modern) document.body.classList.remove("modern-info-open");
+
+            // 모던 UI는 자체 색을 쓰므로 오피스 모드는 보는 동안만 꺼 둔다. 저장값(officeMode, theme)은 그대로 두어,
+            // 클래식으로 돌아오면 init 구간과 같은 상태(오피스 모드면 다크 해제)로 복원된다.
+            if (localStorage.getItem("officeMode") === "enabled") {
+                document.body.classList.toggle("office-mode", !modern);
+                document.body.classList.toggle("dark-mode", modern && localStorage.getItem("theme") === "dark");
+                syncOfficeModeLabel();
+            }
         }
 
         /**
@@ -1203,7 +1212,8 @@
          */
         function applyAppTheme() {
             const theme = getAppTheme();
-            const useGlass = theme === "liquid-glass";
+            // 모던 UI는 유리 질감 대신 평평한 색을 쓰므로, 저장된 테마가 클라우드여도 모던에서는 켜지 않는다.
+            const useGlass = theme === "liquid-glass" && getUiLayout() !== "modern";
             document.body.classList.toggle("theme-liquid-glass", useGlass);
             if (appThemeSelect) appThemeSelect.value = theme;
             if (!useGlass) {
@@ -1313,6 +1323,9 @@
             uiLayoutSelect.addEventListener("change", function () {
                 localStorage.setItem("uiLayout", uiLayoutSelect.value);
                 applyUiLayout();
+                // 유리 테마는 UI 방식에 따라 켜지고 꺼지므로 다시 맞춘다. 오피스 모드를 오갈 때 바뀐 굴절도 함께 정리한다.
+                applyAppTheme();
+                lgSync();
             });
         }
 
