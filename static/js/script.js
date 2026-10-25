@@ -173,6 +173,11 @@
          */
         function openProfileCard(friend) {
             if (!friend || friend.isGroup || !friend.peerId) return;
+            // 모던 UI에서는 예전 카드 대신 팔로우 버튼이 있는 프로필 화면을 연다.
+            if (getUiLayout() === "modern" && window.openModernProfile) {
+                window.openModernProfile(friend.peerId);
+                return;
+            }
             profileCardAvatar.src = friend.peerProfileImage || "/static/default_profile.png";
             profileCardCover.style.backgroundImage = friend.peerCoverImage ? `url("${friend.peerCoverImage}")` : "";
             profileCardName.textContent = friend.name;

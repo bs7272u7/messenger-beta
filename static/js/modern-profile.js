@@ -396,6 +396,14 @@
         });
     }
 
+    // 1:1 대화에서 받은 메시지 옆의 상대 사진을 누르면 그 사람의 프로필을 연다.
+    document.addEventListener("click", (event) => {
+        const avatar = event.target.closest(".msg-avatar");
+        if (!avatar || !document.body.classList.contains("ui-modern")) return;
+        const room = getCurrentFriend();
+        if (room && !room.isGroup && room.peerId) openModernProfile(room.peerId);
+    });
+
     window.openModernProfile = openModernProfile;
     window.openModernSearch = openModernSearch;
     // 메시지함(modern-inbox.js)이 같은 요청 함수와 대화방 열기를 쓴다.
