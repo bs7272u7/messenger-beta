@@ -103,6 +103,9 @@ class HealthCheckTests(unittest.TestCase):
         self.assertIn('id="modern-profile-overlay"', page)
         self.assertIn('id="modern-relations-overlay"', page)
         self.assertIn("js/modern-profile.js", page)
+        self.assertIn('id="modern-search-overlay"', page)
+        self.assertIn('id="modern-inbox-overlay"', page)
+        self.assertIn("js/modern-inbox.js", page)
 
     def test_login_page_supports_register_mode_link(self):
         """/login?mode=register는 회원가입 모드로, /login은 로그인 모드로 렌더링된다."""
