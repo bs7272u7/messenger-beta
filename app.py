@@ -1169,6 +1169,21 @@ def notify_conversation_message(conn, conversation_id, sender_id, preview):
     """,
         (conversation_id, sender_id),
     ).fetchall()
+    # 수락 전의 메시지 요청은 일반 메시지 알림을 보내지 않는다. 대신 첫 메시지에 한 번만 '새 메시지 요청' 알림을 보낸다.
+    pending_request = conn.execute(
+        """
+        SELECT cm.user_id,
+               (SELECT COUNT(*) FROM messages m
+                 WHERE m.conversation_id = c.id AND m.sender_id = %s) AS sent
+        FROM conversations c JOIN conversation_members cm ON cm.conversation_id = c.id
+        WHERE c.id = %s AND c.dm_state = 'pending' AND c.dm_requester_id = %s AND cm.user_id != %s
+    """,
+        (sender_id, conversation_id, sender_id, sender_id),
+    ).fetchone()
+    if pending_request and pending_request["sent"] == 1:
+        send_push_notification(
+            conn, pending_request["user_id"], "Cloud Chatting", "새 메시지 요청이 있어요.", "/chat"
+        )
     for row in rows:
         if not row["is_muted"]:
             send_push_notification(
@@ -3025,6 +3040,7 @@ def get_conversations():
                     "lastSentAt": last_sent_at,
                     "chatTheme": row["chat_theme"] or "default",
                     "isDisabled": bool(row["is_disabled"]),
+                    "dmState": row["dm_state"],
                     "isMuted": bool(row["is_muted"]),
                     "isPinned": bool(row["is_pinned"]),
                     "unreadCount": row["unread_count"],
