@@ -679,7 +679,13 @@ body.ui-modern.modern-cloud:not(.dark-mode) .modal-box.modern-relations { backgr
  * 모달이 아니라 채팅 화면(.container) 자리를 대신 차지하는 페이지다. 왼쪽 메뉴는 그대로 보인다.
  * ====================================================== */
 #modern-profile-page { display: none; }
-body.ui-modern.modern-profile-page .container { display: none; }
+/* 팝업(모달)들이 .container 안에 들어 있으므로 컨테이너 자체를 숨기면 프로필 페이지 위에서 팝업이 안 보인다.
+   그래서 컨테이너는 크기만 없애고, 화면을 차지하는 목록·대화창·정보 패널만 숨긴다. */
+body.ui-modern.modern-profile-page .container { display: block; width: 0; height: 0; min-height: 0; padding: 0; overflow: visible; }
+body.ui-modern.modern-profile-page .container > .friend-list,
+body.ui-modern.modern-profile-page .container > .chat,
+body.ui-modern.modern-profile-page .container > #desktop-chat-info,
+body.ui-modern.modern-profile-page .container > .version-label { display: none; }
 body.ui-modern.modern-profile-page #modern-profile-page {
     display: block;
     min-height: 100vh;

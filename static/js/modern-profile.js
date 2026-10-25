@@ -447,6 +447,19 @@
         else closeModernProfile(true);
     });
 
+    // 프로필 편집창이 닫히면(저장했을 수 있으므로) 내 프로필 페이지를 새로 그린다.
+    const editorOverlay = $("#my-profile-overlay");
+    if (editorOverlay) {
+        let editorWasOpen = false;
+        new MutationObserver(() => {
+            const open = editorOverlay.style.display === "flex";
+            if (editorWasOpen && !open && document.body.classList.contains("modern-profile-page") && shownUserId === MY_USER_ID) {
+                openModernProfile(MY_USER_ID, true);
+            }
+            editorWasOpen = open;
+        }).observe(editorOverlay, { attributes: true, attributeFilter: ["style"] });
+    }
+
     window.openModernProfile = openModernProfile;
     window.closeModernProfile = () => closeModernProfile(false);
     window.openModernSearch = openModernSearch;
