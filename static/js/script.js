@@ -3401,7 +3401,24 @@ function renderUpdateHistory(updates, target = updateHistoryList) {
 /**
  * 최근 업데이트 내역을 서버에서 가져와 알림 설정 창에 보여 주고 NEW 배지 상태를 갱신한다.
  */
+let updateHistoryFailed = false;
+
+/**
+ * 불러오기 실패 문구와 '다시 시도' 버튼을 보여 준다.
+ */
+function showUpdateLoadError(target, message, retry) {
+    const text = document.createElement("span");
+    text.textContent = message;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "update-retry-btn";
+    button.textContent = "다시 시도";
+    button.addEventListener("click", retry);
+    target.replaceChildren(text, " ", button);
+}
+
 async function loadUpdateHistory() {
+    updateHistoryFailed = false;
     try {
         const response = await fetch("/api/updates");
         const result = await response.json();
@@ -3418,7 +3435,8 @@ async function loadUpdateHistory() {
         renderUpdateHistory(result.updates);
         updateUpdateNoticeBadge();
     } catch (error) {
-        updateHistoryList.textContent = "업데이트 내역을 불러오지 못했습니다.";
+        updateHistoryFailed = true;
+        showUpdateLoadError(updateHistoryList, "업데이트 내역을 불러오지 못했습니다.", loadUpdateHistory);
     }
 }
 
@@ -3440,7 +3458,7 @@ async function openPreviousUpdates() {
         }
         renderUpdateHistory(result.updates, previousUpdatesList);
     } catch (error) {
-        previousUpdatesList.textContent = "이전 업데이트 내역을 불러오지 못했습니다.";
+        showUpdateLoadError(previousUpdatesList, "이전 업데이트 내역을 불러오지 못했습니다.", openPreviousUpdates);
     }
 }
 
@@ -3449,6 +3467,8 @@ notificationSettingsItem.addEventListener("click", function () {
     closeSettingsMenu();
     notificationSettingsOverlay.style.display = "flex";
 
+    // 전에 불러오지 못했다면 창을 열 때 다시 시도한다.
+    if (updateHistoryFailed) loadUpdateHistory();
     if (currentUpdateVersion) {
         localStorage.setItem("seenUpdateVersion", currentUpdateVersion);
     }

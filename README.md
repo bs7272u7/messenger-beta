@@ -104,7 +104,7 @@ python app.py                      # 개발 서버
 | `VAPID_PUBLIC_KEY` `VAPID_PRIVATE_KEY` `VAPID_CLAIMS_EMAIL` | 웹 푸시 알림 |
 | `SENTRY_DSN` | 오류 추적(선택) |
 | `SESSION_COOKIE_SECURE` | HTTPS에서만 쿠키 전송. Render에서는 자동으로 켜집니다. |
-| `GITHUB_REPOSITORY` `GITHUB_TOKEN` | 업데이트 기록 조회(선택) |
+| `GITHUB_REPOSITORY` `GITHUB_TOKEN` | 업데이트 기록 조회(선택, 내역이 안 뜨면 읽기 전용 `GITHUB_TOKEN` 설정) |
 
 ## 테스트와 코드 검사
 
