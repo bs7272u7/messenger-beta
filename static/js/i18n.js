@@ -1807,6 +1807,26 @@
         "뒤로가기": "Atrás",
         "지우기": "Borrar",
     });
+    Object.assign(dictionaries.en, {
+        "메시지에서 채팅을 삭제하시겠어요?": "Delete this chat from your messages?",
+        "이 채팅이 내 메시지 목록에서 사라지고 대화 기록도 지워집니다. 이 계정의 새 메시지를 받지 않으려면 먼저 계정을 차단한 다음 채팅을 삭제하세요.": "This will remove the chat from your messages and erase the chat history. To stop receiving new messages from this account, first block the account, then delete the chat.",
+        "채팅을 삭제하지 못했습니다.": "Couldn't delete the chat.",
+    });
+    Object.assign(dictionaries.zh, {
+        "메시지에서 채팅을 삭제하시겠어요?": "要从消息中删除此聊天吗？",
+        "이 채팅이 내 메시지 목록에서 사라지고 대화 기록도 지워집니다. 이 계정의 새 메시지를 받지 않으려면 먼저 계정을 차단한 다음 채팅을 삭제하세요.": "此聊天将从你的消息列表中移除，聊天记录也会被清除。若不想再收到该账号的新消息，请先屏蔽该账号，再删除聊天。",
+        "채팅을 삭제하지 못했습니다.": "无法删除聊天。",
+    });
+    Object.assign(dictionaries.ja, {
+        "메시지에서 채팅을 삭제하시겠어요?": "メッセージからこのチャットを削除しますか？",
+        "이 채팅이 내 메시지 목록에서 사라지고 대화 기록도 지워집니다. 이 계정의 새 메시지를 받지 않으려면 먼저 계정을 차단한 다음 채팅을 삭제하세요.": "このチャットはメッセージ一覧から消え、チャット履歴も削除されます。このアカウントからの新しいメッセージを受け取りたくない場合は、先にアカウントをブロックしてからチャットを削除してください。",
+        "채팅을 삭제하지 못했습니다.": "チャットを削除できませんでした。",
+    });
+    Object.assign(dictionaries.es, {
+        "메시지에서 채팅을 삭제하시겠어요?": "¿Eliminar este chat de tus mensajes?",
+        "이 채팅이 내 메시지 목록에서 사라지고 대화 기록도 지워집니다. 이 계정의 새 메시지를 받지 않으려면 먼저 계정을 차단한 다음 채팅을 삭제하세요.": "Se quitará el chat de tus mensajes y se borrará su historial. Para dejar de recibir mensajes nuevos de esta cuenta, primero bloquea la cuenta y luego elimina el chat.",
+        "채팅을 삭제하지 못했습니다.": "No se pudo eliminar el chat.",
+    });
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
     /**
      * 처음 한 번 번역하고, 이후 JavaScript가 그리는 UI(채팅 목록·모달 등)도 같은 사전으로 번역하도록 DOM 변화를 감시한다.

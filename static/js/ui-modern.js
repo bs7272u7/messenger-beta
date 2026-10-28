@@ -185,4 +185,75 @@
         if (node) new MutationObserver(syncInfoActions).observe(node, { attributes: true, attributeFilter: ["style"] });
     });
     syncInfoActions();
+
+    // ---------------------------------------------------------------
+    // 5) 대화 목록 행의 '⋯' → 삭제 메뉴 → 확인 팝업
+    //    '삭제'는 내 목록에서 지우고 그때까지의 대화 기록도 내게서 지운다(서버의 hide). 상대 쪽 기록은 그대로다.
+    // ---------------------------------------------------------------
+    const rowMenu = document.createElement("div");
+    rowMenu.id = "modern-row-menu";
+    rowMenu.hidden = true;
+    rowMenu.innerHTML = '<button type="button" data-act="delete"><span>삭제</span><i class="fa-regular fa-trash-can"></i></button>';
+    document.body.appendChild(rowMenu);
+    const deleteOverlay = $("#modern-delete-overlay");
+    let rowTarget = null;
+
+    function closeRowMenu() {
+        rowMenu.hidden = true;
+    }
+
+    /** 행의 ⋯ 버튼 아래에 삭제 메뉴를 연다. script.js가 행을 그릴 때 이 함수를 부른다. */
+    window.openModernRowMenu = function (conversation, button) {
+        rowTarget = conversation;
+        rowMenu.hidden = false;
+        const rect = button.getBoundingClientRect();
+        const left = Math.min(rect.left, window.innerWidth - rowMenu.offsetWidth - 10);
+        const top = Math.min(rect.bottom + 6, window.innerHeight - rowMenu.offsetHeight - 10);
+        rowMenu.style.left = Math.max(10, left) + "px";
+        rowMenu.style.top = Math.max(10, top) + "px";
+    };
+
+    function closeDeleteDialog() {
+        deleteOverlay.style.display = "none";
+        rowTarget = null;
+    }
+
+    /** 확인을 받은 뒤 삭제한다. 열려 있던 대화였다면 대화창도 비운다. */
+    async function deleteConversation() {
+        const conversation = rowTarget;
+        closeDeleteDialog();
+        if (!conversation) return;
+        const response = await fetch("/api/conversations/" + conversation.id + "/hide", { method: "POST" });
+        if (!response.ok) {
+            showAlert("채팅을 삭제하지 못했습니다.");
+            return;
+        }
+        if (currentConversationID === conversation.id) {
+            currentConversationID = null;
+            updateChatHeader(null);
+            closeMobileChat();
+            await renderMessages();
+        }
+        await loadFriends();
+    }
+
+    rowMenu.addEventListener("click", function (event) {
+        if (!event.target.closest('[data-act="delete"]')) return;
+        closeRowMenu();
+        deleteOverlay.style.display = "flex";
+        deleteOverlay.querySelector(".md-cancel").focus();
+    });
+    deleteOverlay.addEventListener("click", function (event) {
+        if (event.target === deleteOverlay || event.target.closest('[data-act="cancel"]')) closeDeleteDialog();
+        else if (event.target.closest('[data-act="confirm"]')) deleteConversation();
+    });
+    document.addEventListener("click", function (event) {
+        if (!rowMenu.hidden && !event.target.closest("#modern-row-menu, .friend-more-btn")) closeRowMenu();
+    });
+    document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        if (deleteOverlay.style.display === "flex") closeDeleteDialog();
+        else closeRowMenu();
+    });
+    window.addEventListener("resize", closeRowMenu);
 })();

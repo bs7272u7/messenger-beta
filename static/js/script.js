@@ -2296,7 +2296,13 @@
                         <small class="friend-preview" title="${escapeHTML(friend.message || "")}">${previewHTML}</small>
                     </div>
                     ${unreadHTML}
+                    <button type="button" class="friend-more-btn" aria-label="더 보기" aria-haspopup="true"><i class="fa-solid fa-ellipsis"></i></button>
                 `;
+                // 모던 UI의 '⋯' 버튼(클래식에서는 CSS로 숨김): 눌러도 대화가 열리지 않게 전파를 막고, 삭제 메뉴를 연다.
+                newFriend.querySelector(".friend-more-btn").addEventListener("click", function (event) {
+                    event.stopPropagation();
+                    if (window.openModernRowMenu) window.openModernRowMenu(friend, event.currentTarget);
+                });
                 // 1:1 대화방은 프로필 사진을 눌러 상대 프로필 카드를 열 수 있다(키보드 Enter/Space 지원). 그룹은 해당 없음.
                 if (!friend.isGroup) {
                     const profileTrigger = newFriend.querySelector(".friend-profile-trigger");

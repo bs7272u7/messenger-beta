@@ -27,7 +27,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261023.1') }}">
     {# 모던 UI 전용 규칙. 모두 body.ui-modern 아래에만 있어서 클래식 화면에는 영향이 없다. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261027.15') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261029.1') }}">
 </head>
 <body>
     <!-- 리퀴드 글래스 테마의 배경. 유리는 뒤에 있는 것을 밀어내 굴절을 만들기 때문에,
@@ -659,6 +659,15 @@
     </div>
 
     <!-- 모던 UI의 프로필 화면(내 프로필과 다른 사람 프로필)과 팔로워/팔로잉 목록. 내용은 modern-profile.js가 그린다. -->
+    <!-- 모던 UI의 대화 삭제 확인 팝업. 내용은 ui-modern.js가 연다(대화 목록 행의 ⋯ → 삭제). -->
+    <div class="modal-overlay" id="modern-delete-overlay">
+        <div class="modal-box modern-delete" role="alertdialog" aria-modal="true" aria-labelledby="modern-delete-title" aria-describedby="modern-delete-desc">
+            <h3 id="modern-delete-title">메시지에서 채팅을 삭제하시겠어요?</h3>
+            <p id="modern-delete-desc">이 채팅이 내 메시지 목록에서 사라지고 대화 기록도 지워집니다. 이 계정의 새 메시지를 받지 않으려면 먼저 계정을 차단한 다음 채팅을 삭제하세요.</p>
+            <button type="button" class="md-danger" data-act="confirm">삭제</button>
+            <button type="button" class="md-cancel" data-act="cancel">취소</button>
+        </div>
+    </div>
     <div class="modal-overlay" id="modern-inbox-overlay">
         <section class="modal-box modern-relations modern-inbox" role="dialog" aria-modal="true" aria-labelledby="modern-inbox-title">
             <header>
@@ -1037,12 +1046,12 @@
         const INITIAL_PROFILE_USERNAME = {{ (initial_profile or "")|tojson }};
         window.CLOUD_LANGUAGE = {{ user_language|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/i18n.js', v='20261027.15') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js', v='20261029.1') }}"></script>
     <!-- liquid-glass.js — MIT, (c) 2026 Deepika Rao · github.com/deepika-builds/liquid-glass -->
     <script src="{{ url_for('static', filename='js/liquid-glass.js', v='20260831.2') }}"></script>
-    <script src="{{ url_for('static', filename='js/script.js', v='20261027.15') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-profile.js', v='20261027.15') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-inbox.js', v='20261027.15') }}"></script>
-    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261027.15') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js', v='20261029.1') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-profile.js', v='20261029.1') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-inbox.js', v='20261029.1') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261029.1') }}"></script>
 </body>
 </html>
