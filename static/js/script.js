@@ -2247,26 +2247,6 @@
                     setTimeout(function () { input.focus(); }, 10);
                 });
 
-                    // 우클릭: 채팅방을 내 목록에서만 숨긴다(친구 관계와 대화 기록은 그대로). 숨긴 방이 열려 있었다면 대화창도 비운다.
-                    newFriend.addEventListener("contextmenu", function (event) {
-                        event.preventDefault();
-
-                        showConfirm("채팅방을 목록에서 숨기시겠습니까? 친구 관계와 이전 대화는 유지됩니다.", async function (confirmDelete) {
-                            if(!confirmDelete) return;
-
-                            await fetch(`/api/conversations/${friend.id}/hide`, { method: "POST" });
-
-                            if (currentConversationID === friend.id) {
-                                currentConversationID = null;
-                                updateChatHeader(null);
-                                messages.innerHTML = "";
-                            }
-
-                            await loadFriends();
-                        });
-                    });
-                
-
                 // 미리보기는 먼저 이스케이프한 뒤, 서버가 붙인 '__종류__' 표식만 아이콘으로 바꾼다.
                 const previewHTML = escapeHTML(friend.message || "아직 대화가 없습니다.")
                 .replace("__CAMERA__", '<i class="fa-regular fa-image"></i>')
