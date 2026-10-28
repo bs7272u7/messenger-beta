@@ -2008,6 +2008,21 @@ def landing_page():
 @app.route("/u/<profile_username>")
 @login_required_page
 def home(profile_username=None):
+    """채팅 화면(/chat)과 프로필 주소(/u/<아이디>)."""
+    return render_chat_page(profile_username=profile_username)
+
+
+@app.route("/search")
+@login_required_page
+def search_page():
+    """검색 페이지 주소(/search). 같은 화면을 내려 주고, 모던 UI의 스크립트가 검색 페이지를 보여 준다.
+
+    home과 엔드포인트를 나눈 것은, url_for("home")이 /search로 잘못 연결되지 않게 하기 위해서다.
+    """
+    return render_chat_page(initial_page="search")
+
+
+def render_chat_page(profile_username=None, initial_page=None):
     """채팅 화면(/chat)과 프로필 주소(/u/<아이디>). 로그인한 사용자 정보를 템플릿에 넘긴다.
 
     프로필 주소도 같은 화면을 내려 주고, 모던 UI의 스크립트가 주소의 아이디를 읽어 프로필 페이지를 보여 준다.
@@ -2041,6 +2056,7 @@ def home(profile_username=None):
         user_email=user["email"],
         user_language=session["language"],
         initial_profile=(profile_username or "").lower(),
+        initial_page=initial_page or "",
     )
 
 

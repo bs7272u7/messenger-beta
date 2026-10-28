@@ -1779,6 +1779,34 @@
         "검색하지 못했습니다.": "No se pudo buscar.",
         "처리하지 못했습니다.": "No se pudo completar.",
     });
+    Object.assign(dictionaries.en, {
+        "최근 검색 항목": "Recent searches",
+        "최근 검색 내역 없음.": "No recent searches.",
+        "모두 지우기": "Clear all",
+        "뒤로가기": "Back",
+        "지우기": "Clear",
+    });
+    Object.assign(dictionaries.zh, {
+        "최근 검색 항목": "最近搜索",
+        "최근 검색 내역 없음.": "暂无最近搜索。",
+        "모두 지우기": "全部清除",
+        "뒤로가기": "返回",
+        "지우기": "清除",
+    });
+    Object.assign(dictionaries.ja, {
+        "최근 검색 항목": "最近の検索",
+        "최근 검색 내역 없음.": "最近の検索はありません。",
+        "모두 지우기": "すべて削除",
+        "뒤로가기": "戻る",
+        "지우기": "クリア",
+    });
+    Object.assign(dictionaries.es, {
+        "최근 검색 항목": "Búsquedas recientes",
+        "최근 검색 내역 없음.": "Sin búsquedas recientes.",
+        "모두 지우기": "Borrar todo",
+        "뒤로가기": "Atrás",
+        "지우기": "Borrar",
+    });
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
     /**
      * 처음 한 번 번역하고, 이후 JavaScript가 그리는 UI(채팅 목록·모달 등)도 같은 사전으로 번역하도록 DOM 변화를 감시한다.

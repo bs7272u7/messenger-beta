@@ -12,7 +12,8 @@
     const page = $("#modern-profile-page");
     const body = $("#modern-profile-body");
     const relationsOverlay = $("#modern-relations-overlay");
-    if (!page || !body || !relationsOverlay || !$("#modern-search-overlay")) return;
+    const searchPage = $("#modern-search-page");
+    if (!page || !body || !relationsOverlay || !searchPage) return;
 
     const relationsTitle = $("#modern-relations-title");
     const relationsSearch = $("#modern-relations-q");
@@ -51,7 +52,7 @@
     /** 왼쪽 메뉴의 '지금 보는 곳' 표시. 채팅 아이콘은 보고 있을 때 안쪽이 채워진 모양(solid)으로 바뀐다. */
     function setRailActive(name) {
         if (!rail) return;
-        rail.querySelectorAll('[data-rail="chats"], [data-rail="profile"]').forEach((button) => {
+        rail.querySelectorAll('[data-rail="chats"], [data-rail="search"], [data-rail="profile"]').forEach((button) => {
             const active = button.dataset.rail === name;
             button.classList.toggle("active", active);
             if (active) button.setAttribute("aria-current", "page");
@@ -72,6 +73,7 @@
 
     /** 프로필 페이지를 연다. fromAddress가 true면 주소창/뒤로가기에서 온 것이라 주소를 다시 바꾸지 않는다. */
     async function showProfilePage(load, fromAddress) {
+        document.body.classList.remove("modern-search-page");
         document.body.classList.add("modern-profile-page");
         setRailActive("profile");
         body.innerHTML = `<p class="mp-loading">…</p>`;
@@ -367,60 +369,141 @@
     document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
         if (relationsOverlay.style.display === "flex") closeRelations();
-        else if (searchOverlay.style.display === "flex") closeModernSearch();
     });
 
     // ------------------------------------------------------------------
-    // 사용자 검색(왼쪽 메뉴의 '검색')
+    // 검색 페이지(/search): 위에 뒤로가기와 검색창, 아래에 검색 결과 또는 '최근 검색 항목'
     // ------------------------------------------------------------------
-    const searchOverlay = $("#modern-search-overlay");
     const searchInput = $("#modern-search-q");
+    const searchClear = $("#modern-search-clear");
     const searchList = $("#modern-search-list");
+    const RECENT_KEY = "modernRecentSearches";
+    const RECENT_MAX = 12;
     let searchSeq = 0;
+    let lastResults = new Map(); // 가장 최근 검색 결과(id → 사용자). 최근 검색 항목에 저장할 때 쓴다.
+
+    function readRecent() {
+        try {
+            const list = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+            return Array.isArray(list) ? list : [];
+        } catch (error) { return []; }
+    }
+    function writeRecent(list) {
+        try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (error) { /* 저장이 막힌 환경 */ }
+    }
+    function rememberSearch(user) {
+        const entry = { id: user.id, username: user.username, displayName: user.displayName, profileImage: user.profileImage };
+        writeRecent([entry, ...readRecent().filter((item) => item.id !== user.id)]);
+    }
+
+    /** 입력이 비어 있을 때: '최근 검색 항목' 제목과 목록(없으면 안내 문구). */
+    function renderRecent() {
+        const recent = readRecent();
+        searchList.innerHTML = `
+            <div class="ms-recent-head">
+                <h2>최근 검색 항목</h2>
+                ${recent.length ? `<button type="button" data-act="clear-recent">모두 지우기</button>` : ""}
+            </div>`;
+        if (!recent.length) {
+            searchList.insertAdjacentHTML("beforeend", `<p class="ms-empty">최근 검색 내역 없음.</p>`);
+            return;
+        }
+        recent.forEach((user) => {
+            const row = document.createElement("div");
+            row.className = "mr-row";
+            row.dataset.userId = user.id;
+            row.innerHTML = `
+                <button type="button" class="mr-user" data-act="profile">
+                    <span class="mr-avatar">${avatarHTML(user.profileImage)}</span>
+                    <span class="mr-text"><b>${escapeHTML(user.username)}</b><small>${escapeHTML(user.displayName)}</small></span>
+                </button>
+                <button type="button" class="ms-forget" data-act="forget" aria-label="삭제"><i class="fa-solid fa-xmark"></i></button>`;
+            searchList.appendChild(row);
+        });
+    }
 
     async function runUserSearch() {
         const query = searchInput.value.trim();
+        searchClear.hidden = searchInput.value === "";
         const seq = ++searchSeq;
+        if (!query) {
+            renderRecent();
+            return;
+        }
         if (query.length < 2) {
-            searchList.innerHTML = `<p class="mr-empty">아이디나 이름을 2글자 이상 입력해주세요.</p>`;
+            searchList.innerHTML = `<p class="ms-empty">아이디나 이름을 2글자 이상 입력해주세요.</p>`;
             return;
         }
         const { ok, data } = await api(`/api/users/find?${new URLSearchParams({ q: query })}`);
         if (seq !== searchSeq) return; // 더 새로운 검색이 진행 중이다.
         searchList.innerHTML = "";
         if (!ok) {
-            searchList.innerHTML = `<p class="mr-empty">${escapeHTML(data.error || "검색하지 못했습니다.")}</p>`;
+            searchList.innerHTML = `<p class="ms-empty">${escapeHTML(data.error || "검색하지 못했습니다.")}</p>`;
             return;
         }
         if (!data.users.length) {
-            searchList.innerHTML = `<p class="mr-empty">검색 결과가 없어요</p>`;
+            searchList.innerHTML = `<p class="ms-empty">검색 결과가 없어요</p>`;
             return;
         }
+        lastResults = new Map(data.users.map((user) => [user.id, user]));
         data.users.forEach((user) => searchList.appendChild(relationRow(user, { userId: null, kind: "search" })));
     }
 
-    function openModernSearch() {
-        searchOverlay.style.display = "flex";
+    /** 검색 페이지를 연다. fromAddress가 true면 주소창/뒤로가기에서 온 것이라 주소를 다시 바꾸지 않는다. */
+    function openModernSearch(fromAddress) {
+        document.body.classList.remove("modern-profile-page");
+        document.body.classList.add("modern-search-page");
+        shownUserId = null;
+        body.innerHTML = "";
+        setRailActive("search");
         searchInput.value = "";
+        searchClear.hidden = true;
         searchSeq++;
-        searchList.innerHTML = `<p class="mr-empty">아이디나 이름을 2글자 이상 입력해주세요.</p>`;
+        renderRecent();
+        window.scrollTo(0, 0);
+        if (!fromAddress) setAddress("/search", false);
         setTimeout(() => searchInput.focus(), 30);
     }
 
-    function closeModernSearch() {
-        searchOverlay.style.display = "none";
-        searchList.innerHTML = "";
+    /** 검색 페이지를 닫고 채팅 화면으로 돌아간다. */
+    function closeModernSearch(fromAddress) {
+        if (!document.body.classList.contains("modern-search-page")) return;
+        document.body.classList.remove("modern-search-page");
+        setRailActive("chats");
+        if (!fromAddress) setAddress("/chat", false);
     }
 
     let userSearchTimer = null;
     searchInput.addEventListener("input", () => {
+        searchClear.hidden = searchInput.value === "";
         clearTimeout(userSearchTimer);
         userSearchTimer = setTimeout(runUserSearch, 300);
     });
-    searchList.addEventListener("click", (event) => handleRowClick(event, runUserSearch, closeModernSearch));
-    $("#modern-search-close").addEventListener("click", closeModernSearch);
-    searchOverlay.addEventListener("click", (event) => {
-        if (event.target === searchOverlay) closeModernSearch();
+    searchClear.addEventListener("click", () => {
+        searchInput.value = "";
+        runUserSearch();
+        searchInput.focus();
+    });
+    $("#modern-search-back").addEventListener("click", () => closeModernSearch(false));
+    searchList.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-act]");
+        const row = event.target.closest(".mr-row");
+        if (button && button.dataset.act === "clear-recent") {
+            writeRecent([]);
+            renderRecent();
+            return;
+        }
+        if (button && button.dataset.act === "forget" && row) {
+            writeRecent(readRecent().filter((item) => item.id !== Number(row.dataset.userId)));
+            renderRecent();
+            return;
+        }
+        if (button && button.dataset.act === "profile" && row) {
+            const id = Number(row.dataset.userId);
+            const user = lastResults.get(id) || readRecent().find((item) => item.id === id);
+            if (user) rememberSearch(user);
+        }
+        handleRowClick(event, runUserSearch, () => {});
     });
 
     // 상대가 팔로우 요청·수락·취소를 하면 열려 있는 화면의 숫자와 버튼을 새로 고친다.
@@ -444,7 +527,11 @@
         if (!document.body.classList.contains("ui-modern")) return;
         const match = location.pathname.match(/^\/u\/([^/]+)/);
         if (match) openModernProfileByUsername(decodeURIComponent(match[1]), true);
-        else closeModernProfile(true);
+        else if (location.pathname === "/search") openModernSearch(true);
+        else {
+            closeModernProfile(true);
+            closeModernSearch(true);
+        }
     });
 
     // 프로필 편집창이 닫히면(저장했을 수 있으므로) 내 프로필 페이지를 새로 그린다.
@@ -461,13 +548,20 @@
     }
 
     window.openModernProfile = openModernProfile;
-    window.closeModernProfile = () => closeModernProfile(false);
-    window.openModernSearch = openModernSearch;
+    // 왼쪽 메뉴의 '메시지'를 누르면 프로필 페이지든 검색 페이지든 닫고 채팅 화면으로 돌아간다.
+    window.closeModernProfile = () => {
+        closeModernProfile(false);
+        closeModernSearch(false);
+    };
+    window.openModernSearch = () => openModernSearch(false);
     // 메시지함(modern-inbox.js)이 같은 요청 함수와 대화방 열기를 쓴다.
     window.ModernUi = { api, avatarHTML, openConversation, confirmThen };
 
     // /u/<아이디> 주소로 바로 들어온 경우: 모던이면 프로필 페이지를, 클래식이면 채팅 화면으로 주소를 고친다.
-    if (typeof INITIAL_PROFILE_USERNAME === "string" && INITIAL_PROFILE_USERNAME) {
+    if (typeof INITIAL_PAGE === "string" && INITIAL_PAGE === "search") {
+        if (document.body.classList.contains("ui-modern")) openModernSearch(true);
+        else setAddress("/chat", true);
+    } else if (typeof INITIAL_PROFILE_USERNAME === "string" && INITIAL_PROFILE_USERNAME) {
         if (document.body.classList.contains("ui-modern")) openModernProfileByUsername(INITIAL_PROFILE_USERNAME, true);
         else setAddress("/chat", true);
     }
