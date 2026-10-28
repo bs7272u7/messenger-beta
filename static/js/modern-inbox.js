@@ -190,7 +190,6 @@
     if (typeof socket !== "undefined") {
         ["follow_updated", "message_request_updated"].forEach((name) => {
             socket.on(name, () => {
-                if (!document.body.classList.contains("ui-modern")) return;
                 if (overlay.style.display === "flex") load();
                 else refreshBadge();
             });
@@ -203,6 +202,5 @@
 
     window.openModernInbox = open;
     window.refreshModernInboxBadge = refreshBadge;
-    // 클래식에서는 이 배지를 쓰지 않으므로 요청을 보내지 않는다. 모던으로 바꾸면 applyUiLayout이 다시 부른다.
-    if (document.body.classList.contains("ui-modern")) refreshBadge();
+    refreshBadge();
 })();

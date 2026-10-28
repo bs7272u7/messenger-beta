@@ -77,8 +77,8 @@ class HealthCheckTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 401)
 
-    def test_chat_template_has_the_ui_layout_setting_and_loads_modern_styles(self):
-        """메신저 화면 템플릿에 UI 선택(클래식/모던) 항목과 모던 전용 스타일 파일이 들어 있다.
+    def test_chat_template_is_always_the_modern_layout(self):
+        """메신저 화면 템플릿은 항상 모던 화면이며 모던 전용 스타일 파일이 들어 있다.
 
         /chat은 로그인과 DB가 필요하므로, 템플릿만 직접 렌더링해 확인한다.
         """
@@ -94,14 +94,13 @@ class HealthCheckTests(unittest.TestCase):
                 initial_profile="bobby",
             )
 
-        self.assertIn('id="ui-layout-select"', page)
+        # 모던이 유일한 화면이다. UI 방식을 고르는 설정 항목은 없고, <html>과 <body>에 ui-modern이 항상 붙어 있다.
+        self.assertNotIn('id="ui-layout-select"', page)
+        self.assertIn('<html lang="ko" class="ui-modern">', page)
+        self.assertIn('<body class="ui-modern">', page)
         # /u/<아이디>로 들어오면 그 아이디가 스크립트에 전달된다.
         self.assertIn('INITIAL_PROFILE_USERNAME = "bobby"', page)
-        self.assertIn('<option value="classic">', page)
-        self.assertIn('<option value="modern">', page)
         self.assertIn("css/ui-modern.css", page)
-        # 화면이 그려지기 전에 저장된 UI 방식을 <html>에 먼저 적용하는 스크립트가 head에 있어야 한다.
-        self.assertIn('localStorage.getItem("uiLayout")', page)
         # 모던 프로필 화면과 팔로워/팔로잉 목록 팝업, 그리고 그것을 그리는 스크립트가 들어 있어야 한다.
         self.assertIn('id="modern-profile-page"', page)
         self.assertIn('id="modern-relations-overlay"', page)

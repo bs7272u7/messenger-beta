@@ -91,7 +91,7 @@
 
         // 키보드: Esc로 닫고 버튼으로 포커스를 돌려준다.
         document.addEventListener("keydown", function (event) {
-            if (event.key === "Escape" && settingsCard.style.display === "block" && document.body.classList.contains("ui-modern")) {
+            if (event.key === "Escape" && settingsCard.style.display === "block") {
                 closeSettingsMenu();
                 moreButton.focus();
             }

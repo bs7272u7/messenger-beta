@@ -517,14 +517,13 @@
     // 1:1 대화에서 받은 메시지 옆의 상대 사진을 누르면 그 사람의 프로필을 연다.
     document.addEventListener("click", (event) => {
         const avatar = event.target.closest(".msg-avatar");
-        if (!avatar || !document.body.classList.contains("ui-modern")) return;
+        if (!avatar) return;
         const room = getCurrentFriend();
         if (room && !room.isGroup && room.peerId) openModernProfile(room.peerId);
     });
 
     // 뒤로가기/앞으로가기: 주소가 /u/<아이디>면 그 프로필 페이지를, 아니면 채팅 화면을 보여 준다.
     window.addEventListener("popstate", () => {
-        if (!document.body.classList.contains("ui-modern")) return;
         const match = location.pathname.match(/^\/u\/([^/]+)/);
         if (match) openModernProfileByUsername(decodeURIComponent(match[1]), true);
         else if (location.pathname === "/search") openModernSearch(true);
@@ -557,12 +556,10 @@
     // 메시지함(modern-inbox.js)이 같은 요청 함수와 대화방 열기를 쓴다.
     window.ModernUi = { api, avatarHTML, openConversation, confirmThen };
 
-    // /u/<아이디> 주소로 바로 들어온 경우: 모던이면 프로필 페이지를, 클래식이면 채팅 화면으로 주소를 고친다.
+    // /search 또는 /u/<아이디> 주소로 바로 들어온 경우 그 페이지를 보여 준다.
     if (typeof INITIAL_PAGE === "string" && INITIAL_PAGE === "search") {
-        if (document.body.classList.contains("ui-modern")) openModernSearch(true);
-        else setAddress("/chat", true);
+        openModernSearch(true);
     } else if (typeof INITIAL_PROFILE_USERNAME === "string" && INITIAL_PROFILE_USERNAME) {
-        if (document.body.classList.contains("ui-modern")) openModernProfileByUsername(INITIAL_PROFILE_USERNAME, true);
-        else setAddress("/chat", true);
+        openModernProfileByUsername(INITIAL_PROFILE_USERNAME, true);
     }
 })();
