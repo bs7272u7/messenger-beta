@@ -1839,6 +1839,46 @@
     Object.assign(dictionaries.es, {
         "메시지 입력...": "Escribe un mensaje...",
     });
+    Object.assign(dictionaries.en, {
+        "사진·동영상 보내기": "Send photos or videos",
+        "파일 보내기": "Send a file",
+        "사진·동영상 추가": "Add photos or videos",
+        "사진과 동영상(mp4, webm, mov)만 보낼 수 있습니다.": "Only photos and videos (mp4, webm, mov) can be sent.",
+        "한 번에 10개까지 보낼 수 있습니다.": "You can send up to 10 at a time.",
+        "사진은 10MB 이하만 보낼 수 있습니다.": "Photos must be 10 MB or smaller.",
+        "동영상은 20MB 이하만 보낼 수 있습니다.": "Videos must be 20 MB or smaller.",
+        "대화방이 바뀌어 첨부를 취소했습니다.": "Attachments were cleared because the chat changed.",
+    });
+    Object.assign(dictionaries.zh, {
+        "사진·동영상 보내기": "发送照片或视频",
+        "파일 보내기": "发送文件",
+        "사진·동영상 추가": "添加照片或视频",
+        "사진과 동영상(mp4, webm, mov)만 보낼 수 있습니다.": "只能发送照片和视频（mp4、webm、mov）。",
+        "한 번에 10개까지 보낼 수 있습니다.": "一次最多发送10个。",
+        "사진은 10MB 이하만 보낼 수 있습니다.": "照片不能超过10MB。",
+        "동영상은 20MB 이하만 보낼 수 있습니다.": "视频不能超过20MB。",
+        "대화방이 바뀌어 첨부를 취소했습니다.": "聊天已切换，附件已取消。",
+    });
+    Object.assign(dictionaries.ja, {
+        "사진·동영상 보내기": "写真・動画を送る",
+        "파일 보내기": "ファイルを送る",
+        "사진·동영상 추가": "写真・動画を追加",
+        "사진과 동영상(mp4, webm, mov)만 보낼 수 있습니다.": "写真と動画（mp4、webm、mov）のみ送信できます。",
+        "한 번에 10개까지 보낼 수 있습니다.": "一度に10件まで送信できます。",
+        "사진은 10MB 이하만 보낼 수 있습니다.": "写真は10MB以下にしてください。",
+        "동영상은 20MB 이하만 보낼 수 있습니다.": "動画は20MB以下にしてください。",
+        "대화방이 바뀌어 첨부를 취소했습니다.": "チャットが変わったため添付を取り消しました。",
+    });
+    Object.assign(dictionaries.es, {
+        "사진·동영상 보내기": "Enviar fotos o videos",
+        "파일 보내기": "Enviar un archivo",
+        "사진·동영상 추가": "Añadir fotos o videos",
+        "사진과 동영상(mp4, webm, mov)만 보낼 수 있습니다.": "Solo se pueden enviar fotos y videos (mp4, webm, mov).",
+        "한 번에 10개까지 보낼 수 있습니다.": "Puedes enviar hasta 10 a la vez.",
+        "사진은 10MB 이하만 보낼 수 있습니다.": "Las fotos deben pesar 10 MB o menos.",
+        "동영상은 20MB 이하만 보낼 수 있습니다.": "Los videos deben pesar 20 MB o menos.",
+        "대화방이 바뀌어 첨부를 취소했습니다.": "Se cancelaron los adjuntos porque cambió el chat.",
+    });
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
     /**
      * 처음 한 번 번역하고, 이후 JavaScript가 그리는 UI(채팅 목록·모달 등)도 같은 사전으로 번역하도록 DOM 변화를 감시한다.
