@@ -379,17 +379,22 @@ body.ui-modern .msg-avatar { width: 28px; height: 28px; margin-right: 8px; align
 body.ui-modern .msg-avatar i { font-size: 16px; }
 body.ui-modern .msg-avatar-spacer { background: transparent; }
 
-/* 입력 영역 전체가 테두리 있는 알약 하나다. 안에는 입력칸 + 오른쪽 한 자리가 있고, 그 자리에는
-   글이 없을 때 첨부(+) 버튼, 글이 있을 때 전송 버튼이 나온다(has-text는 ui-modern.js가 붙인다). */
+/* 입력 영역 전체가 테두리 있는 알약 하나다. 한 줄에는 입력칸과 오른쪽 한 자리가 있고, 그 자리에는
+   글·첨부가 없을 때 음성·사진/동영상·파일 아이콘, 있을 때 전송 버튼이 나온다(has-text는 modern-composer.js가 붙인다).
+   고른 사진·동영상이 있으면(has-media) 맨 위에 미리보기 줄이 생기고 알약이 둥근 사각형으로 바뀐다. */
+.modern-attach-tray,
+.modern-composer-icons { display: none; }
 html body.ui-modern .chat[class] .input-area {
+    flex-wrap: wrap;
     margin: 8px 20px 16px;
-    padding: 4px 5px 4px 20px;
-    gap: 8px;
+    padding: 4px 6px 4px 20px;
+    gap: 6px;
     border: 1px solid var(--input-border);
     border-radius: 999px;
     background: var(--panel-bg);
     box-shadow: none;
 }
+html body.ui-modern .chat[class] .input-area.has-media { border-radius: 24px; }
 html body.ui-modern .chat[class] .input-area:focus-within { border-color: var(--muted-color); }
 html body.ui-modern .chat[class] .input-area textarea {
     order: 1;
@@ -404,40 +409,103 @@ html body.ui-modern .chat[class] .input-area textarea {
 }
 html body.ui-modern .chat[class] .input-area textarea:focus { border: 0; box-shadow: none; }
 
-/* 첨부(+): 클래식과 같은 파란 둥근 사각형. 사진·동영상·파일·음성은 이 버튼의 메뉴로 보낸다. */
-html body.ui-modern .chat[class] .input-area #plus-btn {
-    order: 2;
-    width: 38px;
-    height: 38px;
+/* 예전 첨부(+) 버튼과 메뉴는 모던에서 쓰지 않는다(아이콘으로 바뀜). */
+html body.ui-modern .chat[class] .input-area #plus-btn,
+html body.ui-modern .chat[class] .input-area .attach-menu { display: none !important; }
+
+/* 오른쪽 아이콘: 음성(마이크) · 사진/동영상 · 파일. 평소엔 테두리·배경 없이 아이콘만. */
+html body.ui-modern .chat[class] .input-area .modern-composer-icons { order: 2; display: flex; gap: 2px; align-items: center; }
+html body.ui-modern .chat[class] .input-area.has-text .modern-composer-icons { display: none; }
+html body.ui-modern .modern-composer-icons button {
+    display: grid;
+    width: 36px;
+    height: 36px;
     margin: 0;
+    padding: 0;
     border: 0;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #4a90e2, #78b8ff);
-    color: #fff;
-    font-size: 16px;
-    box-shadow: 0 4px 10px rgba(74, 144, 226, 0.25);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 20px;
+    place-items: center;
+    box-shadow: none;
+    cursor: pointer;
 }
-/* 전송: 클래식과 같은 파란 알약. 글이 있을 때만 나타난다. */
+html body.ui-modern .modern-composer-icons button:hover { background: var(--friend-hover); transform: none; }
+html body.ui-modern .modern-composer-icons button:disabled { opacity: .4; cursor: default; }
+html body.ui-modern .modern-composer-icons #modern-mic-btn.recording { color: #ff3040; animation: modern-rec-pulse 1s ease-in-out infinite; }
+@keyframes modern-rec-pulse { 50% { opacity: .45; } }
+
+/* 전송: 클래식과 같은 파란 알약. 글이나 첨부가 있을 때만 나타난다. */
 html body.ui-modern .chat[class] .input-area #send-btn {
     order: 2;
     display: none;
-    width: 56px;
-    height: 38px;
-    margin: 0;
+    width: 52px;
+    height: 34px;
+    margin: 0 2px 0 0;
     border: 0;
-    border-radius: 19px;
+    border-radius: 17px;
     background: linear-gradient(135deg, #4a90e2, #78b8ff);
     color: #fff;
-    font-size: 16px;
+    font-size: 15px;
     box-shadow: 0 4px 10px rgba(74, 144, 226, 0.25);
 }
 html body.ui-modern .chat[class] .input-area.has-text #send-btn { display: block; animation: modern-send-pop .16s ease-out; }
-html body.ui-modern .chat[class] .input-area.has-text #plus-btn { display: none; }
-html body.ui-modern .chat[class] .input-area #plus-btn:hover,
 html body.ui-modern .chat[class] .input-area #send-btn:hover { transform: none; filter: brightness(1.05); }
 @keyframes modern-send-pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
-/* 첨부 메뉴는 + 버튼이 오른쪽에 있으므로 입력창 오른쪽 위로 띄운다. */
-html body.ui-modern .chat[class] .input-area .attach-menu { left: auto; right: 6px; bottom: calc(100% + 8px); }
+
+/* 미리보기 줄: 맨 앞이 사진 추가 타일, 그 뒤가 고른 사진·동영상. 가로로 넘치면 스크롤한다. */
+html body.ui-modern .chat[class] .input-area .modern-attach-tray {
+    order: 0;
+    display: flex;
+    flex: 0 0 calc(100% + 14px);
+    gap: 8px;
+    margin: 0 -2px 0 -12px;
+    padding: 10px 12px 6px;
+    box-sizing: border-box;
+    overflow-x: auto;
+}
+html body.ui-modern .chat[class] .input-area .modern-attach-tray[hidden] { display: none; }
+body.ui-modern .mc-add,
+body.ui-modern .mc-item { position: relative; flex: none; width: 72px; height: 72px; border-radius: 12px; }
+body.ui-modern .mc-add {
+    display: grid;
+    padding: 0;
+    border: 0;
+    background: var(--friend-hover);
+    color: var(--text-color);
+    font-size: 22px;
+    place-items: center;
+    cursor: pointer;
+}
+body.ui-modern .mc-add:hover { background: var(--friend-active); }
+body.ui-modern .mc-item { background: var(--friend-hover); }
+body.ui-modern .mc-item img,
+body.ui-modern .mc-item video { width: 100%; height: 100%; border-radius: 12px; object-fit: cover; }
+body.ui-modern .mc-play { position: absolute; inset: 0; display: grid; color: #fff; font-size: 28px; place-items: center; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); pointer-events: none; }
+body.ui-modern .mc-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    display: grid;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #262626;
+    color: #fff;
+    font-size: 11px;
+    place-items: center;
+    box-shadow: 0 0 0 2px var(--panel-bg);
+    cursor: pointer;
+}
+html body.ui-modern .chat[class] .input-area.is-sending .modern-attach-tray { opacity: .6; pointer-events: none; }
+
+/* 서비스 버전 표시는 입력창과 겹치므로 모던에서는 화면 구석에서 숨기고, 설정 메뉴 맨 아래에 작게 보여 준다. */
+.settings-menu-version { display: none; }
+body.ui-modern .version-label { display: none; }
+body.ui-modern .settings-menu-version { display: block; padding: 10px 16px 4px; color: var(--muted-color); font-size: 11px; text-align: center; }
 
 /* ======================================================
  * 모바일 (767px 이하)
