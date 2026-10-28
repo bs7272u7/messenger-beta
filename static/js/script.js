@@ -864,15 +864,12 @@
         }
 
         /**
-         * 설정 메뉴를 닫는다. 펼쳐 둔 '편하게 보기' 항목도 함께 접는다.
+         * 설정 메뉴를 닫는다.
          */
         function closeSettingsMenu() {
             settingsMenu.style.display = "none";
             settingsMenu.style.pointerEvents = "none";
             document.body.classList.remove("mobile-settings-open");
-            if (officeComfortItem) {
-                officeComfortItem.open = false;
-            }
         }
 
         /**
@@ -901,15 +898,10 @@
         const modalCancelBtn = document.querySelector("#modal-cancel-btn");
         const modalConfirmBtn = document.querySelector("#modal-confirm-btn");
 
-        // 설정 메뉴의 화면 설정: 다크 모드, 편하게 보기, 화면 테마, UI, 언어.
+        // 설정 메뉴의 화면 설정: 다크 모드, 화면 테마, UI, 언어.
         const themeToggleItem = document.querySelector("#theme-toggle-item");
         const themeToggleIcon = document.querySelector("#theme-toggle-icon");
         const themeToggleLabel = document.querySelector("#theme-toggle-label");
-        const officeComfortItem = document.querySelector("#office-comfort-item");
-        const officeContrastSelect = document.querySelector("#office-contrast-select");
-        const officeTextSizeSelect = document.querySelector("#office-text-size-select");
-        const officeDensitySelect = document.querySelector("#office-density-select");
-        const officeReduceMotion = document.querySelector("#office-reduce-motion");
         const appThemeSelect = document.querySelector("#app-theme-select");
         const uiLayoutSelect = document.querySelector("#ui-layout-select");
         const languageSelect = document.querySelector("#language-select");
@@ -977,44 +969,6 @@
             }
         });
 
-        /**
-         * '편하게 보기' 설정값(대비, 글자 크기, 간격, 움직임 줄이기)을 읽는다.
-         *
-         * 기능은 그대로 두고 오래 보는 화면의 시각 밀도만 차분하게 조절한다.
-         * 움직임 줄이기는 저장된 선택이 없으면 운영체제의 '동작 줄이기' 설정을 따른다.
-         */
-        function getOfficeComfortSettings() {
-            return {
-                contrast: localStorage.getItem("officeContrast") || "comfort",
-                textSize: localStorage.getItem("officeTextSize") || "medium",
-                density: localStorage.getItem("officeDensity") || "comfortable",
-                reduceMotion: localStorage.getItem("officeReduceMotion") === "true"
-                    || (localStorage.getItem("officeReduceMotion") === null && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-            };
-        }
-
-        /**
-         * 저장된 '편하게 보기' 설정을 body의 클래스와 설정 메뉴의 선택값에 반영한다.
-         */
-        function applyOfficeComfortSettings() {
-            const settings = getOfficeComfortSettings();
-            ["comfort", "standard", "high"].forEach(value => document.body.classList.toggle(`office-contrast-${value}`, settings.contrast === value));
-            ["small", "medium", "large"].forEach(value => document.body.classList.toggle(`office-text-${value}`, settings.textSize === value));
-            ["comfortable", "normal", "compact"].forEach(value => document.body.classList.toggle(`office-density-${value}`, settings.density === value));
-            document.body.classList.toggle("office-reduce-motion", settings.reduceMotion);
-            officeContrastSelect.value = settings.contrast;
-            officeTextSizeSelect.value = settings.textSize;
-            officeDensitySelect.value = settings.density;
-            officeReduceMotion.checked = settings.reduceMotion;
-        }
-
-        /**
-         * '편하게 보기' 항목을 항상 보이게 한다.
-         */
-        function syncOfficeComfortVisibility() {
-            officeComfortItem.hidden = false;
-        }
-
         // ============================================================
         // Liquid Glass 테마(굴절 효과) 제어
         // ============================================================
@@ -1078,13 +1032,12 @@
         /**
          * 굴절 효과를 써도 되는 환경인지 판단한다.
          *
-         * 라이브러리를 못 불러와도 앱은 그대로 동작해야 하고, 고대비·'투명도 줄이기' 설정에서는 가독성이 우선이다.
+         * 라이브러리를 못 불러와도 앱은 그대로 동작해야 하고, '투명도 줄이기' 설정에서는 가독성이 우선이다.
          * CPU 코어가 4개 이하인 저사양 기기에서도 꺼서 성능을 지킨다.
          */
         function lgEnabled() {
             if (typeof window.liquidGlass !== "function") return false;
             if (!document.body.classList.contains("theme-liquid-glass")) return false;
-            if (document.body.classList.contains("office-contrast-high")) return false;
             if (window.matchMedia("(prefers-reduced-transparency: reduce)").matches) return false;
             if ((navigator.hardwareConcurrency || 8) <= 4) return false;
             return true;
@@ -1241,12 +1194,12 @@
             themeToggleItem.removeAttribute("title");
         }
 
-        // 페이지를 열 때 화면 설정을 복원하는 초기화 구간. 편하게 보기 → 테마 → 언어 순으로 적용한다.
-        // 없어진 오피스 모드의 저장값은 지운다.
-        try { localStorage.removeItem("officeMode"); } catch (error) { /* 저장소를 쓸 수 없는 환경 */ }
+        // 페이지를 열 때 화면 설정을 복원하는 초기화 구간. 테마 → 언어 순으로 적용한다.
+        // 없어진 기능(오피스 모드, 편하게 보기)의 저장값은 지운다.
+        ["officeMode", "officeContrast", "officeTextSize", "officeDensity", "officeReduceMotion"].forEach(function (key) {
+            try { localStorage.removeItem(key); } catch (error) { /* 저장소를 쓸 수 없는 환경 */ }
+        });
         syncThemeToggleAvailability();
-        syncOfficeComfortVisibility();
-        applyOfficeComfortSettings();
         lgReparentFixedPopovers();
         applyUiLayout();
         applyAppTheme();
@@ -1271,21 +1224,6 @@
             } catch (error) {
                 showToast(error.message || "언어 설정을 저장하지 못했습니다.", "error");
             }
-        });
-
-        // '편하게 보기'의 대비·글자 크기·간격 선택: 고른 값을 저장하고 바로 화면에 적용한다.
-        [[officeContrastSelect, "officeContrast"], [officeTextSizeSelect, "officeTextSize"], [officeDensitySelect, "officeDensity"]].forEach(([control, key]) => {
-            control.addEventListener("change", function () {
-                localStorage.setItem(key, control.value);
-                applyOfficeComfortSettings();
-                // 고대비로 바꾸면 굴절을 꺼야 하므로 테마 상태를 다시 계산한다.
-                lgSync();
-            });
-        });
-        // '움직임 줄이기' 스위치: 선택을 저장하고 바로 적용한다.
-        officeReduceMotion.addEventListener("change", function () {
-            localStorage.setItem("officeReduceMotion", String(officeReduceMotion.checked));
-            applyOfficeComfortSettings();
         });
 
         // UI 방식(클래식/모던) 선택: 저장하고 바로 적용한다.
