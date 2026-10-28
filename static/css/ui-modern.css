@@ -148,7 +148,15 @@ body.ui-modern .lg-backdrop { display: none; }
         cursor: pointer;
     }
     body.ui-modern #modern-rail .modern-rail-logo { margin-bottom: 14px; }
-    body.ui-modern #modern-rail .modern-rail-logo img { width: 28px; height: 28px; border-radius: 8px; flex: none; }
+    /* 선 모양 로고(static/logo-line.svg)를 마스크로 쓰고 글자색으로 칠해서, 다크·라이트 어디서나 자동으로 색이 맞는다. */
+    body.ui-modern #modern-rail .modern-rail-logo-mark {
+        flex: none;
+        width: 30px;
+        height: 26px;
+        background-color: var(--text-color);
+        -webkit-mask: url("../logo-line.svg") center / contain no-repeat;
+        mask: url("../logo-line.svg") center / contain no-repeat;
+    }
     body.ui-modern #modern-rail button:hover { background: var(--friend-hover); }
     body.ui-modern #modern-rail button.active { font-weight: 700; }
     body.ui-modern #modern-rail button > i { flex: none; width: 24px; font-size: 21px; text-align: center; }
