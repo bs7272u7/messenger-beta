@@ -147,7 +147,9 @@ body.ui-modern .lg-backdrop { display: none; }
         white-space: nowrap;
         cursor: pointer;
     }
-    body.ui-modern #modern-rail .modern-rail-logo { flex: none; margin-top: 4px; }
+    /* 로고는 아이콘 크기의 정사각형 칸이라서, 마우스를 올리면 사진처럼 아이콘 뒤에만 옅은 회색이 뜬다(메뉴가 펼쳐져도 길어지지 않는다). */
+    body.ui-modern #modern-rail .modern-rail-logo { flex: none; width: 48px; margin-top: 4px; transition: background .15s ease; }
+    body.ui-modern #modern-rail .modern-rail-logo:hover { background: var(--friend-hover); }
     /* 메뉴 버튼들은 로고와 더 보기 사이의 세로 가운데에 둔다. */
     body.ui-modern #modern-rail .modern-rail-top {
         flex: 1;
