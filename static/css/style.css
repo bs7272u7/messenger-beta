@@ -2,7 +2,7 @@
  * Cloud Chatting 화면 스타일 (메인 채팅 화면).
  *
  * 구성: 색상 토큰 → PC/모바일 레이아웃 → 목록·채팅·입력창 → 모달·메뉴 → 채팅 테마(.chat-theme-*)
- *       → 편하게 보기 → 클라우드(Liquid Glass) 테마
+ *       → 설정 메뉴 → 클라우드(Liquid Glass) 테마
  *
  * 수정 원칙: 공통 색은 CSS 변수(:root, body.dark-mode)에서 바꾸고, 채팅방별 분위기는 .chat-theme-* 에서만 바꾼다.
  * 변수를 고칠지 특정 테마만 고칠지 먼저 구분한 뒤 수정한다.
@@ -1428,7 +1428,7 @@
 
         /*
          * PC에서는 화면이 넓어진 만큼 말풍선도 가로로 더 늘어나게 한다(최대 62% 또는 560px).
-         * 글자 크기·여백은 '편하게 보기' 설정과 함께 적용되어야 하므로, 아래쪽 office-* 규칙 뒤에서 단계별로 지정한다.
+         * 글자 크기·여백은 아래쪽 `body .bubble` 규칙 뒤에서 단계별로 지정한다.
          */
         @media (min-width: 768px) {
             .message-left,
@@ -1692,7 +1692,7 @@
         }
         #settings-menu .language-setting-item > summary::-webkit-details-marker { display:none; }
         #settings-menu .language-setting-item > summary:hover { background:var(--friend-hover); }
-        #settings-menu .language-setting-item[open] .office-comfort-chevron { transform:rotate(180deg); }
+        #settings-menu .language-setting-item[open] .settings-collapse-chevron { transform:rotate(180deg); }
         .language-setting-current { margin-left:auto; color:color-mix(in srgb, var(--text-color) 58%, transparent); font-size:11px; }
         .language-setting-panel { padding:4px 10px 9px; }
         .language-setting-panel select { width:100%; min-height:34px; padding:0 9px; border:1px solid var(--input-border); border-radius:8px; outline:none; background:var(--panel-bg); color:var(--text-color); font:inherit; font-size:12px; }
@@ -3654,11 +3654,11 @@
         }
 
         /*
-         * '편하게 보기' 설정: 화면 자극은 줄이고, 읽기 대비는 사용자가 조절한다.
+         * 설정 메뉴의 접는 항목(화면 테마·UI·언어).
          * <details>/<summary>로 접고 펼치며, 펼침 표시용 화살표는 직접 그린다.
          */
-        #settings-menu .office-comfort-trigger { margin:0; }
-        #settings-menu .office-comfort-trigger > summary {
+        #settings-menu .settings-collapse-trigger { margin:0; }
+        #settings-menu .settings-collapse-trigger > summary {
             display:flex;
             align-items:center;
             gap:10px;
@@ -3670,12 +3670,12 @@
             font-size:13px;
             list-style:none;
         }
-        #settings-menu .office-comfort-trigger > summary::-webkit-details-marker { display:none; }
-        #settings-menu .office-comfort-trigger > summary:hover { background:var(--friend-hover); }
-        .office-comfort-trigger .office-comfort-chevron { margin-left:auto; font-size:11px; transition:transform .16s ease; }
-        .office-comfort-trigger[open] .office-comfort-chevron { transform:rotate(180deg); }
+        #settings-menu .settings-collapse-trigger > summary::-webkit-details-marker { display:none; }
+        #settings-menu .settings-collapse-trigger > summary:hover { background:var(--friend-hover); }
+        .settings-collapse-trigger .settings-collapse-chevron { margin-left:auto; font-size:11px; transition:transform .16s ease; }
+        .settings-collapse-trigger[open] .settings-collapse-chevron { transform:rotate(180deg); }
         /* 펼쳐지는 설정 패널(글자 크기·밀도·대비·움직임 줄이기). */
-        #settings-menu .office-comfort-panel {
+        #settings-menu .settings-collapse-panel {
             display:grid;
             gap:8px;
             min-height:0;
@@ -3686,111 +3686,55 @@
             background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color));
         }
         /* 접힌 상태에서는 패널을 완전히 숨긴다. */
-        #settings-menu .office-comfort-trigger:not([open]) .office-comfort-panel { display:none; }
-        #settings-menu .office-comfort-panel:hover { background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color)); }
-        .office-comfort-panel label { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; color:color-mix(in srgb, var(--text-color) 76%, transparent); font-size:11px; font-weight:700; }
-        .office-comfort-panel select { min-width:84px; padding:5px 7px; border:1px solid var(--input-border); border-radius:5px; outline:none; background:var(--panel-bg); color:var(--text-color); font:inherit; font-size:11px; }
-        .office-comfort-panel .office-motion-toggle { grid-template-columns:auto 1fr; padding-top:3px; cursor:pointer; }
-        .office-motion-toggle input { margin:0; accent-color:var(--brand-color); }
+        #settings-menu .settings-collapse-trigger:not([open]) .settings-collapse-panel { display:none; }
+        #settings-menu .settings-collapse-panel:hover { background:color-mix(in srgb, var(--panel-bg) 88%, var(--brand-color)); }
+        .settings-collapse-panel label { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; color:color-mix(in srgb, var(--text-color) 76%, transparent); font-size:11px; font-weight:700; }
+        .settings-collapse-panel select { min-width:84px; padding:5px 7px; border:1px solid var(--input-border); border-radius:5px; outline:none; background:var(--panel-bg); color:var(--text-color); font:inherit; font-size:11px; }
 
         @media (max-width:767px) {
-            #settings-menu .office-comfort-trigger > summary {
+            #settings-menu .settings-collapse-trigger > summary {
                 min-height:48px;
                 padding:0 12px;
                 border-radius:12px;
                 font-size:15px;
             }
-            #settings-menu .office-comfort-panel { margin:2px 6px 8px; padding:10px; }
+            #settings-menu .settings-collapse-panel { margin:2px 6px 8px; padding:10px; }
             #settings-menu .language-setting-item > summary { min-height:48px; padding:0 12px; border-radius:12px; font-size:15px; }
             #settings-menu .language-setting-panel { display:block; min-height:0; padding:3px 12px 10px; }
         }
 
-        /* 대비 3단계: comfort(부드럽게) / standard(기본) / high(선명하게). body 클래스로 선택하고, 변수만 덮어쓴다. */
-
-        /* 일반 테마에서도 대비 선택은 유지하되, 각 채팅 테마의 고유 색은 덮어쓰지 않는다(글자·테두리·강조색 변수만 변경). */
-        body.office-contrast-comfort {
+        /* 글자·테두리·강조색을 조금 부드럽게 잡은 기본 대비. 각 채팅 테마의 고유 색은 덮어쓰지 않고 변수만 바꾼다. */
+        body {
             --text-color:#26313d;
             --border-color:#d6dce4;
             --input-border:#c7d0dc;
             --brand-color:#3d78c8;
         }
-        body.dark-mode.office-contrast-comfort {
+        body.dark-mode {
             --text-color:#dce3eb;
             --border-color:#3b4652;
             --input-border:#46515f;
             --brand-color:#77a8e5;
         }
-        body.office-contrast-high {
-            --text-color:#111820;
-            --border-color:#9daab9;
-            --input-border:#7c8c9e;
-            --brand-color:#1f67c7;
-        }
-        body.dark-mode.office-contrast-high {
-            --text-color:#f4f7fb;
-            --border-color:#667383;
-            --input-border:#758395;
-            --brand-color:#9bc4ff;
-        }
 
-        /* 글자 크기 3단계(small/medium/large): 말풍선과 입력창 글자 크기·줄 간격. */
-        body.office-text-small .bubble,
-        body.office-text-small .message-left { font-size:15px; line-height:1.45; }
-        body.office-text-medium .bubble,
-        body.office-text-medium .message-left { font-size:16px; line-height:1.55; }
-        body.office-text-large .bubble,
-        body.office-text-large .message-left { font-size:17px; line-height:1.62; }
-        body.office-text-small .input-area textarea { font-size:14px; }
-        body.office-text-medium .input-area textarea { font-size:15px; }
-        body.office-text-large .input-area textarea { font-size:16px; }
+        /* 말풍선과 입력창 글자 크기·줄 간격. */
+        body .bubble,
+        body .message-left { font-size:16px; line-height:1.55; }
+        body .input-area textarea { font-size:15px; }
 
-        /*
-         * 밀도 3단계는 넉넉히 > 보통 > 촘촘히 순서로 벌어져야 한다.
-         * (과거에 말풍선 여백만 반대로 들어가 촘촘히가 가장 넓었던 버그를 고친 값이다.)
-         */
-        body.office-density-comfortable .messages { padding:28px; gap:12px; }
-        body.office-density-comfortable .message-right { margin-top:18px; }
-        body.office-density-comfortable .message-left,
-        body.office-density-comfortable .bubble { padding:11px 16px; }
-        body.office-density-normal .messages { padding:25px; gap:8px; }
-        body.office-density-normal .message-left,
-        body.office-density-normal .bubble { padding:9px 14px; }
-        body.office-density-compact .messages { padding:19px 21px; gap:5px; }
-        body.office-density-compact .message-right { margin-top:9px; }
-        body.office-density-compact .message-left,
-        body.office-density-compact .bubble { padding:7px 11px; }
+        /* 채팅 여백: 넉넉한 간격. */
+        body .messages { padding:28px; gap:12px; }
+        body .message-right { margin-top:18px; }
+        body .message-left,
+        body .bubble { padding:11px 16px; }
 
-        /*
-         * PC 전용 말풍선 크기.
-         * '편하게 보기' 설정(body.office-*)이 우선순위가 높아 일반 규칙으로는 덮이지 않으므로,
-         * 같은 선택자 구조로 단계마다 한 단계씩 올린다. 기본값인 medium + comfortable 조합이 18px / 16px 24px가 된다.
-         */
+        /* PC 전용 말풍선 크기: 화면이 넓으니 글자와 여백을 한 단계 키운다. */
         @media (min-width: 768px) {
-            body.office-text-small .bubble,
-            body.office-text-small .message-left { font-size:17px; line-height:1.5; }
-            body.office-text-medium .bubble,
-            body.office-text-medium .message-left { font-size:18px; line-height:1.5; }
-            body.office-text-large .bubble,
-            body.office-text-large .message-left { font-size:19px; line-height:1.55; }
-
-            body.office-density-comfortable .message-left,
-            body.office-density-comfortable .bubble { padding:16px 24px; }
-            body.office-density-normal .message-left,
-            body.office-density-normal .bubble { padding:14px 21px; }
-            body.office-density-compact .message-left,
-            body.office-density-compact .bubble { padding:11px 17px; }
+            body .bubble,
+            body .message-left { font-size:18px; line-height:1.5; }
+            body .message-left,
+            body .bubble { padding:16px 24px; }
         }
-
-        /* '움직임 줄이기': 모든 애니메이션·전환을 사실상 즉시 끝낸다(0.01ms). 0으로 두면 일부 브라우저에서 animationend 이벤트가 발생하지 않아 거의 0으로 둔다. */
-        body.office-reduce-motion *,
-        body.office-reduce-motion *::before,
-        body.office-reduce-motion *::after {
-            animation-duration:.01ms !important;
-            animation-iteration-count:1 !important;
-            scroll-behavior:auto !important;
-            transition-duration:.01ms !important;
-        }
-
 
         /* 설정 메뉴의 외부 링크 항목(<a>). 다른 메뉴 항목과 같은 높이·모양으로 맞춘다. */
         .settings-menu-link {
@@ -3903,7 +3847,7 @@
         body.theme-liquid-glass .attach-menu,
         body.theme-liquid-glass #friend-panel,
         body.theme-liquid-glass #mobile-chat-actions-sheet,
-        body.theme-liquid-glass .office-comfort-panel,
+        body.theme-liquid-glass .settings-collapse-panel,
         body.theme-liquid-glass .modal,
         body.theme-liquid-glass .settings-modal,
         body.theme-liquid-glass .chat-theme-modal,
@@ -3933,7 +3877,7 @@
             body.theme-liquid-glass .attach-menu,
             body.theme-liquid-glass #friend-panel,
             body.theme-liquid-glass #mobile-chat-actions-sheet,
-            body.theme-liquid-glass .office-comfort-panel,
+            body.theme-liquid-glass .settings-collapse-panel,
             body.theme-liquid-glass .modal,
             body.theme-liquid-glass .settings-modal,
             body.theme-liquid-glass .chat-theme-modal,
@@ -4100,7 +4044,7 @@
             body.theme-liquid-glass .attach-menu,
             body.theme-liquid-glass #friend-panel,
             body.theme-liquid-glass #mobile-chat-actions-sheet,
-            body.theme-liquid-glass .office-comfort-panel,
+            body.theme-liquid-glass .settings-collapse-panel,
             body.theme-liquid-glass .modal,
             body.theme-liquid-glass .settings-modal,
             body.theme-liquid-glass .chat-theme-modal,
@@ -4114,27 +4058,3 @@
             }
         }
 
-        /* 고대비: 위와 같은 해제를 한 번에 적용한다. */
-        body.theme-liquid-glass.office-contrast-high .lg-backdrop { display: none; }
-        body.theme-liquid-glass.office-contrast-high { background: var(--bg-color); }
-        body.theme-liquid-glass.office-contrast-high .friend-list,
-        body.theme-liquid-glass.office-contrast-high .chat,
-        body.theme-liquid-glass.office-contrast-high #desktop-chat-info,
-        body.theme-liquid-glass.office-contrast-high .chat-header,
-        body.theme-liquid-glass.office-contrast-high .input-area,
-        body.theme-liquid-glass.office-contrast-high .message-menu,
-        body.theme-liquid-glass.office-contrast-high .attach-menu,
-        body.theme-liquid-glass.office-contrast-high #friend-panel,
-        body.theme-liquid-glass.office-contrast-high #mobile-chat-actions-sheet,
-        body.theme-liquid-glass.office-contrast-high .office-comfort-panel,
-        body.theme-liquid-glass.office-contrast-high .modal,
-        body.theme-liquid-glass.office-contrast-high .settings-modal,
-        body.theme-liquid-glass.office-contrast-high .chat-theme-modal,
-        body.theme-liquid-glass.office-contrast-high .friend-inbox-modal,
-        body.theme-liquid-glass.office-contrast-high .message-left {
-            background-image: none !important;
-            background-color: var(--panel-bg) !important;
-            border-color: var(--border-color) !important;
-            -webkit-backdrop-filter: none !important;
-                    backdrop-filter: none !important;
-        }

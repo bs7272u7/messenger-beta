@@ -27,7 +27,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261023.1') }}">
     {# 모던 UI 전용 규칙. 모두 body.ui-modern 아래에만 있어서 클래식 화면에는 영향이 없다. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261029.8') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261029.9') }}">
 </head>
 <body>
     <!-- 리퀴드 글래스 테마의 배경. 유리는 뒤에 있는 것을 밀어내 굴절을 만들기 때문에,
@@ -63,36 +63,9 @@
 <div id="settings-menu" class="message-menu">
     <div class="settings-menu-section-title">화면</div>
     <div id="theme-toggle-item"><i class="fa-solid fa-moon" id="theme-toggle-icon"></i><span id="theme-toggle-label" data-no-i18n>다크 모드</span></div>
-    <details id="office-comfort-item" class="office-comfort-trigger">
-        <summary><i class="fa-solid fa-eye"></i><span>편하게 보기</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></summary>
-        <div id="office-comfort-panel" class="office-comfort-panel">
-        <label>화면 대비
-            <select id="office-contrast-select">
-                <option value="comfort">편안함</option>
-                <option value="standard">기본</option>
-                <option value="high">고대비</option>
-            </select>
-        </label>
-        <label>글자 크기
-            <select id="office-text-size-select">
-                <option value="small">작게</option>
-                <option value="medium">기본</option>
-                <option value="large">크게</option>
-            </select>
-        </label>
-        <label>채팅 밀도
-            <select id="office-density-select">
-                <option value="comfortable">여유롭게</option>
-                <option value="normal">기본</option>
-                <option value="compact">촘촘하게</option>
-            </select>
-        </label>
-        <label class="office-motion-toggle"><input id="office-reduce-motion" type="checkbox"> <span>움직임 줄이기</span></label>
-        </div>
-    </details>
-    <details id="app-theme-item" class="office-comfort-trigger">
-        <summary><i class="fa-solid fa-droplet"></i><span>화면 테마</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></summary>
-        <div class="office-comfort-panel">
+    <details id="app-theme-item" class="settings-collapse-trigger">
+        <summary><i class="fa-solid fa-droplet"></i><span>화면 테마</span><i class="fa-solid fa-chevron-down settings-collapse-chevron"></i></summary>
+        <div class="settings-collapse-panel">
             <label>테마
                 <select id="app-theme-select">
                     <option value="liquid-glass">클라우드</option>
@@ -102,9 +75,9 @@
         </div>
     </details>
     <!-- UI 방식 선택: 클래식(지금 화면) / 모던(새 화면). 선택은 script.js가 localStorage(uiLayout)에 저장한다. -->
-    <details id="ui-layout-item" class="office-comfort-trigger">
-        <summary><i class="fa-solid fa-table-columns"></i><span>UI</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></summary>
-        <div class="office-comfort-panel">
+    <details id="ui-layout-item" class="settings-collapse-trigger">
+        <summary><i class="fa-solid fa-table-columns"></i><span>UI</span><i class="fa-solid fa-chevron-down settings-collapse-chevron"></i></summary>
+        <div class="settings-collapse-panel">
             <label>UI 방식
                 <select id="ui-layout-select">
                     <option value="classic">클래식</option>
@@ -117,7 +90,7 @@
     <div class="settings-menu-section-title">계정 · 알림</div>
     <div id="account-settings-item"><i class="fa-solid fa-user-gear"></i>계정 설정</div>
     <details id="language-setting-item" class="language-setting-item">
-        <summary><i class="fa-solid fa-language"></i><span>언어</span><span class="language-setting-current" id="language-setting-current">한국어</span><i class="fa-solid fa-chevron-down office-comfort-chevron"></i></summary>
+        <summary><i class="fa-solid fa-language"></i><span>언어</span><span class="language-setting-current" id="language-setting-current">한국어</span><i class="fa-solid fa-chevron-down settings-collapse-chevron"></i></summary>
         <div class="language-setting-panel">
             <select id="language-select" data-language-select aria-label="언어">
                 <option value="ko">한국어</option>
@@ -1055,13 +1028,13 @@
         const INITIAL_PROFILE_USERNAME = {{ (initial_profile or "")|tojson }};
         window.CLOUD_LANGUAGE = {{ user_language|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/i18n.js', v='20261029.8') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js', v='20261029.9') }}"></script>
     <!-- liquid-glass.js — MIT, (c) 2026 Deepika Rao · github.com/deepika-builds/liquid-glass -->
     <script src="{{ url_for('static', filename='js/liquid-glass.js', v='20260831.2') }}"></script>
-    <script src="{{ url_for('static', filename='js/script.js', v='20261029.8') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-profile.js', v='20261029.8') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-inbox.js', v='20261029.8') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-composer.js', v='20261029.8') }}"></script>
-    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261029.8') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js', v='20261029.9') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-profile.js', v='20261029.9') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-inbox.js', v='20261029.9') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-composer.js', v='20261029.9') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261029.9') }}"></script>
 </body>
 </html>
