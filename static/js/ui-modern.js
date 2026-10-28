@@ -256,4 +256,27 @@
         else closeRowMenu();
     });
     window.addEventListener("resize", closeRowMenu);
+
+    // ---------------------------------------------------------------
+    // 6) 입력창: 글이 있을 때만 전송 버튼을 보이고(첨부 + 버튼과 자리 교체), 글이 없으면 다시 + 버튼을 보인다.
+    //    script.js가 전송 후 input.value = ""처럼 코드로 값을 바꿀 때는 input 이벤트가 없으므로, 값 setter를 감싸서 함께 처리한다.
+    // ---------------------------------------------------------------
+    const composerInput = $("#message");
+    const composerArea = composerInput && composerInput.closest(".input-area");
+    if (composerInput && composerArea) {
+        const nativeValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+        const syncComposer = function () {
+            composerArea.classList.toggle("has-text", composerInput.value.trim() !== "");
+        };
+        Object.defineProperty(composerInput, "value", {
+            configurable: true,
+            get: function () { return nativeValue.get.call(this); },
+            set: function (next) {
+                nativeValue.set.call(this, next);
+                syncComposer();
+            }
+        });
+        composerInput.addEventListener("input", syncComposer);
+        syncComposer();
+    }
 })();
