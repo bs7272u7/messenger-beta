@@ -174,9 +174,13 @@ class ChatService:
             ).fetchone()
             if not member:
                 return False
+            # '삭제'는 내 목록에서 숨기는 것에 더해, 지금까지의 대화를 내게서 지우는 것이다. 마지막 메시지 번호를 적어 두면
+            # 이후에 방이 다시 나타나도(새 메시지 등) 그 번호 이전 메시지는 내게 보이지 않는다. 다른 멤버의 기록은 그대로다.
             conn.execute(
-                "UPDATE conversation_members SET hidden_at = %s WHERE conversation_id = %s AND user_id = %s",
-                (self._now_string(), conversation_id, user_id),
+                "UPDATE conversation_members SET hidden_at = %s,"
+                " cleared_at_message_id = COALESCE((SELECT MAX(id) FROM messages WHERE conversation_id = %s), 0)"
+                " WHERE conversation_id = %s AND user_id = %s",
+                (self._now_string(), conversation_id, conversation_id, user_id),
             )
             conn.commit()
         return True

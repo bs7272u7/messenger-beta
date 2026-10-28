@@ -115,6 +115,11 @@ class DmRequestService:
             if self._blocked_either_way(conn, user_id, target_id):
                 raise DmRequestError("차단 관계에서는 메시지를 보낼 수 없습니다.", 403)
 
+            # 같은 두 사람이 동시에 시작하면(버튼 연타 등) 방이 둘 만들어질 수 있으므로, 두 사람 조합마다 한 번에 하나씩만 처리한다.
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(%s, %s)",
+                (min(user_id, target_id), max(user_id, target_id)),
+            )
             existing = conn.execute(
                 """
                 SELECT c.id, c.dm_state FROM conversations c

@@ -1644,6 +1644,8 @@ def init_db():
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS dm_state VARCHAR(20) NOT NULL DEFAULT 'active'",
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS dm_requester_id INT",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS hidden_at TEXT",
+            # 멤버가 대화방을 '삭제'(숨김)했을 때의 마지막 메시지 번호. 그 번호 이하의 메시지는 그 멤버에게 보이지 않는다.
+            "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS cleared_at_message_id INT NOT NULL DEFAULT 0",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS chat_theme VARCHAR(20) NOT NULL DEFAULT 'default'",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS is_muted BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT FALSE",
@@ -1706,6 +1708,24 @@ def init_db():
             )
             cur.execute(
                 "INSERT INTO app_flags (name, created_at) VALUES ('follows_backfilled', %s)",
+                (now_str(),),
+            )
+
+        # '삭제하면 기록도 지우기'를 도입할 때 한 번만: 이미 숨겨 둔(삭제한) 대화방은 지금까지의 기록을 지운 것으로 처리한다.
+        # 수락 대기 중인 메시지 요청(받는 사람에게 숨겨 둔 상태)은 건드리지 않는다.
+        cur.execute("SELECT 1 FROM app_flags WHERE name = 'hidden_rooms_cleared'")
+        if cur.fetchone() is None:
+            cur.execute(
+                """
+                UPDATE conversation_members cm
+                SET cleared_at_message_id = COALESCE(
+                    (SELECT MAX(id) FROM messages WHERE conversation_id = cm.conversation_id), 0)
+                FROM conversations c
+                WHERE c.id = cm.conversation_id AND cm.hidden_at IS NOT NULL AND c.dm_state = 'active'
+            """
+            )
+            cur.execute(
+                "INSERT INTO app_flags (name, created_at) VALUES ('hidden_rooms_cleared', %s)",
                 (now_str(),),
             )
 
@@ -1872,6 +1892,27 @@ def accept_friend_request(conn, request_id):
     ).fetchone()
     # 요청을 수락 상태로 바꾸고, 두 사람이 바로 대화할 수 있도록 1:1 대화방을 함께 만든다.
     conn.execute("UPDATE friend_requests SET status = 'accepted' WHERE id = %s", (request_id,))
+    # 두 사람 사이에 이미 1:1 대화방이 있으면(예전에 친구였다가 삭제했거나, 모던 UI에서 먼저 메시지를 보낸 경우) 새로 만들지 않고
+    # 그 방을 다시 쓴다. 안 그러면 같은 상대와의 대화방이 둘이 된다.
+    existing = conn.execute(
+        """
+        SELECT c.id FROM conversations c
+        JOIN conversation_members a ON a.conversation_id = c.id AND a.user_id = %s
+        JOIN conversation_members b ON b.conversation_id = c.id AND b.user_id = %s
+        WHERE NOT c.is_group ORDER BY c.id LIMIT 1
+        """,
+        (friend_request["requester_id"], friend_request["addressee_id"]),
+    ).fetchone()
+    if existing:
+        conn.execute(
+            "UPDATE conversations SET dm_state = 'active', dm_requester_id = NULL WHERE id = %s",
+            (existing["id"],),
+        )
+        conn.execute(
+            "UPDATE conversation_members SET hidden_at = NULL WHERE conversation_id = %s",
+            (existing["id"],),
+        )
+        return existing["id"]
     conversation = conn.execute(
         "INSERT INTO conversations (is_group, name, created_at) VALUES (FALSE, NULL, %s) RETURNING id",
         (now_str(),),
@@ -2989,7 +3030,8 @@ def get_conversations():
                        AS member_count,
                    -- 읽지 않은 개수는 '내가 마지막으로 읽은 메시지 ID보다 큰 메시지'를 센다.
                    (SELECT COUNT(*) FROM messages unread
-                     WHERE unread.conversation_id = c.id AND unread.id > cm.last_read_message_id)
+                     WHERE unread.conversation_id = c.id
+                       AND unread.id > GREATEST(cm.last_read_message_id, cm.cleared_at_message_id))
                        AS unread_count
             FROM conversations c
             JOIN conversation_members cm ON cm.conversation_id = c.id
@@ -3006,7 +3048,7 @@ def get_conversations():
             LEFT JOIN LATERAL (
                 SELECT id, text, image, video, audio, file_name, time, sent_at
                 FROM messages
-                WHERE messages.conversation_id = c.id
+                WHERE messages.conversation_id = c.id AND messages.id > cm.cleared_at_message_id
                 ORDER BY id DESC
                 LIMIT 1
             ) last_msg ON TRUE
@@ -3341,7 +3383,8 @@ def get_messages(conversation_id):
     """
     user_id = session["user_id"]
     with get_db() as conn:
-        if not get_membership(conn, conversation_id, user_id):
+        membership = get_membership(conn, conversation_id, user_id)
+        if not membership:
             return jsonify({"success": False, "error": "대화방을 찾을 수 없습니다."}), 404
 
         conv = conn.execute(
@@ -3370,8 +3413,10 @@ def get_messages(conversation_id):
             sender_names = {m["id"]: (m["display_name"] or m["username"]) for m in member_rows}
             sender_images = {m["id"]: m["profile_image"] for m in member_rows}
 
+        # 내가 '삭제'했던 시점 이전의 메시지는 보여 주지 않는다.
         rows = conn.execute(
-            "SELECT * FROM messages WHERE conversation_id = %s ORDER BY id ASC", (conversation_id,)
+            "SELECT * FROM messages WHERE conversation_id = %s AND id > %s ORDER BY id ASC",
+            (conversation_id, membership["cleared_at_message_id"]),
         ).fetchall()
 
         messages = []

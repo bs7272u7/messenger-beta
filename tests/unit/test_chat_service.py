@@ -42,11 +42,13 @@ class Connection:
     def execute(self, query, params=()):
         if "SELECT 1 FROM conversation_members" in query:
             return Result({"exists": 1} if self.member else None)
-        if "SELECT MAX(id)" in query:
-            return Result({"max_id": self.latest_id})
+        # '삭제(숨김)' UPDATE는 안에 SELECT MAX(id)를 품고 있으므로 UPDATE를 먼저 판별한다.
         if "UPDATE conversation_members" in query:
             self.update_params = params
             self.preference_updates.append((query, params))
+            return Result(None)
+        if "SELECT MAX(id)" in query:
+            return Result({"max_id": self.latest_id})
         return Result(None)
 
     def commit(self):
@@ -287,7 +289,8 @@ class ChatServiceTests(unittest.TestCase):
 
         self.assertTrue(service.hide_conversation(3, 4))
 
-        self.assertEqual(connection.update_params, ("2026-08-26 12:00:00", 3, 4))
+        # (숨긴 시각, 지울 기준을 구하는 대화방 번호, 대화방 번호, 사용자 번호). 숨기면서 그때까지의 기록도 내게서 지운다.
+        self.assertEqual(connection.update_params, ("2026-08-26 12:00:00", 3, 3, 4))
         self.assertTrue(connection.committed)
 
     def test_hide_conversation_rejects_non_members(self):
