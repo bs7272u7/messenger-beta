@@ -174,7 +174,7 @@
         function openProfileCard(friend) {
             if (!friend || friend.isGroup || !friend.peerId) return;
             // 모던 UI에서는 예전 카드 대신 팔로우 버튼이 있는 프로필 화면을 연다.
-            if (getUiLayout() === "modern" && window.openModernProfile) {
+            if (window.openModernProfile) {
                 window.openModernProfile(friend.peerId);
                 return;
             }
@@ -903,7 +903,6 @@
         const themeToggleIcon = document.querySelector("#theme-toggle-icon");
         const themeToggleLabel = document.querySelector("#theme-toggle-label");
         const appThemeSelect = document.querySelector("#app-theme-select");
-        const uiLayoutSelect = document.querySelector("#ui-layout-select");
         const languageSelect = document.querySelector("#language-select");
         const languageSettingCurrent = document.querySelector("#language-setting-current");
         // 계정 삭제, 프로필 사진 변경·자르기(crop), 동영상 첨부, 이메일 변경에 쓰는 요소.
@@ -1122,27 +1121,14 @@
         }
 
         /**
-         * 저장된 UI 방식(classic 또는 modern)을 읽는다. 기본값은 classic(지금 화면)이다.
+         * 모던 화면의 초기 설정. <html>과 <body>의 ui-modern 클래스는 index.html에 항상 붙어 있다.
+         * (예전의 클래식 화면은 backup/classic-ui 브랜치에 보관되어 있다.)
          */
-        function getUiLayout() {
-            return localStorage.getItem("uiLayout") === "modern" ? "modern" : "classic";
-        }
-
-        /**
-         * UI 방식을 적용한다. modern이면 <html>과 <body>에 ui-modern 클래스를 붙여 ui-modern.css의 규칙이 켜지게 한다.
-         * <html> 쪽 클래스는 index.html의 head 스크립트가 화면을 그리기 전에 먼저 붙이므로, 여기서는 둘을 같은 상태로 맞춘다.
-         */
-        function applyUiLayout() {
-            const layout = getUiLayout();
-            const modern = layout === "modern";
-            document.documentElement.classList.toggle("ui-modern", modern);
-            document.body.classList.toggle("ui-modern", modern);
-            if (uiLayoutSelect) uiLayoutSelect.value = layout;
-            if (!modern) document.body.classList.remove("modern-info-open");
-            if (modern && window.refreshModernInboxBadge) window.refreshModernInboxBadge();
+        function initModernLayout() {
+            if (window.refreshModernInboxBadge) window.refreshModernInboxBadge();
             // 모던의 공개 범위는 전체 공개/비공개 두 가지뿐이라 '친구만 공개' 항목을 숨긴다.
             const friendsOnlyOption = myProfileVisibility && myProfileVisibility.querySelector('option[value="friends"]');
-            if (friendsOnlyOption) friendsOnlyOption.hidden = friendsOnlyOption.disabled = modern;
+            if (friendsOnlyOption) friendsOnlyOption.hidden = friendsOnlyOption.disabled = true;
         }
 
         /**
@@ -1157,19 +1143,11 @@
          */
         function applyAppTheme() {
             const theme = getAppTheme();
-            // 모던 UI는 유리 질감 대신 평평한 색을 쓰므로, 저장된 테마가 클라우드여도 모던에서는 켜지 않는다.
-            const useGlass = theme === "liquid-glass" && getUiLayout() !== "modern";
-            document.body.classList.toggle("theme-liquid-glass", useGlass);
-            // 모던에서 클라우드 테마를 고른 경우: 유리 효과 대신 하늘색 배경과 반투명 패널만 입힌다(ui-modern.css의 modern-cloud).
-            document.body.classList.toggle("modern-cloud", theme === "liquid-glass" && getUiLayout() === "modern");
+            // 모던은 유리 질감(굴절) 대신 평평한 색을 쓴다. 클라우드를 고르면 하늘색 배경과 반투명 패널만 입힌다(ui-modern.css의 modern-cloud).
+            document.body.classList.remove("theme-liquid-glass");
+            document.body.classList.toggle("modern-cloud", theme === "liquid-glass");
             if (appThemeSelect) appThemeSelect.value = theme;
-            if (!useGlass) {
-                lgDetachAll();
-                return;
-            }
-            // 켤 때는 굴절 맵 생성에 수십 ms가 걸리므로, 첫 화면 그리기를 막지 않도록 브라우저가 한가할 때로 미룬다.
-            if (window.requestIdleCallback) window.requestIdleCallback(() => lgSync(), { timeout: 800 });
-            else lgScheduleSync(150);
+            lgDetachAll();
         }
 
         /**
@@ -1196,12 +1174,12 @@
 
         // 페이지를 열 때 화면 설정을 복원하는 초기화 구간. 테마 → 언어 순으로 적용한다.
         // 없어진 기능(오피스 모드, 편하게 보기)의 저장값은 지운다.
-        ["officeMode", "officeContrast", "officeTextSize", "officeDensity", "officeReduceMotion"].forEach(function (key) {
+        ["uiLayout", "officeMode", "officeContrast", "officeTextSize", "officeDensity", "officeReduceMotion"].forEach(function (key) {
             try { localStorage.removeItem(key); } catch (error) { /* 저장소를 쓸 수 없는 환경 */ }
         });
         syncThemeToggleAvailability();
         lgReparentFixedPopovers();
-        applyUiLayout();
+        initModernLayout();
         applyAppTheme();
         lgWatch();
         syncLanguageSetting();
@@ -1225,17 +1203,6 @@
                 showToast(error.message || "언어 설정을 저장하지 못했습니다.", "error");
             }
         });
-
-        // UI 방식(클래식/모던) 선택: 저장하고 바로 적용한다.
-        if (uiLayoutSelect) {
-            uiLayoutSelect.addEventListener("change", function () {
-                localStorage.setItem("uiLayout", uiLayoutSelect.value);
-                applyUiLayout();
-                // 유리 테마는 UI 방식에 따라 켜지고 꺼지므로 다시 맞춘다.
-                applyAppTheme();
-                lgSync();
-            });
-        }
 
         // 화면 테마(클라우드/클래식) 선택: 저장하고 바로 적용한다.
         if (appThemeSelect) {
@@ -1693,7 +1660,7 @@
               } else {
                     // 상대 메시지. 그룹 채팅에서는 보낸 사람의 사진과 이름을 함께 보여 주기 위해 한 칸 더 감싼다.
                     // 모던 UI의 1:1 채팅에서도 상대 사진을 옆에 보여 준다. 같은 사람이 이어서 보낸 묶음의 마지막 메시지에만 붙이고, 나머지는 빈 칸으로 줄을 맞춘다.
-                    const modernPeerAvatar = !isGroupChat && document.body.classList.contains("ui-modern");
+                    const modernPeerAvatar = !isGroupChat;
                     const nextChat = chatList[index + 1];
                     const lastOfRun = !nextChat || nextChat.mine || nextChat.messageType === "system";
                     message.className = (isGroupChat || modernPeerAvatar) ? "message-left-container group-message" : "message-left-container";
@@ -2484,7 +2451,6 @@
          * 지금 대화가 열려 있는(메시지 요청이 수락됐거나 맞팔인) 1:1 상대를 함께 후보로 한다.
          */
         function getGroupCandidates() {
-            if (getUiLayout() !== "modern") return friendDirectory;
             const candidates = friendDirectory.slice();
             const seen = new Set(candidates.map(function (friend) { return friend.peerUsername; }));
             friends.forEach(function (room) {
@@ -2962,7 +2928,7 @@
         mobileFriendsNavBtn.addEventListener("click", function () {
             closeSettingsMenu();
             // 모던 UI에서는 친구 관리 패널 대신 사용자 검색(팔로우)을 연다.
-            if (getUiLayout() === "modern" && window.openModernSearch) {
+            if (window.openModernSearch) {
                 closeFriendPanel();
                 window.openModernSearch();
                 return;
@@ -2976,7 +2942,7 @@
             closeSettingsMenu();
             closeFriendPanel();
             // 모던 UI에서는 프로필 화면(팔로워·팔로잉)을 먼저 보여 주고, 편집은 그 안의 버튼으로 연다.
-            if (getUiLayout() === "modern" && window.openModernProfile) window.openModernProfile(MY_USER_ID);
+            if (window.openModernProfile) window.openModernProfile(MY_USER_ID);
             else openProfileEditor();
             setMobileNavActive(mobileProfileNavBtn);
         });
@@ -3076,7 +3042,7 @@
                 myProfileBio.value = profile.bio || "";
                 // 모던에는 '친구만 공개'가 없다. 예전에 그렇게 정한 계정은 같은 뜻에 가까운 '비공개'로 보여 준다.
                 const savedVisibility = profile.profile_visibility || "friends";
-                myProfileVisibility.value = getUiLayout() === "modern" && savedVisibility === "friends" ? "private" : savedVisibility;
+                myProfileVisibility.value = savedVisibility === "friends" ? "private" : savedVisibility;
                 updateProfileCoverPreview(profile.cover_image);
             } catch (error) { }
             myProfileOverlay.style.display = "flex";
