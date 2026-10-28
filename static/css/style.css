@@ -2846,6 +2846,16 @@
             background: var(--bg-color);
         }
 
+        .update-retry-btn {
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            padding: 2px 8px;
+            background: var(--bg-color);
+            color: inherit;
+            font: inherit;
+            cursor: pointer;
+        }
+
         /* 업데이트 내역 목록. overscroll-behavior: contain으로 목록 끝에서 스크롤이 뒤의 화면으로 번지지 않게 한다. */
         .update-history-list {
             display: grid;

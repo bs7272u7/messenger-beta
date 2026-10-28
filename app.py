@@ -150,9 +150,11 @@ GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "bs7272u7/messenger-beta
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 # 업데이트 내역을 메모리에 보관하는 시간(10분). GitHub API 호출 횟수를 줄인다.
 UPDATE_HISTORY_CACHE_SECONDS = 600
+# GitHub 호출이 실패하면 이 시간(60초) 동안은 다시 부르지 않는다. 한도를 더 쓰지 않고, 그동안은 마지막 성공 결과를 보여 준다.
+UPDATE_HISTORY_RETRY_SECONDS = 60
 _update_history_cache = {
-    "recent": {"expires_at": 0, "data": None},
-    "all": {"expires_at": 0, "data": None},
+    "recent": {"expires_at": 0, "retry_at": 0, "data": None},
+    "all": {"expires_at": 0, "retry_at": 0, "data": None},
 }
 # 관리자 페이지에 한 번 더 거는 접근 키(해시 값). 키 확인에 성공하면 30분간 유효하고, 5번 틀리면 15분간 잠근다.
 ADMIN_ACCESS_KEY_HASH = os.environ.get("ADMIN_ACCESS_KEY_HASH")
@@ -614,16 +616,21 @@ def get_update_history(include_all=False):
 
     커밋 메시지의 첫 줄이 그대로 화면에 나온다. 기본은 최근 10개, include_all이면 전체 기록이다.
     GitHub API를 매번 호출하지 않도록 각각 10분간 메모리에 캐시한다.
+    호출이 실패하면 마지막으로 성공한 결과(오래됐더라도)를 돌려주고, 그런 결과가 없을 때만 None을 돌려준다.
     """
     cache_key = "all" if include_all else "recent"
     cache = _update_history_cache[cache_key]
-    if cache["data"] and time.time() < cache["expires_at"]:
+    now = time.time()
+    if cache["data"] and now < cache["expires_at"]:
+        return cache["data"]
+    if now < cache["retry_at"]:
         return cache["data"]
 
-    headers = {"Accept": "application/vnd.github+json"}
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "cloud-chatting"}
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
 
+    response = None
     try:
         updates = []
         page = 1
@@ -656,13 +663,23 @@ def get_update_history(include_all=False):
         _update_history_cache[cache_key].update(
             {
                 "expires_at": time.time() + UPDATE_HISTORY_CACHE_SECONDS,
+                "retry_at": 0,
                 "data": result,
             }
         )
         return result
-    except (requests.RequestException, KeyError, TypeError, ValueError):
-        app.logger.warning("GitHub 업데이트 내역을 불러오지 못했습니다.")
-        return None
+    except (requests.RequestException, KeyError, TypeError, ValueError) as error:
+        # 원인을 알 수 있도록 상태 코드와 남은 호출 한도를 함께 남긴다(토큰 값은 남기지 않는다).
+        app.logger.warning(
+            "GitHub 업데이트 내역을 불러오지 못했습니다: %s status=%s remaining=%s reset=%s token=%s",
+            type(error).__name__,
+            getattr(response, "status_code", None),
+            response.headers.get("X-RateLimit-Remaining") if response is not None else None,
+            response.headers.get("X-RateLimit-Reset") if response is not None else None,
+            "yes" if GITHUB_TOKEN else "no",
+        )
+        cache["retry_at"] = time.time() + UPDATE_HISTORY_RETRY_SECONDS
+        return cache["data"]
 
 
 # 접속 정보는 DATABASE_URL(Render가 주는 한 줄짜리 주소)을 우선 쓰고, 없으면 아래 DB_* 값을 쓴다(로컬 개발).
