@@ -293,7 +293,7 @@
             plusBtn.disabled = blocked;
             setInputPlaceholder(friend && friend.isDisabled
                 ? "종료된 그룹 채팅입니다. 이전 대화만 볼 수 있습니다."
-                : (blocked ? "차단된 사용자입니다" : "메시지를 입력하세요"));
+                : (blocked ? "차단된 사용자입니다" : "메시지 입력..."));
         }
 
         /**

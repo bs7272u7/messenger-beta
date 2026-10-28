@@ -1827,6 +1827,18 @@
         "이 채팅이 내 메시지 목록에서 사라지고 대화 기록도 지워집니다. 이 계정의 새 메시지를 받지 않으려면 먼저 계정을 차단한 다음 채팅을 삭제하세요.": "Se quitará el chat de tus mensajes y se borrará su historial. Para dejar de recibir mensajes nuevos de esta cuenta, primero bloquea la cuenta y luego elimina el chat.",
         "채팅을 삭제하지 못했습니다.": "No se pudo eliminar el chat.",
     });
+    Object.assign(dictionaries.en, {
+        "메시지 입력...": "Message...",
+    });
+    Object.assign(dictionaries.zh, {
+        "메시지 입력...": "输入消息...",
+    });
+    Object.assign(dictionaries.ja, {
+        "메시지 입력...": "メッセージを入力...",
+    });
+    Object.assign(dictionaries.es, {
+        "메시지 입력...": "Escribe un mensaje...",
+    });
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
     /**
      * 처음 한 번 번역하고, 이후 JavaScript가 그리는 UI(채팅 목록·모달 등)도 같은 사전으로 번역하도록 DOM 변화를 감시한다.
