@@ -155,6 +155,7 @@ body.ui-modern .lg-backdrop { display: none; }
         flex-direction: column;
         justify-content: center;
         gap: 4px;
+        padding-bottom: 16vh; /* 정중앙보다 조금 위(약 8vh)에 오도록 */
     }
     /* 선 모양 로고(static/logo-line.svg)를 마스크로 쓰고 글자색으로 칠해서, 다크·라이트 어디서나 자동으로 색이 맞는다. */
     body.ui-modern #modern-rail .modern-rail-logo-mark {
