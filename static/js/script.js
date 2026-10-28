@@ -901,13 +901,10 @@
         const modalCancelBtn = document.querySelector("#modal-cancel-btn");
         const modalConfirmBtn = document.querySelector("#modal-confirm-btn");
 
-        // 설정 메뉴의 화면 설정: 다크 모드, 오피스 모드, 편하게 보기, 화면 테마, 언어.
+        // 설정 메뉴의 화면 설정: 다크 모드, 편하게 보기, 화면 테마, UI, 언어.
         const themeToggleItem = document.querySelector("#theme-toggle-item");
         const themeToggleIcon = document.querySelector("#theme-toggle-icon");
         const themeToggleLabel = document.querySelector("#theme-toggle-label");
-        const officeModeItem = document.querySelector("#office-mode-item");
-        const officeModeIcon = document.querySelector("#office-mode-icon");
-        const officeModeLabel = document.querySelector("#office-mode-label");
         const officeComfortItem = document.querySelector("#office-comfort-item");
         const officeContrastSelect = document.querySelector("#office-contrast-select");
         const officeTextSizeSelect = document.querySelector("#office-text-size-select");
@@ -963,14 +960,9 @@
             themeToggleLabel.innerText = window.CloudI18n ? window.CloudI18n.t("라이트 모드") : "라이트 모드";
         }
 
-        // 다크/라이트 전환. 선택은 localStorage에 저장하고 아이콘·문구를 바꾼다. 오피스 모드에서는 바꿀 수 없다.
+        // 다크/라이트 전환. 선택은 localStorage에 저장하고 아이콘·문구를 바꾼다.
         themeToggleItem.addEventListener("click", function (event) {
             event.stopPropagation();
-            // 오피스 모드에서는 화면 모드(다크/라이트)가 고정되어 있어 바꿀 수 없다.
-            if (document.body.classList.contains("office-mode")) {
-                showToast("오피스 모드에서는 다크/라이트 모드를 변경할 수 없습니다.");
-                return;
-            }
             closeSettingsMenu();
             document.body.classList.toggle("dark-mode");
 
@@ -988,7 +980,7 @@
         /**
          * '편하게 보기' 설정값(대비, 글자 크기, 간격, 움직임 줄이기)을 읽는다.
          *
-         * 오피스 모드는 기능을 바꾸지 않고, 오래 보는 업무용 화면의 시각 밀도만 차분하게 조절한다.
+         * 기능은 그대로 두고 오래 보는 화면의 시각 밀도만 차분하게 조절한다.
          * 움직임 줄이기는 저장된 선택이 없으면 운영체제의 '동작 줄이기' 설정을 따른다.
          */
         function getOfficeComfortSettings() {
@@ -1017,7 +1009,7 @@
         }
 
         /**
-         * '편하게 보기' 항목을 항상 보이게 한다. 오피스 모드를 켰는지와 상관없이 언제든 열 수 있다.
+         * '편하게 보기' 항목을 항상 보이게 한다.
          */
         function syncOfficeComfortVisibility() {
             officeComfortItem.hidden = false;
@@ -1086,13 +1078,12 @@
         /**
          * 굴절 효과를 써도 되는 환경인지 판단한다.
          *
-         * 라이브러리를 못 불러와도 앱은 그대로 동작해야 하고, 오피스 모드·고대비·'투명도 줄이기' 설정에서는 가독성이 우선이다.
+         * 라이브러리를 못 불러와도 앱은 그대로 동작해야 하고, 고대비·'투명도 줄이기' 설정에서는 가독성이 우선이다.
          * CPU 코어가 4개 이하인 저사양 기기에서도 꺼서 성능을 지킨다.
          */
         function lgEnabled() {
             if (typeof window.liquidGlass !== "function") return false;
             if (!document.body.classList.contains("theme-liquid-glass")) return false;
-            if (document.body.classList.contains("office-mode")) return false;
             if (document.body.classList.contains("office-contrast-high")) return false;
             if (window.matchMedia("(prefers-reduced-transparency: reduce)").matches) return false;
             if ((navigator.hardwareConcurrency || 8) <= 4) return false;
@@ -1199,14 +1190,6 @@
             // 모던의 공개 범위는 전체 공개/비공개 두 가지뿐이라 '친구만 공개' 항목을 숨긴다.
             const friendsOnlyOption = myProfileVisibility && myProfileVisibility.querySelector('option[value="friends"]');
             if (friendsOnlyOption) friendsOnlyOption.hidden = friendsOnlyOption.disabled = modern;
-
-            // 모던 UI는 자체 색을 쓰므로 오피스 모드는 보는 동안만 꺼 둔다. 저장값(officeMode, theme)은 그대로 두어,
-            // 클래식으로 돌아오면 init 구간과 같은 상태(오피스 모드면 다크 해제)로 복원된다.
-            if (localStorage.getItem("officeMode") === "enabled") {
-                document.body.classList.toggle("office-mode", !modern);
-                document.body.classList.toggle("dark-mode", modern && localStorage.getItem("theme") === "dark");
-                syncOfficeModeLabel();
-            }
         }
 
         /**
@@ -1248,45 +1231,21 @@
         }
 
         /**
-         * 다크/라이트 전환 버튼의 문구·아이콘을 현재 상태에 맞춘다. 오피스 모드에서는 화면 모드가 고정되므로 버튼을 잠금 표시로 바꾼다.
+         * 다크/라이트 전환 버튼의 문구·아이콘을 현재 상태와 언어에 맞춘다.
          */
         function syncThemeToggleAvailability() {
-            const officeEnabled = document.body.classList.contains("office-mode");
-            themeToggleItem.classList.toggle("disabled", officeEnabled);
-            themeToggleItem.setAttribute("aria-disabled", officeEnabled ? "true" : "false");
             const i18n = window.CloudI18n;
-            if (officeEnabled) {
-                themeToggleIcon.className = "fa-solid fa-lock";
-                themeToggleLabel.innerText = i18n ? i18n.t("화면 모드 고정됨") : "화면 모드 고정됨";
-                themeToggleItem.title = i18n ? i18n.t("오피스 모드에서는 다크/라이트 모드를 변경할 수 없습니다.") : "오피스 모드에서는 다크/라이트 모드를 바꿀 수 없습니다.";
-                return;
-            }
             const isDark = document.body.classList.contains("dark-mode");
             themeToggleIcon.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
             themeToggleLabel.innerText = isDark ? (i18n ? i18n.t("라이트 모드") : "라이트 모드") : (i18n ? i18n.t("다크 모드") : "다크 모드");
             themeToggleItem.removeAttribute("title");
         }
 
-        /**
-         * 오피스 모드 버튼의 문구를 현재 상태(켜기/끄기)와 언어에 맞춰 다시 쓴다. 이어서 다크/라이트 버튼과 '편하게 보기' 표시도 맞춘다.
-         */
-        function syncOfficeModeLabel() {
-            const enabled = document.body.classList.contains("office-mode");
-            const i18n = window.CloudI18n;
-            officeModeIcon.className = enabled ? "fa-solid fa-briefcase" : "fa-solid fa-briefcase";
-            officeModeLabel.innerText = enabled
-                ? (i18n ? i18n.t("오피스 모드 끄기") : "오피스 모드 끄기")
-                : (i18n ? i18n.t("오피스 모드 켜기") : "오피스 모드 켜기");
-            syncThemeToggleAvailability();
-            syncOfficeComfortVisibility();
-        }
-
-        // 페이지를 열 때 화면 설정을 복원하는 초기화 구간. 오피스 모드 → 편하게 보기 → 테마 → 언어 순으로 적용한다.
-        if (localStorage.getItem("officeMode") === "enabled") {
-            document.body.classList.add("office-mode");
-            document.body.classList.remove("dark-mode");
-        }
-        syncOfficeModeLabel();
+        // 페이지를 열 때 화면 설정을 복원하는 초기화 구간. 편하게 보기 → 테마 → 언어 순으로 적용한다.
+        // 없어진 오피스 모드의 저장값은 지운다.
+        try { localStorage.removeItem("officeMode"); } catch (error) { /* 저장소를 쓸 수 없는 환경 */ }
+        syncThemeToggleAvailability();
+        syncOfficeComfortVisibility();
         applyOfficeComfortSettings();
         lgReparentFixedPopovers();
         applyUiLayout();
@@ -1298,7 +1257,7 @@
         // 언어가 바뀔 때(i18n.js가 알려 준다): 자동 번역에서 빠진 문구를 다시 쓰고, 서버에 선택 언어를 저장한다.
         window.addEventListener("cloud-language-change", async function (event) {
             syncLanguageSetting();
-            syncOfficeModeLabel();
+            syncThemeToggleAvailability();
             updateChatHeader(getCurrentFriend() || null);
             await readMessages();
             try {
@@ -1334,7 +1293,7 @@
             uiLayoutSelect.addEventListener("change", function () {
                 localStorage.setItem("uiLayout", uiLayoutSelect.value);
                 applyUiLayout();
-                // 유리 테마는 UI 방식에 따라 켜지고 꺼지므로 다시 맞춘다. 오피스 모드를 오갈 때 바뀐 굴절도 함께 정리한다.
+                // 유리 테마는 UI 방식에 따라 켜지고 꺼지므로 다시 맞춘다.
                 applyAppTheme();
                 lgSync();
             });
@@ -1347,23 +1306,6 @@
                 applyAppTheme();
             });
         }
-
-        // 오피스 모드 켜기/끄기. 켜는 동안에는 다크 모드를 잠시 해제하고(저장값은 유지), 끄면 저장해 둔 다크/라이트 선택을 복원한다.
-        officeModeItem.addEventListener("click", function (event) {
-            event.stopPropagation();
-            closeSettingsMenu();
-            const enabled = document.body.classList.toggle("office-mode");
-            if (enabled) {
-                // 사용자가 고른 화면 모드(다크/라이트)는 저장값으로 보존하고, 오피스 모드인 동안만 적용을 멈춘다.
-                document.body.classList.remove("dark-mode");
-            } else if (localStorage.getItem("theme") === "dark") {
-                document.body.classList.add("dark-mode");
-            }
-            localStorage.setItem("officeMode", enabled ? "enabled" : "disabled");
-            syncOfficeModeLabel();
-            lgSync();
-            showToast(enabled ? "오피스 모드를 적용했습니다." : "오피스 모드를 해제했습니다.");
-        });
 
         // ============================================================
         // 커스텀 확인/알림 모달
