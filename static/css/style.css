@@ -1443,7 +1443,7 @@
             box-shadow: none;
             border-radius: 12px;
             width: fit-content;
-            max-width: min(68px, 340px);
+            max-width: min(68%, 340px);
         }
 
         /* 파일 첨부 메시지의 다운로드 카드. */
