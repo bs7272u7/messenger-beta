@@ -505,7 +505,23 @@ html body.ui-modern .chat[class] .input-area.is-sending .modern-attach-tray { op
 /* 서비스 버전 표시는 입력창과 겹치므로 모던에서는 화면 구석에서 숨기고, 설정 메뉴 맨 아래에 작게 보여 준다. */
 .settings-menu-version { display: none; }
 body.ui-modern .version-label { display: none; }
-body.ui-modern .settings-menu-version { display: block; padding: 10px 16px 4px; color: var(--muted-color); font-size: 11px; text-align: center; }
+/* 설정 메뉴의 다른 항목과 달리 누르는 버튼이 아니므로, 항목 공통 규칙(높이·마우스를 올리면 배경·손가락 커서)을 받지 않게 하고
+   작게 오른쪽 구석에 붙인다. */
+body.ui-modern #settings-menu > div.settings-menu-version {
+    display: block;
+    min-height: 0;
+    padding: 2px 8px 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted-color);
+    font-size: 10px;
+    line-height: 1.2;
+    text-align: right;
+    opacity: .7;
+    cursor: default;
+    pointer-events: none;
+    user-select: none;
+}
 
 /* ======================================================
  * 모바일 (767px 이하)
