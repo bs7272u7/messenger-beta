@@ -1607,7 +1607,7 @@
                     <div class="empty-chat">
                         <div class="empty-chat-icon"><i class="fa-solid fa-paper-plane"></i></div>
                         <div class="empty-chat-title">아직 열린 대화가 없어요</div>
-                        <div class="empty-chat-subtitle">친구를 추가하고 대화를 시작해보세요!</div>
+                        <div class="empty-chat-subtitle">친구나 그룹에 사진과 메시지를 보내보세요!</div>
                     </div>
                 `;
                 return;
