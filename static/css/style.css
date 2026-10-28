@@ -2,7 +2,7 @@
  * Cloud Chatting 화면 스타일 (메인 채팅 화면).
  *
  * 구성: 색상 토큰 → PC/모바일 레이아웃 → 목록·채팅·입력창 → 모달·메뉴 → 채팅 테마(.chat-theme-*)
- *       → 오피스 모드 → 클라우드(Liquid Glass) 테마
+ *       → 편하게 보기 → 클라우드(Liquid Glass) 테마
  *
  * 수정 원칙: 공통 색은 CSS 변수(:root, body.dark-mode)에서 바꾸고, 채팅방별 분위기는 .chat-theme-* 에서만 바꾼다.
  * 변수를 고칠지 특정 테마만 고칠지 먼저 구분한 뒤 수정한다.
@@ -1428,7 +1428,7 @@
 
         /*
          * PC에서는 화면이 넓어진 만큼 말풍선도 가로로 더 늘어나게 한다(최대 62% 또는 560px).
-         * 글자 크기·여백은 오피스 모드 설정과 함께 적용되어야 하므로, 아래쪽 office-* 규칙 뒤에서 단계별로 지정한다.
+         * 글자 크기·여백은 '편하게 보기' 설정과 함께 적용되어야 하므로, 아래쪽 office-* 규칙 뒤에서 단계별로 지정한다.
          */
         @media (min-width: 768px) {
             .message-left,
@@ -1663,8 +1663,6 @@
             border-radius: 9px;
             font-size: 13px;
         }
-        #settings-menu #theme-toggle-item.disabled { color:color-mix(in srgb, var(--text-color) 48%, transparent); cursor:not-allowed; }
-        #settings-menu #theme-toggle-item.disabled span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         #settings-menu > div:not(.settings-menu-section-title):not(.settings-menu-divider):hover {
             background: var(--friend-hover);
         }
@@ -3656,159 +3654,7 @@
         }
 
         /*
-         * ============================================================
-         * 오피스 모드
-         * 기능은 그대로 두고, 장시간 사용하는 업무용 화면 밀도와 명암만 절제한다.
-         * 색은 모두 CSS 변수로 덮어써서 기존 컴포넌트 규칙이 그대로 어두운 업무용 톤을 따르게 한다.
-         * ============================================================
-         */
-        body.office-mode {
-            --bg-color: #181818;
-            --text-color: #e7e7e7;
-            --border-color: #343434;
-            --panel-bg: #202020;
-            --chat-bg: #1b1b1b;
-            --friend-hover: #2a2a2a;
-            --message-left-bg: #292929;
-            --bubble-bg: #2f4f79;
-            --bubble-text: #f3f6fb;
-            --bubble-reply-bg: rgba(255, 255, 255, .09);
-            --profile-bg: #3b3b3b;
-            --input-border: #3a3a3a;
-            --brand-color: #6f9cff;
-            --brand-hover: #87aeff;
-            --panel-tint: rgba(111, 156, 255, .055);
-            --panel-tint-strong: rgba(111, 156, 255, .10);
-            --ring-color: rgba(111, 156, 255, .30);
-            --decor-1: 111, 156, 255;
-            --decor-2: 98, 196, 184;
-            --decor-opacity: .018;
-            background:
-                radial-gradient(circle at 16% 0%, rgba(91, 122, 178, .11), transparent 30%),
-                linear-gradient(145deg, #202020 0%, #181818 56%, #161616 100%);
-        }
-
-        /* 패널 테두리와 그림자를 낮은 대비로 통일한다. */
-        body.office-mode .friend-list,
-        body.office-mode .chat,
-        body.office-mode #desktop-chat-info,
-        body.office-mode .modal-box,
-        body.office-mode #settings-menu,
-        body.office-mode #mobile-bottom-nav {
-            border-color: #363636;
-            box-shadow: 0 8px 22px rgba(0, 0, 0, .20);
-        }
-
-        body.office-mode .friend-list,
-        body.office-mode #desktop-chat-info {
-            background: linear-gradient(155deg, #262626 0%, #202020 46%, #1d1d1d 100%);
-        }
-
-        /* 채팅 영역과 헤더·입력창·말풍선의 색을 차분한 차콜/블루 계열로 맞춘다. */
-        body.office-mode .chat { background: #1b1b1b; }
-        body.office-mode .chat-header {
-            background: linear-gradient(110deg, #262626 0%, #212121 58%, #1d222b 100%);
-            box-shadow: 0 1px 0 rgba(255, 255, 255, .035);
-        }
-
-        body.office-mode .messages-wrap { background: linear-gradient(145deg, #1d1d1d, #191919); }
-        body.office-mode .input-area { background: linear-gradient(180deg, #222 0%, #1d1d1d 100%); border-top-color: #383838; }
-        body.office-mode .input-area textarea,
-        body.office-mode .search-bar input,
-        body.office-mode .settings-input { background: #252525; border-color: #414141; color: #ededed; }
-        body.office-mode .message-left { background: #292929; border: 1px solid #353535; }
-        body.office-mode .bubble { background: linear-gradient(135deg, #355678, #2c4967); }
-        body.office-mode .time,
-        body.office-mode .friend-last-message,
-        body.office-mode .desktop-profile-copy span,
-        body.office-mode .empty-chat-subtitle { color: #a7a7a7; }
-
-        /* 카드 모서리와 떠다니는 장식을 줄여 업무용 인상을 만든다. */
-        body.office-mode .friend-list,
-        body.office-mode .chat,
-        body.office-mode #desktop-chat-info { border-radius: 8px; }
-        body.office-mode .chat-header { border-radius: 7px 7px 0 0; }
-        body.office-mode .modal-box { border-radius: 8px; }
-        body.office-mode button,
-        body.office-mode .settings-btn,
-        body.office-mode .settings-input,
-        body.office-mode .friend-inbox-list .friend-request-item { border-radius: 6px; }
-        body.office-mode .profile,
-        body.office-mode .chat-header-avatar,
-        body.office-mode .group-photo-circle img { border-radius: 8px; }
-        /* 배경 장식은 흐리게 하고 움직임(animation)은 끈다. */
-        body.office-mode .chat-bg-decor { opacity: .25; }
-        body.office-mode .chat-bg-decor .deco-bubble,
-        body.office-mode .theme-heart-extra { animation: none !important; }
-
-        body.office-mode .chat-theme-heart .chat-header,
-        body.office-mode .chat-theme-teddy .chat-header,
-        body.office-mode .chat-theme-glass .chat-header,
-        body.office-mode .chat-theme-aurora .chat-header,
-        body.office-mode .chat-theme-mono .chat-header,
-        body.office-mode .chat-theme-christmas .chat-header,
-        body.office-mode .chat-theme-halloween .chat-header { background: linear-gradient(110deg, #262626, #20242b); }
-        /* 스크롤바와 설정 메뉴의 '오피스 모드' 항목 강조색. */
-        body.office-mode ::-webkit-scrollbar-thumb { background: #4a4a4a; }
-
-        body.office-mode #office-mode-item { background: rgba(111, 156, 255, .12); color: #b8ceff; }
-        body.office-mode #office-mode-item i { color: #8fb2ff; }
-        /* 오피스 모드에서는 다크/라이트 전환이 막혀 있으므로 해당 항목을 비활성 모양으로 보여 준다. */
-        #theme-toggle-item.disabled { opacity: .52; cursor: not-allowed; }
-        #theme-toggle-item.disabled:hover { background: transparent; color: inherit; }
-        body.office-mode #theme-toggle-item.disabled { color:#9ea8b8; }
-        /* 오피스 모드의 메뉴는 흰 배경 대신 낮은 대비의 차콜 표면을 쓴다. */
-        body.office-mode .attach-menu,
-        body.office-mode .message-menu,
-        body.office-mode #settings-menu {
-            background:#25282d;
-            border:1px solid #42474f;
-            color:#d9dde4;
-            box-shadow:0 12px 28px rgba(0,0,0,.34);
-        }
-        body.office-mode .attach-menu div,
-        body.office-mode .message-menu div,
-        body.office-mode #settings-menu > div { color:#d9dde4; }
-        body.office-mode .attach-menu div:hover,
-        body.office-mode .message-menu div:hover,
-        body.office-mode #settings-menu > div:hover { background:#333840; color:#fff; }
-        body.office-mode .settings-menu-section-title { color:#9ea8b8; }
-
-        /* 업무 화면에서는 원색 이모지 대신 차분한 회색·블루 계열로 공감을 표현한다. */
-        body.office-mode .reaction-picker {
-            background: linear-gradient(145deg, #2b3540, #222b34);
-            border-color: #52677d;
-            border-radius: 8px;
-            box-shadow: 0 12px 28px rgba(0, 0, 0, .34);
-        }
-        body.office-mode .reaction-picker span {
-            width: 30px;
-            height: 30px;
-            display: grid;
-            place-items: center;
-            border: 1px solid #52677d;
-            border-radius: 6px;
-            background: linear-gradient(145deg, #3a4a58, #2d3945);
-            filter: none;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
-        }
-        body.office-mode .reaction-picker span:hover {
-            background: #465e72;
-            border-color: #8ab5df;
-            filter: brightness(1.08) saturate(1.08);
-            transform: scale(1.08);
-        }
-        body.office-mode .reactions-badge {
-            background: #2d4051;
-            border-color: #52738e;
-            border-radius: 5px;
-            color: #dce6f6;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, .18);
-            filter: none;
-        }
-
-        /*
-         * 오피스 모드 전용 개인 설정: 화면 자극은 줄이고, 읽기 대비는 사용자가 조절한다.
+         * '편하게 보기' 설정: 화면 자극은 줄이고, 읽기 대비는 사용자가 조절한다.
          * <details>/<summary>로 접고 펼치며, 펼침 표시용 화살표는 직접 그린다.
          */
         #settings-menu .office-comfort-trigger { margin:0; }
@@ -3860,45 +3706,27 @@
         }
 
         /* 대비 3단계: comfort(부드럽게) / standard(기본) / high(선명하게). body 클래스로 선택하고, 변수만 덮어쓴다. */
-        body.office-mode.office-contrast-comfort {
-            --bg-color:#1a1c1f;
-            --panel-bg:#23262a;
-            --chat-bg:#1d1f22;
-            --text-color:#e1e5e9;
-            --message-left-bg:#2a2d31;
-            --bubble-bg:#2d4b65;
-            --brand-color:#789fce;
-            --brand-hover:#91b4df;
-        }
-        body.office-mode.office-contrast-comfort .messages-wrap { background:linear-gradient(145deg, #202226, #1b1d20); }
-        body.office-mode.office-contrast-comfort .bubble { background:linear-gradient(135deg, #365672, #2c4962); }
-        body.office-mode.office-contrast-standard { --text-color:#e8eaed; --message-left-bg:#2b2d31; --bubble-bg:#315473; --brand-color:#7ca8df; }
-        body.office-mode.office-contrast-high { --text-color:#f5f7fa; --message-left-bg:#303338; --bubble-bg:#385e82; --brand-color:#9fc4ff; --input-border:#616873; }
-        body.office-mode.office-contrast-high .time,
-        body.office-mode.office-contrast-high .friend-last-message,
-        body.office-mode.office-contrast-high .desktop-profile-copy span,
-        body.office-mode.office-contrast-high .empty-chat-subtitle { color:#c1c8d1; }
 
         /* 일반 테마에서도 대비 선택은 유지하되, 각 채팅 테마의 고유 색은 덮어쓰지 않는다(글자·테두리·강조색 변수만 변경). */
-        body:not(.office-mode).office-contrast-comfort {
+        body.office-contrast-comfort {
             --text-color:#26313d;
             --border-color:#d6dce4;
             --input-border:#c7d0dc;
             --brand-color:#3d78c8;
         }
-        body.dark-mode:not(.office-mode).office-contrast-comfort {
+        body.dark-mode.office-contrast-comfort {
             --text-color:#dce3eb;
             --border-color:#3b4652;
             --input-border:#46515f;
             --brand-color:#77a8e5;
         }
-        body:not(.office-mode).office-contrast-high {
+        body.office-contrast-high {
             --text-color:#111820;
             --border-color:#9daab9;
             --input-border:#7c8c9e;
             --brand-color:#1f67c7;
         }
-        body.dark-mode:not(.office-mode).office-contrast-high {
+        body.dark-mode.office-contrast-high {
             --text-color:#f4f7fb;
             --border-color:#667383;
             --input-border:#758395;
@@ -3934,7 +3762,7 @@
 
         /*
          * PC 전용 말풍선 크기.
-         * 오피스 모드 설정(body.office-*)이 우선순위가 높아 일반 규칙으로는 덮이지 않으므로,
+         * '편하게 보기' 설정(body.office-*)이 우선순위가 높아 일반 규칙으로는 덮이지 않으므로,
          * 같은 선택자 구조로 단계마다 한 단계씩 올린다. 기본값인 medium + comfortable 조합이 18px / 16px 24px가 된다.
          */
         @media (min-width: 768px) {
@@ -3963,12 +3791,6 @@
             transition-duration:.01ms !important;
         }
 
-        @media (max-width: 767px) {
-            /* 모바일 오피스 모드: 화면 전체를 쓰므로 모서리를 각지게 한다. */
-            body.office-mode .friend-list,
-            body.office-mode .chat { border-radius: 0; }
-            body.office-mode #mobile-bottom-nav { border-radius: 0; background: #202020; }
-        }
 
         /* 설정 메뉴의 외부 링크 항목(<a>). 다른 메뉴 항목과 같은 높이·모양으로 맞춘다. */
         .settings-menu-link {
@@ -4265,7 +4087,7 @@
 
         /*
          * ---------- 유리를 끄는 조건 ----------
-         * 투명도 줄이기 설정, 고대비, 오피스 모드에서는 가독성이 우선이다. 배경 이미지·블러를 모두 끄고 불투명 패널 색을 쓴다.
+         * 투명도 줄이기 설정과 고대비에서는 가독성이 우선이다. 배경 이미지·블러를 모두 끄고 불투명 패널 색을 쓴다.
          */
         @media (prefers-reduced-transparency: reduce) {
             body.theme-liquid-glass .lg-backdrop { display: none; }
@@ -4292,24 +4114,24 @@
             }
         }
 
-        /* 고대비 또는 오피스 모드: 위와 같은 해제를 :is()로 한 번에 적용한다. */
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .lg-backdrop { display: none; }
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) { background: var(--bg-color); }
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .friend-list,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .chat,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) #desktop-chat-info,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .chat-header,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .input-area,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .message-menu,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .attach-menu,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) #friend-panel,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) #mobile-chat-actions-sheet,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .office-comfort-panel,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .modal,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .settings-modal,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .chat-theme-modal,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .friend-inbox-modal,
-        body.theme-liquid-glass:is(.office-contrast-high, .office-mode) .message-left {
+        /* 고대비: 위와 같은 해제를 한 번에 적용한다. */
+        body.theme-liquid-glass.office-contrast-high .lg-backdrop { display: none; }
+        body.theme-liquid-glass.office-contrast-high { background: var(--bg-color); }
+        body.theme-liquid-glass.office-contrast-high .friend-list,
+        body.theme-liquid-glass.office-contrast-high .chat,
+        body.theme-liquid-glass.office-contrast-high #desktop-chat-info,
+        body.theme-liquid-glass.office-contrast-high .chat-header,
+        body.theme-liquid-glass.office-contrast-high .input-area,
+        body.theme-liquid-glass.office-contrast-high .message-menu,
+        body.theme-liquid-glass.office-contrast-high .attach-menu,
+        body.theme-liquid-glass.office-contrast-high #friend-panel,
+        body.theme-liquid-glass.office-contrast-high #mobile-chat-actions-sheet,
+        body.theme-liquid-glass.office-contrast-high .office-comfort-panel,
+        body.theme-liquid-glass.office-contrast-high .modal,
+        body.theme-liquid-glass.office-contrast-high .settings-modal,
+        body.theme-liquid-glass.office-contrast-high .chat-theme-modal,
+        body.theme-liquid-glass.office-contrast-high .friend-inbox-modal,
+        body.theme-liquid-glass.office-contrast-high .message-left {
             background-image: none !important;
             background-color: var(--panel-bg) !important;
             border-color: var(--border-color) !important;
