@@ -681,11 +681,16 @@ body.ui-modern.modern-cloud:not(.dark-mode) .modal-box.modern-relations { backgr
 #modern-profile-page { display: none; }
 /* 팝업(모달)들이 .container 안에 들어 있으므로 컨테이너 자체를 숨기면 프로필 페이지 위에서 팝업이 안 보인다.
    그래서 컨테이너는 크기만 없애고, 화면을 차지하는 목록·대화창·정보 패널만 숨긴다. */
-body.ui-modern.modern-profile-page .container { display: block; width: 0; height: 0; min-height: 0; padding: 0; overflow: visible; }
+body.ui-modern.modern-profile-page .container,
+body.ui-modern.modern-search-page .container { display: block; width: 0; height: 0; min-height: 0; padding: 0; overflow: visible; }
 body.ui-modern.modern-profile-page .container > .friend-list,
 body.ui-modern.modern-profile-page .container > .chat,
 body.ui-modern.modern-profile-page .container > #desktop-chat-info,
-body.ui-modern.modern-profile-page .container > .version-label { display: none; }
+body.ui-modern.modern-profile-page .container > .version-label,
+body.ui-modern.modern-search-page .container > .friend-list,
+body.ui-modern.modern-search-page .container > .chat,
+body.ui-modern.modern-search-page .container > #desktop-chat-info,
+body.ui-modern.modern-search-page .container > .version-label { display: none; }
 body.ui-modern.modern-profile-page #modern-profile-page {
     display: block;
     min-height: 100vh;
@@ -722,3 +727,45 @@ body.ui-modern .modern-list-title [data-rail="inbox"] { display: none; }
     body.ui-modern #mobile-bottom-nav #mobile-inbox-nav-btn { position: relative; display: flex; }
     body.ui-modern #mobile-bottom-nav #mobile-inbox-nav-btn .modern-badge { position: absolute; top: 4px; left: calc(50% + 8px); }
 }
+
+/* ======================================================
+ * 검색 페이지(/search): 뒤로가기 + 알약 검색창, 아래에 결과 또는 '최근 검색 항목'
+ * ====================================================== */
+#modern-search-page { display: none; }
+body.ui-modern.modern-search-page #modern-search-page {
+    display: block;
+    min-height: 100vh;
+    box-sizing: border-box;
+    padding: 0 0 calc(80px + env(safe-area-inset-bottom));
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+@media (min-width: 768px) {
+    body.ui-modern.modern-search-page #modern-search-page { padding-left: 72px; padding-bottom: 40px; }
+}
+body.ui-modern.modern-cloud:not(.dark-mode).modern-search-page #modern-search-page { background: transparent; }
+body.ui-modern .ms-inner { box-sizing: border-box; max-width: 780px; margin: 0 auto; padding: 16px 20px 24px; }
+body.ui-modern .ms-bar { display: flex; align-items: center; gap: 10px; }
+body.ui-modern .ms-back { padding: 6px 10px 6px 4px; border: 0; background: transparent; color: var(--text-color); font-size: 22px; cursor: pointer; }
+body.ui-modern .ms-field {
+    display: flex;
+    flex: 1;
+    gap: 10px;
+    align-items: center;
+    height: 40px;
+    padding: 0 14px;
+    box-sizing: border-box;
+    border-radius: 999px;
+    background: var(--friend-hover);
+    color: var(--muted-color);
+}
+body.ui-modern .ms-field input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--text-color); font: inherit; font-size: 15px; }
+body.ui-modern .ms-field input::placeholder { color: var(--muted-color); }
+body.ui-modern .ms-clear { padding: 0; border: 0; background: transparent; color: var(--muted-color); font-size: 16px; cursor: pointer; }
+body.ui-modern .ms-clear[hidden] { display: none; }
+body.ui-modern #modern-search-page #modern-search-list { padding: 0; overflow: visible; }
+body.ui-modern .ms-recent-head { display: flex; align-items: baseline; justify-content: space-between; margin: 28px 0 10px; }
+body.ui-modern .ms-recent-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+body.ui-modern .ms-recent-head button { border: 0; background: transparent; color: #4a90e2; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+body.ui-modern .ms-empty { margin: 40px 0; text-align: center; color: var(--muted-color); font-size: 14px; font-weight: 600; }
+body.ui-modern .ms-forget { padding: 8px; border: 0; background: transparent; color: var(--muted-color); font-size: 16px; cursor: pointer; }

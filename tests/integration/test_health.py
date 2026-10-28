@@ -106,7 +106,7 @@ class HealthCheckTests(unittest.TestCase):
         self.assertIn('id="modern-profile-page"', page)
         self.assertIn('id="modern-relations-overlay"', page)
         self.assertIn("js/modern-profile.js", page)
-        self.assertIn('id="modern-search-overlay"', page)
+        self.assertIn('id="modern-search-page"', page)
         self.assertIn('id="modern-inbox-overlay"', page)
         self.assertIn("js/modern-inbox.js", page)
 
