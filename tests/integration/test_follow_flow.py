@@ -118,6 +118,39 @@ class FollowFlowTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
 
+    def test_same_pair_never_gets_two_one_on_one_rooms(self):
+        """메시지를 먼저 보낸 뒤 친구가 되어도, 두 사람 사이의 1:1 대화방은 하나만 있어야 한다."""
+        alice, bobby = self.client("alice"), self.client("bobby")
+        bobby_id, alice_id = self.ids["bobby"], self.ids["alice"]
+        # 이전 테스트가 만든 방이 있어도 같은 방을 돌려줘야 하므로 두 번 시작해 본다.
+        _, first = self.call(alice, "post", f"/api/users/{bobby_id}/message")
+        _, second = self.call(alice, "post", f"/api/users/{bobby_id}/message")
+        self.assertEqual(first["conversationId"], second["conversationId"])
+
+        self.call(alice, "post", "/api/friend-requests", {"username": self._username("bobby")})
+        _, requests = self.call(bobby, "get", "/api/friend-requests")
+        incoming = [r for r in requests["incoming"] if r["user_id"] == alice_id]
+        self.call(
+            bobby, "post", f"/api/friend-requests/{incoming[0]['id']}/respond", {"accept": True}
+        )
+
+        with application_module.get_db() as conn:
+            rooms = conn.execute(
+                "SELECT COUNT(DISTINCT c.id) AS n FROM conversations c"
+                " JOIN conversation_members a ON a.conversation_id = c.id AND a.user_id = %s"
+                " JOIN conversation_members b ON b.conversation_id = c.id AND b.user_id = %s"
+                " WHERE NOT c.is_group",
+                (alice_id, bobby_id),
+            ).fetchone()["n"]
+        self.assertEqual(rooms, 1)
+
+    def _username(self, name):
+        """테스트 계정의 아이디."""
+        with application_module.get_db() as conn:
+            return conn.execute(
+                "SELECT username FROM users WHERE id = %s", (self.ids[name],)
+            ).fetchone()["username"]
+
 
 if __name__ == "__main__":
     unittest.main()

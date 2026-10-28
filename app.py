@@ -1872,6 +1872,27 @@ def accept_friend_request(conn, request_id):
     ).fetchone()
     # 요청을 수락 상태로 바꾸고, 두 사람이 바로 대화할 수 있도록 1:1 대화방을 함께 만든다.
     conn.execute("UPDATE friend_requests SET status = 'accepted' WHERE id = %s", (request_id,))
+    # 두 사람 사이에 이미 1:1 대화방이 있으면(예전에 친구였다가 삭제했거나, 모던 UI에서 먼저 메시지를 보낸 경우) 새로 만들지 않고
+    # 그 방을 다시 쓴다. 안 그러면 같은 상대와의 대화방이 둘이 된다.
+    existing = conn.execute(
+        """
+        SELECT c.id FROM conversations c
+        JOIN conversation_members a ON a.conversation_id = c.id AND a.user_id = %s
+        JOIN conversation_members b ON b.conversation_id = c.id AND b.user_id = %s
+        WHERE NOT c.is_group ORDER BY c.id LIMIT 1
+        """,
+        (friend_request["requester_id"], friend_request["addressee_id"]),
+    ).fetchone()
+    if existing:
+        conn.execute(
+            "UPDATE conversations SET dm_state = 'active', dm_requester_id = NULL WHERE id = %s",
+            (existing["id"],),
+        )
+        conn.execute(
+            "UPDATE conversation_members SET hidden_at = NULL WHERE conversation_id = %s",
+            (existing["id"],),
+        )
+        return existing["id"]
     conversation = conn.execute(
         "INSERT INTO conversations (is_group, name, created_at) VALUES (FALSE, NULL, %s) RETURNING id",
         (now_str(),),
