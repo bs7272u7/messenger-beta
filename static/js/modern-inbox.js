@@ -172,8 +172,8 @@
             return;
         }
         await load();
-        // 메시지 요청을 수락하면 대화방이 내 목록에 나타난다.
-        if (accept && item.dataset.conversationId) await loadFriends();
+        // 메시지 요청을 수락하거나 팔로우 요청 수락으로 맞팔이 되면 대화방이 내 목록에 나타난다.
+        if (accept && (item.dataset.conversationId || result.data.mutual)) await loadFriends();
     }
 
     Object.values(lists).forEach((element) => element.addEventListener("click", handleClick));

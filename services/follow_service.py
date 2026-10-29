@@ -19,9 +19,10 @@ class FollowServiceError(Exception):
 
 @dataclass(frozen=True)
 class FollowRequestOutcome:
-    """팔로우 요청·응답 처리 결과. notify_user_id는 실시간 알림을 보낼 상대 사용자 ID."""
+    """팔로우 요청·응답 처리 결과. notify_user_id는 실시간 알림을 보낼 상대 사용자 ID, became_mutual은 이번 수락으로 맞팔이 되어 대화방이 열렸는지 여부."""
 
     notify_user_id: int
+    became_mutual: bool = False
 
 
 MAX_PAGE_SIZE = 50
@@ -230,14 +231,58 @@ class FollowService:
             if not row or row["target_id"] != user_id:
                 raise FollowServiceError("요청을 찾을 수 없습니다.", 404)
             conn.execute("DELETE FROM follow_requests WHERE id = %s", (request_id,))
+            became_mutual = False
             if accept and not self._blocked_either_way(conn, user_id, row["requester_id"]):
                 conn.execute(
                     "INSERT INTO follows (follower_id, followee_id, created_at) VALUES (%s, %s, %s)"
                     " ON CONFLICT DO NOTHING",
                     (row["requester_id"], user_id, self._now_string()),
                 )
+                became_mutual = self.is_mutual(conn, user_id, row["requester_id"])
+                if became_mutual:
+                    self._ensure_conversation(conn, user_id, row["requester_id"])
             conn.commit()
-        return FollowRequestOutcome(notify_user_id=row["requester_id"])
+        return FollowRequestOutcome(notify_user_id=row["requester_id"], became_mutual=became_mutual)
+
+    def _ensure_conversation(self, conn, user_a: int, user_b: int) -> None:
+        """맞팔이 된 두 사람의 1:1 대화방이 대화 목록에 보이도록 한다.
+
+        방이 없으면 새로 만들고, 이미 있으면(메시지 요청 대기·거절, 한쪽이 삭제해 숨긴 방 포함) 보통 방(active)으로 바꾸고 양쪽 목록에 다시 나타나게 한다.
+        같은 두 사람이 동시에 처리돼도 방이 둘 생기지 않도록 두 사람 조합마다 한 번에 하나씩만 처리한다.
+        """
+        conn.execute("SELECT pg_advisory_xact_lock(%s, %s)", (min(user_a, user_b), max(user_a, user_b)))
+        existing = conn.execute(
+            """
+            SELECT c.id FROM conversations c
+            JOIN conversation_members a ON a.conversation_id = c.id AND a.user_id = %s
+            JOIN conversation_members b ON b.conversation_id = c.id AND b.user_id = %s
+            WHERE NOT c.is_group
+            ORDER BY c.id LIMIT 1
+            """,
+            (user_a, user_b),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE conversations SET dm_state = 'active', dm_requester_id = NULL WHERE id = %s",
+                (existing["id"],),
+            )
+            conn.execute(
+                "UPDATE conversation_members SET hidden_at = NULL WHERE conversation_id = %s",
+                (existing["id"],),
+            )
+            return
+        now = self._now_string()
+        conversation = conn.execute(
+            "INSERT INTO conversations (is_group, name, created_at, dm_state, dm_requester_id)"
+            " VALUES (FALSE, NULL, %s, 'active', NULL) RETURNING id",
+            (now,),
+        ).fetchone()
+        for member_id in (user_a, user_b):
+            conn.execute(
+                "INSERT INTO conversation_members (conversation_id, user_id, last_read_message_id, hidden_at, joined_at)"
+                " VALUES (%s, %s, 0, NULL, %s)",
+                (conversation["id"], member_id, now),
+            )
 
     def list_requests(self, user_id: int) -> dict:
         """내가 받은 팔로우 요청과 내가 보낸 팔로우 요청(수락 대기)을 돌려준다."""

@@ -20,7 +20,7 @@ class FollowFlowTests(unittest.TestCase):
         suffix = secrets.token_hex(3)
         cls.ids = {}
         with application_module.get_db() as conn:
-            for name in ("alice", "bobby", "carol"):
+            for name in ("alice", "bobby", "carol", "dave", "erin"):
                 cls.ids[name] = conn.execute(
                     "INSERT INTO users (username, password_hash, display_name, email, created_at, profile_visibility)"
                     " VALUES (%s, 'x', %s, %s, '2026-01-01', 'public') RETURNING id",
@@ -178,6 +178,46 @@ class FollowFlowTests(unittest.TestCase):
         # 상대(carol)의 기록은 그대로다.
         _, theirs = self.call(carol, "get", f"/api/conversations/{conversation_id}/messages")
         self.assertEqual([m["text"] for m in theirs], ["old", "new"])
+
+    def test_mutual_follow_creates_chat_room(self):
+        """한쪽만 팔로우한 사이에는 대화방이 없고, 서로 팔로우하는 순간 양쪽 목록에 보통 대화방이 생긴다."""
+        dave, erin = self.client("dave"), self.client("erin")
+        dave_id, erin_id = self.ids["dave"], self.ids["erin"]
+
+        def follow_and_accept(follower, followee, followee_id):
+            self.call(follower, "post", f"/api/users/{followee_id}/follow")
+            _, requests = self.call(followee, "get", "/api/follow-requests")
+            status, result = self.call(
+                followee,
+                "post",
+                f"/api/follow-requests/{requests['incoming'][0]['id']}/respond",
+                {"accept": True},
+            )
+            self.assertEqual(status, 200)
+            return result
+
+        def shared_rooms():
+            with application_module.get_db() as conn:
+                return conn.execute(
+                    "SELECT c.id, c.dm_state FROM conversations c"
+                    " JOIN conversation_members a ON a.conversation_id = c.id AND a.user_id = %s"
+                    " JOIN conversation_members b ON b.conversation_id = c.id AND b.user_id = %s"
+                    " WHERE NOT c.is_group",
+                    (dave_id, erin_id),
+                ).fetchall()
+
+        # 한쪽 팔로우만으로는 대화방이 생기지 않는다.
+        self.assertFalse(follow_and_accept(dave, erin, erin_id)["mutual"])
+        self.assertEqual(shared_rooms(), [])
+
+        # 맞팔이 되면 방이 하나 생기고, 두 사람의 목록에 모두 나타난다.
+        self.assertTrue(follow_and_accept(erin, dave, dave_id)["mutual"])
+        rooms = shared_rooms()
+        self.assertEqual(len(rooms), 1)
+        self.assertEqual(rooms[0]["dm_state"], "active")
+        for client in (dave, erin):
+            _, listing = self.call(client, "get", "/api/conversations")
+            self.assertIn(rooms[0]["id"], [room["id"] for room in listing])
 
     def _username(self, name):
         """테스트 계정의 아이디."""
