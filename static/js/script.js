@@ -2079,8 +2079,7 @@
             if (friends.length === 0) {
                 friendList.innerHTML = `
                     <div class="empty-friends">
-                        <i class="fa-solid fa-user-group"></i>
-                        <strong>아직 채팅방 없어요</strong>
+                        <strong>메시지가 없어요</strong>
                     </div>
                 `;
                 return;
