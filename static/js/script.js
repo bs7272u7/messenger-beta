@@ -1247,7 +1247,18 @@
             activeModalAction = onConfirm;
             modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
             modalCancelBtn.style.display = "inline-block";
+            // 삭제·차단처럼 되돌리기 어려운 확인은 확인 버튼을 빨갛게 보여 준다(차단 해제는 제외).
+            const dangerLabel = /삭제/.test(message) ? "삭제" : /차단하/.test(message) ? "차단" : /내보내/.test(message) ? "내보내기" : /나가시/.test(message) ? "나가기" : "";
+            modalOverlay.classList.toggle("is-danger", dangerLabel !== "");
+            modalConfirmBtn.textContent = dangerLabel || "확인";
             modalOverlay.style.display = "flex";
+        }
+
+        /**
+         * showConfirm을 await로 쓸 수 있게 감싼다. 확인이면 true, 취소·바깥 클릭이면 false.
+         */
+        function askConfirm(message) {
+            return new Promise(function (resolve) { showConfirm(message, resolve); });
         }
 
         /**
@@ -1257,6 +1268,8 @@
             activeModalAction = function (confirmed) { if (confirmed && onClose) onClose(); };
             modalMessage.innerText = window.CloudI18n ? window.CloudI18n.t(message) : message;
             modalCancelBtn.style.display = "none";
+            modalOverlay.classList.remove("is-danger");
+            modalConfirmBtn.textContent = "확인";
             modalOverlay.style.display = "flex";
         }
 
@@ -3710,7 +3723,7 @@ supportInquiryHistory.addEventListener("click", async function (event) {
         if (!response.ok || !result.success) return showToast(result.error || "수정에 실패했습니다.", "error");
         showToast("문의 내용을 수정했습니다.");
     } else if (deleteId) {
-        if (!confirm("이 문의 내역을 삭제할까요?")) return;
+        if (!(await askConfirm("이 문의 내역을 삭제할까요?"))) return;
         const response = await fetch(`/api/support-inquiries/${deleteId}`, {method:"DELETE"});
         const result = await response.json();
         if (!response.ok || !result.success) return showToast(result.error || "삭제에 실패했습니다.", "error");
@@ -3978,7 +3991,7 @@ reviewSubmitBtn.addEventListener("click", async function () {
 });
 // 내 리뷰 삭제: 확인을 받은 뒤 지우고 양식을 비운다.
 reviewDeleteBtn.addEventListener("click", async function () {
-    if (!myReviewId || !confirm("작성한 리뷰를 삭제할까요?")) return;
+    if (!myReviewId || !(await askConfirm("작성한 리뷰를 삭제할까요?"))) return;
     const response = await fetch(`/api/reviews/${myReviewId}`, {method:"DELETE"});
     const result = await response.json();
     if (!response.ok || !result.success) return showToast(result.error || "리뷰 삭제에 실패했습니다.", "error");

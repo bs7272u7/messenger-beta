@@ -1780,6 +1780,8 @@
         "사진은 10MB 이하만 보낼 수 있습니다.": "Photos must be 10 MB or smaller.",
         "동영상은 20MB 이하만 보낼 수 있습니다.": "Videos must be 20 MB or smaller.",
         "대화방이 바뀌어 첨부를 취소했습니다.": "Attachments were cleared because the chat changed.",
+        "내보내기": "Remove",
+        "나가기": "Leave",
     });
     Object.assign(dictionaries.zh, {
         "사진·동영상 보내기": "发送照片或视频",
@@ -1790,6 +1792,8 @@
         "사진은 10MB 이하만 보낼 수 있습니다.": "照片不能超过10MB。",
         "동영상은 20MB 이하만 보낼 수 있습니다.": "视频不能超过20MB。",
         "대화방이 바뀌어 첨부를 취소했습니다.": "聊天已切换，附件已取消。",
+        "내보내기": "移出",
+        "나가기": "退出",
     });
     Object.assign(dictionaries.ja, {
         "사진·동영상 보내기": "写真・動画を送る",
@@ -1800,6 +1804,8 @@
         "사진은 10MB 이하만 보낼 수 있습니다.": "写真は10MB以下にしてください。",
         "동영상은 20MB 이하만 보낼 수 있습니다.": "動画は20MB以下にしてください。",
         "대화방이 바뀌어 첨부를 취소했습니다.": "チャットが変わったため添付を取り消しました。",
+        "내보내기": "退出させる",
+        "나가기": "退出",
     });
     Object.assign(dictionaries.es, {
         "사진·동영상 보내기": "Enviar fotos o videos",
@@ -1810,6 +1816,8 @@
         "사진은 10MB 이하만 보낼 수 있습니다.": "Las fotos deben pesar 10 MB o menos.",
         "동영상은 20MB 이하만 보낼 수 있습니다.": "Los videos deben pesar 20 MB o menos.",
         "대화방이 바뀌어 첨부를 취소했습니다.": "Se cancelaron los adjuntos porque cambió el chat.",
+        "내보내기": "Expulsar",
+        "나가기": "Salir",
     });
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
     /**
