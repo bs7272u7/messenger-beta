@@ -579,6 +579,8 @@ body.ui-modern #settings-menu > div.settings-menu-version {
     body.ui-modern #mobile-bottom-nav .modern-rail-avatar { width: 26px; height: 26px; margin: 0; font-size: 26px; }
     body.ui-modern #mobile-bottom-nav button.active .modern-rail-avatar { box-shadow: 0 0 0 2px var(--text-color); }
     body.ui-modern #mobile-bottom-nav button span { display: none; }
+    /* 프로필 탭의 내 사진 칸은 글자가 아니라 아이콘이므로 숨기지 않는다(위 규칙이 모든 span을 숨겨 탭이 비어 보였다). */
+    body.ui-modern #mobile-bottom-nav button span.modern-rail-avatar { display: grid; }
     body.ui-modern #mobile-bottom-nav button.active,
     body.ui-modern #mobile-bottom-nav button:active { background: transparent; color: var(--text-color); opacity: 1; }
 
