@@ -522,6 +522,13 @@
         if (room && !room.isGroup && room.peerId) openModernProfile(room.peerId);
     });
 
+    // 1:1 대화 헤더의 이름·아이디 영역을 누르면 상대 프로필 페이지로 이동한다(그룹 대화는 반응 없음).
+    document.addEventListener("click", (event) => {
+        if (!event.target.closest(".chat-header-text")) return;
+        const room = getCurrentFriend();
+        if (room && !room.isGroup && room.peerId) openModernProfile(room.peerId);
+    });
+
     // 뒤로가기/앞으로가기: 주소가 /u/<아이디>면 그 프로필 페이지를, 아니면 채팅 화면을 보여 준다.
     window.addEventListener("popstate", () => {
         const match = location.pathname.match(/^\/u\/([^/]+)/);

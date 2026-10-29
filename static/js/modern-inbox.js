@@ -40,10 +40,10 @@
     // ------------------------------------------------------------------
     function userBlock(user, subtitle) {
         return `
-            <button type="button" class="mr-user" data-act="profile">
+            <div class="mr-user">
                 <span class="mr-avatar">${avatarHTML(user.profileImage)}</span>
                 <span class="mr-text"><b>${escapeHTML(user.username)}</b><small>${escapeHTML(subtitle)}</small></span>
-            </button>`;
+            </div>`;
     }
 
     function row(html, attributes) {
@@ -154,11 +154,6 @@
         const accept = act === "accept";
         let result = null;
 
-        if (act === "profile") {
-            close();
-            window.openModernProfile(Number(item.dataset.userId));
-            return;
-        }
         if (item.dataset.requestId && (act === "accept" || act === "decline")) {
             result = await api(`/api/follow-requests/${item.dataset.requestId}/respond`, "POST", { accept });
         } else if (item.dataset.conversationId && (act === "accept" || act === "decline")) {
