@@ -21,7 +21,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261023.1') }}">
     {# 모던 UI 전용 규칙. 모두 body.ui-modern 아래에만 있어서 클래식 화면에는 영향이 없다. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261029.26') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-modern.css', v='20261029.27') }}">
 </head>
 <body class="ui-modern">
     <!-- 리퀴드 글래스 테마의 배경. 유리는 뒤에 있는 것을 밀어내 굴절을 만들기 때문에,
@@ -163,10 +163,10 @@
 
     <!-- # 친구 목록 영역: 친구를 추가하고 선택할 수 있는 패널이다. -->
     <div class="friend-list">
-        <!-- 모던 UI 전용 목록 머리: 내 이름 + 새 그룹, 대화 검색, '메시지 / 요청(메시지함)' 제목. 클래식에서는 숨긴다. -->
+        <!-- 모던 UI 전용 목록 머리: 내 아이디 + 새 그룹 만들기, 대화 검색, '메시지 / 요청(메시지함)' 제목. 클래식에서는 숨긴다. -->
         <div class="modern-list-header">
-            <strong id="modern-list-username">{{ username }}</strong>
-            <button type="button" data-rail="group" aria-label="새 그룹"><i class="fa-regular fa-pen-to-square"></i></button>
+            <strong id="modern-list-username">{{ account_username }}</strong>
+            <button type="button" data-rail="group" aria-label="새 그룹 만들기" title="새 그룹 만들기"><i class="fa-solid fa-people-group"></i></button>
         </div>
         <label class="modern-search">
             <i class="fa-solid fa-magnifying-glass"></i>
@@ -1013,13 +1013,13 @@
         const INITIAL_PROFILE_USERNAME = {{ (initial_profile or "")|tojson }};
         window.CLOUD_LANGUAGE = {{ user_language|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/i18n.js', v='20261029.26') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js', v='20261029.27') }}"></script>
     <!-- liquid-glass.js — MIT, (c) 2026 Deepika Rao · github.com/deepika-builds/liquid-glass -->
     <script src="{{ url_for('static', filename='js/liquid-glass.js', v='20260831.2') }}"></script>
-    <script src="{{ url_for('static', filename='js/script.js', v='20261029.26') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-profile.js', v='20261029.26') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-inbox.js', v='20261029.26') }}"></script>
-    <script src="{{ url_for('static', filename='js/modern-composer.js', v='20261029.26') }}"></script>
-    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261029.26') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js', v='20261029.27') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-profile.js', v='20261029.27') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-inbox.js', v='20261029.27') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern-composer.js', v='20261029.27') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui-modern.js', v='20261029.27') }}"></script>
 </body>
 </html>
