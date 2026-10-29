@@ -177,7 +177,8 @@ body.ui-modern .lg-backdrop { display: none; }
     body.ui-modern #modern-rail.modern-more-open button > span:not(.modern-rail-avatar),
     body.ui-modern #modern-rail:focus-within button > span:not(.modern-rail-avatar) { opacity: 1; }
     /* 프로필 버튼의 아바타. 내 프로필 사진(또는 기본 아이콘)을 복사해 온다. */
-    body.ui-modern #modern-rail .modern-rail-avatar {
+    body.ui-modern #modern-rail .modern-rail-avatar,
+    body.ui-modern #mobile-bottom-nav .modern-rail-avatar {
         display: grid;
         flex: none;
         width: 26px;
@@ -188,7 +189,8 @@ body.ui-modern .lg-backdrop { display: none; }
         margin: 0 -1px;
         font-size: 24px;
     }
-    body.ui-modern #modern-rail .modern-rail-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    body.ui-modern #modern-rail .modern-rail-avatar img,
+    body.ui-modern #mobile-bottom-nav .modern-rail-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
     /* 메시지함 숫자 배지: 아이콘 오른쪽 위에 붙인다. */
     body.ui-modern .modern-badge {
@@ -560,7 +562,7 @@ body.ui-modern #settings-menu > div.settings-menu-version {
     body.ui-modern .modern-list-title { padding: 6px 16px 8px; }
     body.ui-modern #friend-list { padding: 0 4px 12px; }
     body.ui-modern .friend { position: relative; margin-top: 0; padding: 8px 12px; }
-    body.ui-modern .friend .profile { width: 56px; height: 56px; }
+    body.ui-modern .friend .profile { width: 48px; height: 48px; }
     body.ui-modern .friend .unread-badge { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); }
 
     /* 하단 탭바: 평평한 바탕, 아이콘만 크게. 눌린 항목은 색 대신 진하게 보인다. */
@@ -573,7 +575,9 @@ body.ui-modern #settings-menu > div.settings-menu-version {
         box-shadow: none;
     }
     body.ui-modern #mobile-bottom-nav button { min-height: 48px; border-radius: 0; opacity: .6; }
-    body.ui-modern #mobile-bottom-nav button i { font-size: 24px; }
+    body.ui-modern #mobile-bottom-nav button i { font-size: 22px; }
+    body.ui-modern #mobile-bottom-nav .modern-rail-avatar { width: 26px; height: 26px; margin: 0; font-size: 26px; }
+    body.ui-modern #mobile-bottom-nav button.active .modern-rail-avatar { box-shadow: 0 0 0 2px var(--text-color); }
     body.ui-modern #mobile-bottom-nav button span { display: none; }
     body.ui-modern #mobile-bottom-nav button.active,
     body.ui-modern #mobile-bottom-nav button:active { background: transparent; color: var(--text-color); opacity: 1; }
@@ -583,6 +587,24 @@ body.ui-modern #settings-menu > div.settings-menu-version {
     body.ui-modern .bubble { max-width: 75%; }
     body.ui-modern .chat-header { min-height: 56px; padding: 0 12px; border-radius: 0; }
     html body.ui-modern .chat[class] .input-area { margin: 8px 12px calc(10px + env(safe-area-inset-bottom)); padding-left: 16px; }
+
+    /* 모바일은 PC보다 한 단계 작게: 글자·아이콘·사진이 확대해 놓은 것처럼 커 보이지 않도록 크기를 줄인다. */
+    body.ui-modern .modern-list-header strong { font-size: 20px; }
+    body.ui-modern .modern-list-header button { font-size: 20px; }
+    body.ui-modern .modern-search { height: 36px; padding: 0 12px; }
+    body.ui-modern .modern-search input { font-size: 14px; }
+    body.ui-modern .modern-list-title { font-size: 14px; }
+    body.ui-modern .friend-name { font-size: 14px; }
+    body.ui-modern .friend-preview,
+    body.ui-modern .friend-time { font-size: 12px; }
+    body.ui-modern .chat-header-title { font-size: 15px; }
+    body.ui-modern .chat-header-username { font-size: 11px; }
+    body.ui-modern .chat-header-avatar { width: 36px; height: 36px; }
+    body.ui-modern #chat-header-actions button { font-size: 18px; }
+    html body.ui-modern .chat[class] .bubble,
+    html body.ui-modern .chat[class] .message-left { font-size: 14px; }
+    html body.ui-modern .chat[class] .input-area textarea { font-size: 14px; }
+    html body.ui-modern .modern-composer-icons button { width: 32px; height: 32px; font-size: 18px; }
 }
 
 /* ======================================================

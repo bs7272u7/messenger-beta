@@ -106,11 +106,12 @@
     // 3) 내 사진 복사 (원본: #side-nav-profile-pic). 목록 머리에는 이름 대신 아이디가 서버에서 바로 그려진다.
     // ---------------------------------------------------------------
     const sourcePic = $("#side-nav-profile-pic");
-    const railAvatar = rail.querySelector(".modern-rail-avatar");
+    // PC 아이콘 줄과 모바일 하단 탭바의 프로필 아이콘은 같은 사진을 쓴다.
+    const railAvatars = document.querySelectorAll("#modern-rail .modern-rail-avatar, #mobile-bottom-nav .modern-rail-avatar");
 
     /** 프로필을 바꾸면 원본이 바뀌므로, 사진을 다시 복사한다. */
     function syncProfile() {
-        if (sourcePic && railAvatar) railAvatar.innerHTML = sourcePic.innerHTML;
+        if (sourcePic) railAvatars.forEach(function (avatar) { avatar.innerHTML = sourcePic.innerHTML; });
     }
     [sourcePic].forEach(function (node) {
         if (node) new MutationObserver(syncProfile).observe(node, { childList: true, characterData: true, subtree: true, attributes: true });
