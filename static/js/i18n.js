@@ -368,8 +368,6 @@
         "채팅방 고정": "Pin chat",
         "알림 끄기": "Mute notifications",
         "그룹 관리": "Manage group"
-        "내보내기": "Remove",
-        "나가기": "Leave",
     });
     // 위와 같은 묶음의 중국어 번역.
     Object.assign(dictionaries.zh, {
@@ -444,8 +442,6 @@
         "동영상을 보내지 못했습니다.": "无法发送视频。",
         "동영상을 보냈습니다.": "视频已发送。",
         "동영상 전송 중 문제가 발생했습니다.": "发送视频时出现问题。"
-        "내보내기": "移出",
-        "나가기": "退出",
     });
     // 위와 같은 묶음의 일본어 번역.
     Object.assign(dictionaries.ja, {
@@ -523,8 +519,6 @@
         "동영상을 보내지 못했습니다.": "動画を送信できませんでした。",
         "동영상을 보냈습니다.": "動画を送信しました。",
         "동영상 전송 중 문제가 발생했습니다.": "動画の送信中に問題が発生しました。"
-        "내보내기": "退出させる",
-        "나가기": "退出",
     });
     // 위와 같은 묶음의 스페인어 번역.
     Object.assign(dictionaries.es, {
@@ -598,8 +592,6 @@
         "동영상을 보내지 못했습니다.": "No se pudo enviar el vídeo.",
         "동영상을 보냈습니다.": "Vídeo enviado.",
         "동영상 전송 중 문제가 발생했습니다.": "Ocurrió un problema al enviar el vídeo."
-        "내보내기": "Expulsar",
-        "나가기": "Salir",
     });
     // 이용약관·개인정보처리방침 원문. 별도 페이지에서 열리므로 본문까지 같은 언어 규칙을 적용한다.
     Object.assign(dictionaries.en, {
@@ -1788,6 +1780,8 @@
         "사진은 10MB 이하만 보낼 수 있습니다.": "Photos must be 10 MB or smaller.",
         "동영상은 20MB 이하만 보낼 수 있습니다.": "Videos must be 20 MB or smaller.",
         "대화방이 바뀌어 첨부를 취소했습니다.": "Attachments were cleared because the chat changed.",
+        "내보내기": "Remove",
+        "나가기": "Leave",
     });
     Object.assign(dictionaries.zh, {
         "사진·동영상 보내기": "发送照片或视频",
@@ -1798,6 +1792,8 @@
         "사진은 10MB 이하만 보낼 수 있습니다.": "照片不能超过10MB。",
         "동영상은 20MB 이하만 보낼 수 있습니다.": "视频不能超过20MB。",
         "대화방이 바뀌어 첨부를 취소했습니다.": "聊天已切换，附件已取消。",
+        "내보내기": "移出",
+        "나가기": "退出",
     });
     Object.assign(dictionaries.ja, {
         "사진·동영상 보내기": "写真・動画を送る",
@@ -1808,6 +1804,8 @@
         "사진은 10MB 이하만 보낼 수 있습니다.": "写真は10MB以下にしてください。",
         "동영상은 20MB 이하만 보낼 수 있습니다.": "動画は20MB以下にしてください。",
         "대화방이 바뀌어 첨부를 취소했습니다.": "チャットが変わったため添付を取り消しました。",
+        "내보내기": "退出させる",
+        "나가기": "退出",
     });
     Object.assign(dictionaries.es, {
         "사진·동영상 보내기": "Enviar fotos o videos",
@@ -1818,6 +1816,8 @@
         "사진은 10MB 이하만 보낼 수 있습니다.": "Las fotos deben pesar 10 MB o menos.",
         "동영상은 20MB 이하만 보낼 수 있습니다.": "Los videos deben pesar 20 MB o menos.",
         "대화방이 바뀌어 첨부를 취소했습니다.": "Se cancelaron los adjuntos porque cambió el chat.",
+        "내보내기": "Expulsar",
+        "나가기": "Salir",
     });
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
     /**
