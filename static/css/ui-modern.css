@@ -845,9 +845,8 @@ body.ui-modern #modern-rail button.active .modern-rail-avatar { box-shadow: 0 0 
 @keyframes modern-rail-pop { 0% { transform: scale(.8); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
 body.ui-modern.modern-cloud:not(.dark-mode).modern-profile-page #modern-profile-page { background: transparent; }
 
-/* 왼쪽 메뉴의 '새 그룹', 목록 머리의 새 그룹(연필) 버튼, 목록 제목 옆의 '요청' 버튼은 PC·모바일 모두 숨긴다. */
+/* 왼쪽 메뉴의 '새 그룹'과 목록 제목 옆의 '요청' 버튼은 PC·모바일 모두 숨긴다(새 그룹은 목록 머리의 버튼으로 연다). */
 body.ui-modern #modern-rail [data-rail="group"],
-body.ui-modern .modern-list-header [data-rail="group"],
 body.ui-modern .modern-list-title [data-rail="inbox"] { display: none; }
 
 /* 모바일 하단 탭바의 메시지함 버튼: 모던에서만 보이고 숫자 배지를 아이콘 오른쪽 위에 붙인다.

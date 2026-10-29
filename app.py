@@ -2110,6 +2110,7 @@ def render_chat_page(profile_username=None, initial_page=None):
         "index.html",
         user_id=user_id,
         username=display_name,
+        account_username=user["username"],
         profile_image=profile_image,
         user_email=user["email"],
         user_language=session["language"],

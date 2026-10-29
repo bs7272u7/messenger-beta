@@ -103,19 +103,16 @@
     // ---------------------------------------------------------------
 
     // ---------------------------------------------------------------
-    // 3) 내 이름·사진 복사 (원본: #current-username, #side-nav-profile-pic)
+    // 3) 내 사진 복사 (원본: #side-nav-profile-pic). 목록 머리에는 이름 대신 아이디가 서버에서 바로 그려진다.
     // ---------------------------------------------------------------
-    const sourceName = $("#current-username");
-    const modernName = $("#modern-list-username");
     const sourcePic = $("#side-nav-profile-pic");
     const railAvatar = rail.querySelector(".modern-rail-avatar");
 
-    /** 프로필을 바꾸면 원본이 바뀌므로, 이름과 사진을 다시 복사한다. */
+    /** 프로필을 바꾸면 원본이 바뀌므로, 사진을 다시 복사한다. */
     function syncProfile() {
-        if (sourceName && modernName) modernName.textContent = sourceName.textContent;
         if (sourcePic && railAvatar) railAvatar.innerHTML = sourcePic.innerHTML;
     }
-    [sourceName, sourcePic].forEach(function (node) {
+    [sourcePic].forEach(function (node) {
         if (node) new MutationObserver(syncProfile).observe(node, { childList: true, characterData: true, subtree: true, attributes: true });
     });
     syncProfile();
