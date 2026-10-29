@@ -2110,7 +2110,7 @@
                 const avatarImg = getConversationAvatar(friend);
 
                 newFriend.innerHTML = `
-                    <div class="profile ${friend.isGroup ? "" : "friend-profile-trigger"}" ${friend.isGroup ? "" : 'role="button" tabindex="0" aria-label="상대방 프로필 보기"'}>
+                    <div class="profile">
                         <img src="${avatarImg}" alt="Profile Image">
                     </div>
                     <div style="flex:1; min-width:0;">
@@ -2128,21 +2128,6 @@
                     event.stopPropagation();
                     if (window.openModernRowMenu) window.openModernRowMenu(friend, event.currentTarget);
                 });
-                // 1:1 대화방은 프로필 사진을 눌러 상대 프로필 카드를 열 수 있다(키보드 Enter/Space 지원). 그룹은 해당 없음.
-                if (!friend.isGroup) {
-                    const profileTrigger = newFriend.querySelector(".friend-profile-trigger");
-                    const openFriendProfile = function (event) {
-                        event.stopPropagation();
-                        openProfileCard(friend);
-                    };
-                    profileTrigger.addEventListener("click", openFriendProfile);
-                    profileTrigger.addEventListener("keydown", function (event) {
-                        if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            openFriendProfile(event);
-                        }
-                    });
-                }
                 friendList.appendChild(newFriend);
             });
         }
