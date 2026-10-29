@@ -1000,3 +1000,37 @@ body.ui-modern .modern-delete button {
 body.ui-modern .modern-delete button:hover { background: var(--friend-hover); }
 body.ui-modern .modern-delete .md-danger { color: #ff3040; }
 body.ui-modern .modern-delete .md-cancel { color: var(--modal-text); }
+
+/* 공용 확인·알림 팝업(#modal-overlay): 대화 삭제 팝업과 같은 모양. 문구 아래에 구분선으로 나뉜 전체 폭 버튼이 위(확인)·아래(취소)로 쌓인다.
+   삭제·차단 같은 확인은 .is-danger로 확인 버튼이 빨갛게 보인다. */
+body.ui-modern #modal-overlay .modal-box {
+    width: min(560px, calc(100vw - 32px));
+    max-width: none;
+    min-width: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 0;
+    border-radius: 20px;
+    background: var(--modal-bg);
+    color: var(--modal-text);
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+}
+body.ui-modern #modal-overlay .modal-message { margin: 0; padding: 30px 40px 28px; font-size: 18px; font-weight: 700; line-height: 26px; }
+body.ui-modern #modal-overlay .modal-buttons { flex-direction: column-reverse; gap: 0; }
+body.ui-modern #modal-overlay .modal-buttons button {
+    width: 100%;
+    height: 48px;
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--modal-line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--modal-text);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+}
+body.ui-modern #modal-overlay .modal-buttons button:hover { background: var(--friend-hover); }
+body.ui-modern #modal-overlay.is-danger .modal-buttons .modal-confirm { color: #ff3040; }
