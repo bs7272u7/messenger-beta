@@ -1782,6 +1782,7 @@
         "대화방이 바뀌어 첨부를 취소했습니다.": "Attachments were cleared because the chat changed.",
         "내보내기": "Remove",
         "나가기": "Leave",
+        "메시지가 없어요": "No messages yet",
     });
     Object.assign(dictionaries.zh, {
         "사진·동영상 보내기": "发送照片或视频",
@@ -1794,6 +1795,7 @@
         "대화방이 바뀌어 첨부를 취소했습니다.": "聊天已切换，附件已取消。",
         "내보내기": "移出",
         "나가기": "退出",
+        "메시지가 없어요": "还没有消息",
     });
     Object.assign(dictionaries.ja, {
         "사진·동영상 보내기": "写真・動画を送る",
@@ -1806,6 +1808,7 @@
         "대화방이 바뀌어 첨부를 취소했습니다.": "チャットが変わったため添付を取り消しました。",
         "내보내기": "退出させる",
         "나가기": "退出",
+        "메시지가 없어요": "メッセージはありません",
     });
     Object.assign(dictionaries.es, {
         "사진·동영상 보내기": "Enviar fotos o videos",
@@ -1818,6 +1821,7 @@
         "대화방이 바뀌어 첨부를 취소했습니다.": "Se cancelaron los adjuntos porque cambió el chat.",
         "내보내기": "Expulsar",
         "나가기": "Salir",
+        "메시지가 없어요": "No hay mensajes",
     });
     window.CloudI18n = { t, setLanguage, translatePage, getLanguage: () => language, supportedLanguages: [...supportedLanguages] };
     /**

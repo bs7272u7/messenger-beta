@@ -1055,3 +1055,6 @@ body.ui-modern #modal-overlay .modal-buttons button {
 }
 body.ui-modern #modal-overlay .modal-buttons button:hover { background: var(--friend-hover); }
 body.ui-modern #modal-overlay.is-danger .modal-buttons .modal-confirm { color: #ff3040; }
+
+/* 대화 목록이 비었을 때의 안내: 아이콘 없이 문구만, 굵기는 보통(500)으로. */
+body.ui-modern .empty-friends strong { font-weight: 500; }
