@@ -2949,6 +2949,17 @@
             setMobileNavActive(mobileSettingsNavBtn);
         });
 
+        // 모바일 설정 페이지: 뒤로 가기와 '프로필 편집'.
+        document.querySelector("#settings-page-back").addEventListener("click", function (event) {
+            event.stopPropagation();
+            closeSettingsMenu();
+            setMobileNavActive(mobileChatNavBtn);
+        });
+        document.querySelector("#settings-profile-edit-item").addEventListener("click", function () {
+            closeSettingsMenu();
+            openProfileEditor();
+        });
+
         // 설정 메뉴 바깥을 누르면 메뉴를 닫는다.
         document.addEventListener("click", function (event) {
             if (!settingsMenu.contains(event.target) && !sideNavSettings.contains(event.target) && !mobileSettingsNavBtn.contains(event.target)) {
