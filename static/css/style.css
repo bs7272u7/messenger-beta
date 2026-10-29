@@ -2274,9 +2274,11 @@
             display: flex;
             justify-content: space-between;
             font-weight: bold;
-            color: #4a90e2;
+            color: var(--text-color); /* 라이트에서는 검정, 다크에서는 흰색으로 읽히게 글자색을 따른다 */
             margin-bottom: 5px;
         }
+
+        .reply-title i { margin-right: 6px; }
 
         .reply-text {
             color: #555;
