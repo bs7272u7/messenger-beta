@@ -1732,14 +1732,6 @@
                         : innerContent;
                 }
 
-                // 모바일에서 메시지를 옆으로 밀어 답장하는 동작(스와이프)을 위한 아이콘과 이벤트.
-                const swipeIcon = document.createElement("i");
-                swipeIcon.className = "fa-solid fa-reply swipe-reply-icon";
-                message.appendChild(swipeIcon);
-
-                message.addEventListener("mousedown", function (event) { startSwipe(event, message, chat); });
-                message.addEventListener("touchstart", function (event) { startSwipe(event, message, chat); }, { passive: true });
-
                 const image = message.querySelector(".chat-image");
                 if (image) {
                     image.addEventListener("click", function () {
@@ -4564,111 +4556,6 @@ async function sendVideo(file) {
         setTimeout(function () { input.focus(); }, 10);
     }
 }
-
-        // ============================================================
-        // 메시지 좌우 스와이프로 답장
-        // ============================================================
-        // 스와이프 상태: 시작 위치, 이동량, 대상 메시지 요소와 데이터. 60px 이상 밀면 답장으로 인식하고, 시각적으로는 최대 90px까지만 움직인다.
-        let swipeStartX = 0;
-        let swipeDeltaX = 0;
-        let swipeTarget = null;
-        let swipeChat = null;
-        const SWIPE_THRESHOLD = 60;
-        const SWIPE_MAX = 90;
-
-        /**
-         * 마우스와 터치 이벤트 모두에서 가로 좌표를 꺼낸다.
-         */
-        function getClientX(event) {
-            return event.touches ? event.touches[0].clientX : event.clientX;
-        }
-
-        /**
-         * 스와이프를 시작한다. 마우스는 왼쪽 버튼만 인정한다. 이동·종료 이벤트는 시작할 때만 문서에 붙이고 끝나면 뗀다.
-         */
-        function startSwipe(event, messageEl, chat) {
-            if (event.type === "mousedown" && event.button !== 0) return;
-
-            swipeTarget = messageEl;
-            swipeChat = chat;
-            swipeStartX = getClientX(event);
-            swipeDeltaX = 0;
-            swipeTarget.style.transition = "none";
-
-            document.addEventListener("mousemove", onSwipeMove);
-            document.addEventListener("mouseup", endSwipe);
-            document.addEventListener("touchmove", onSwipeMove, { passive: false });
-            document.addEventListener("touchend", endSwipe);
-        }
-
-        /**
-         * 손가락/마우스를 따라 메시지를 옆으로 움직이고, 밀린 정도에 따라 답장 아이콘을 서서히 보여 준다. 세로 스크롤과 충돌하지 않게 가로로 10px 넘게 움직이면 기본 스크롤을 막는다.
-         */
-        function onSwipeMove(event) {
-            if (!swipeTarget) return;
-
-            const currentX = getClientX(event);
-            let delta = currentX - swipeStartX;
-            delta = Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, delta));
-            swipeDeltaX = delta;
-
-            if (event.type === "touchmove" && Math.abs(delta) > 10) event.preventDefault();
-
-            swipeTarget.style.transform = `translateX(${delta}px)`;
-
-            const icon = swipeTarget.querySelector(".swipe-reply-icon");
-            if (icon) {
-                const progress = Math.min(Math.abs(delta) / SWIPE_THRESHOLD, 1);
-                icon.style.opacity = progress;
-
-                if (delta > 0) {
-                    icon.style.left = "-30px";
-                    icon.style.right = "auto";
-                } else if (delta < 0) {
-                    icon.style.right = "-30px";
-                    icon.style.left = "auto";
-                }
-            }
-        }
-
-        /**
-         * 스와이프를 끝낸다. 메시지를 원래 자리로 되돌리고, 기준(60px) 이상 밀었다면 그 메시지를 답장 대상으로 정한다.
-         */
-        function endSwipe() {
-            if (!swipeTarget) return;
-
-            swipeTarget.style.transition = "transform 0.2s ease";
-            swipeTarget.style.transform = "translateX(0)";
-
-            if (Math.abs(swipeDeltaX) >= SWIPE_THRESHOLD && swipeChat) {
-                replyMessage = swipeChat;
-                replyPreview.style.display = "block";
-
-                if (swipeChat.image) {
-                    replyText.style.display = "none";
-                    replyImage.style.display = "block";
-                    replyImage.src = swipeChat.image;
-                } else {
-                    replyImage.style.display = "none";
-                    replyText.style.display = "block";
-                    replyText.innerText = swipeChat.text;
-                }
-
-                input.focus();
-            }
-
-            const icon = swipeTarget.querySelector(".swipe-reply-icon");
-            if (icon) icon.style.opacity = 0;
-
-            swipeTarget = null;
-            swipeChat = null;
-            swipeDeltaX = 0;
-
-            document.removeEventListener("mousemove", onSwipeMove);
-            document.removeEventListener("mouseup", endSwipe);
-            document.removeEventListener("touchmove", onSwipeMove);
-            document.removeEventListener("touchend", endSwipe);
-        }
 
         // ============================================================
         // 실시간 이벤트 (Socket.IO)

@@ -1780,17 +1780,6 @@
         .message-link { color: var(--brand-color); text-decoration: underline; word-break: break-all; }
         .message-right .link-preview { align-self: flex-end; }
 
-        /* 메시지를 옆으로 밀 때 나타나는 답장 아이콘. 평소에는 투명하고, 밀린 정도에 따라 script.js가 투명도를 올린다. */
-        .swipe-reply-icon {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 16px;
-            color: #4a90e2;
-            opacity: 0;
-            pointer-events: none;
-        }
-
         /*
          * ============================================================
          * 모달(팝업 창)
