@@ -203,6 +203,7 @@
                 chatHeaderAvatar.innerHTML = `<i class="fa-solid fa-circle-user"></i>`;
                 chatHeaderAvatar.onclick = null;
                 chatHeaderMemberCount.style.display = "none";
+                chatHeaderUsername.hidden = true;
                 if (chatPanel) chatPanel.classList.add("no-conversation");
                 applyChatTheme(null);
                 desktopInfoName.innerText = window.CloudI18n ? window.CloudI18n.t("대화를 선택하세요") : "대화를 선택하세요";
@@ -241,6 +242,7 @@
 
                 chatHeaderAvatar.style.display = "inline";
                 chatHeaderMemberCount.innerText = friend.memberCount;
+                chatHeaderUsername.hidden = true;
             } else {
                 chatHeaderAvatar.innerHTML = friend.peerProfileImage
                 ? `<img src="${friend.peerProfileImage}">`
@@ -248,6 +250,9 @@
                 // 1:1 대화에서는 상대 사진을 누르면 프로필 카드가 열린다(보기 전용).
                 chatHeaderAvatar.onclick = function () { openProfileCard(friend); };
                 chatHeaderMemberCount.style.display = "none";
+                // 이름 밑에 상대 아이디를 작게 보여 준다.
+                chatHeaderUsername.textContent = friend.peerUsername || "";
+                chatHeaderUsername.hidden = !friend.peerUsername;
             }
         }
 
@@ -691,6 +696,7 @@
         const mobileSettingsNavBtn = document.querySelector("#mobile-settings-nav-btn");
         const chatHeaderAvatar = document.querySelector("#chat-header-avatar");
         const chatHeaderMemberCount = document.querySelector("#chat-header-member-count");
+        const chatHeaderUsername = document.querySelector("#chat-header-username");
         const blockBanner = document.querySelector("#block-banner");
         const conversationSummary = document.querySelector("#conversation-summary");
         const desktopInfoName = document.querySelector("#desktop-info-name");

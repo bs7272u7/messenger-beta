@@ -318,6 +318,10 @@ body.ui-modern .friend[hidden] { display: none; }
         box-shadow: none;
     }
     body.ui-modern .chat-header-title { font-size: 16px; font-weight: 700; }
+    /* 이름 밑에 작게 보이는 상대 아이디(1:1 대화에서만). */
+    body.ui-modern .chat-header-text { display: flex; flex-direction: column; min-width: 0; }
+    body.ui-modern .chat-header-username { margin-top: 2px; font-size: 12px; line-height: 1.2; color: var(--text-color); opacity: .5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    body.ui-modern .chat-header-username[hidden] { display: none; }
     /* 헤더에는 (i)만 남기고, 나머지 기능(채팅 테마·사진 모아보기·메시지 검색·그룹 관리)은 정보 패널로 옮겼다. */
     body.ui-modern #chat-header-actions .chat-secondary-action,
     body.ui-modern #chat-header-actions #search-toggle-btn { display: none !important; }
