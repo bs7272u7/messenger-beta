@@ -105,7 +105,11 @@ def create_follows_blueprint(
         except FollowServiceError as error:
             return error_response(error)
         notify_user(outcome.notify_user_id, "follow_updated", {})
-        return jsonify({"success": True})
+        if outcome.became_mutual:
+            # 맞팔이 되어 대화방이 열렸으므로 두 사람의 대화 목록을 새로 고치게 한다.
+            notify_user(outcome.notify_user_id, "friend_updated", {})
+            notify_user(session["user_id"], "friend_updated", {})
+        return jsonify({"success": True, "mutual": outcome.became_mutual})
 
     @follows_bp.route("/api/users/<int:user_id>/followers", methods=["GET"])
     @api_login_required
