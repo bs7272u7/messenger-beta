@@ -328,6 +328,20 @@ def handle_api_405(error):
     return error
 
 
+@app.errorhandler(psycopg2.OperationalError)
+@app.errorhandler(psycopg2.InterfaceError)
+def handle_database_unavailable(error):
+    """DB에 연결할 수 없을 때(DB 중단·만료, 연결 끊김 등) 503으로 알린다.
+
+    일반 서버 오류(500)와 같은 문구를 쓰면 DB 장애인지 코드 오류인지 화면에서 구분할 수 없어서 따로 처리한다.
+    """
+    app.logger.error("DB 연결 오류: %s: %s", type(error).__name__, str(error).strip()[:300])
+    message = "데이터베이스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": message}), 503
+    return message, 503
+
+
 @app.errorhandler(500)
 def handle_api_500(error):
     """처리되지 않은 서버 오류를 기록하고, API 경로에는 JSON 오류를 돌려준다.
